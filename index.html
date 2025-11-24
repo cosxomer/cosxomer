@@ -30,7 +30,7 @@
             --pomodoro-bg: #14161c;
             --pomodoro-accent: #f87171; 
             --logo-content: "ODAK VE BAŞARI YÖNETİMİ"; 
-            --logo-accent: #fbc02d; 
+            --logo-accent: #FFD700; /* ULTRA LÜKS ALTIN RENGİ */
             --task-bg: #272a33;
             --task-completed-bg: #383a47;
             --day-header-color: #e5e7eb;
@@ -42,8 +42,8 @@
             --theme-controls-bg: #272a33; 
 
             /* Geri Sayım Sayaç Renkleri (YENİ MODERN STİL) */
-            --countdown-bg: #14161c; /* Arka plan koyu */
-            --countdown-fill: #00bcd4; /* Göz alıcı Çerçeve rengi (CYAN) */
+            --countdown-bg: #14161c; 
+            --countdown-fill: #00bcd4; 
             --countdown-text: #ffffff;
             --countdown-shadow: rgba(0, 188, 212, 0.8);
         }
@@ -79,7 +79,7 @@
             --theme-controls-bg: #9ca3af; 
 
             --countdown-bg: #e5e7eb;
-            --countdown-fill: #dc2626; /* KIRMIZI */
+            --countdown-fill: #dc2626; 
             --countdown-text: #1f2937;
             --countdown-shadow: rgba(220, 38, 38, 0.6);
         }
@@ -115,7 +115,7 @@
             --theme-controls-bg: #fbcfe2; 
 
             --countdown-bg: #ffe4e1;
-            --countdown-fill: #4b0082; /* MOR */
+            --countdown-fill: #4b0082; 
             --countdown-text: #8b0000;
             --countdown-shadow: rgba(75, 0, 130, 0.6);
         }
@@ -151,7 +151,7 @@
             --theme-controls-bg: #34495e; 
 
             --countdown-bg: #34495e;
-            --countdown-fill: #3498db; /* MAVİ */
+            --countdown-fill: #3498db; 
             --countdown-text: #ffffff;
             --countdown-shadow: rgba(52, 152, 219, 0.8);
         }
@@ -217,7 +217,7 @@
             border-bottom: 2px solid var(--border-color);
         }
         
-        /* LÜKS BAŞLIK STİLİ */
+        /* LÜKS BAŞLIK STİLİ (YENİ - DAHA PARLAK VE KESKİN) */
         header h1 {
             font-size: 2.5em;
             font-weight: 900; 
@@ -230,25 +230,30 @@
         header h1::before {
              content: 'COSX ÖMER';
              display: block;
-             font-size: 2.2em;
+             font-size: 2.3em; /* Biraz daha büyütüldü */
              font-weight: 900; 
              font-family: 'Playfair Display', serif; 
-             font-style: italic; 
+             font-style: italic; /* İtalik vurgulandı */
              margin-bottom: 5px;
-             color: var(--logo-accent);
-             text-shadow: 0 0 15px var(--accent-glow); 
-             letter-spacing: 2px;
+             color: var(--logo-accent); /* Yeni Altın Rengi */
+             /* Ultra Lüks Parıltı Efekti */
+             text-shadow: 
+                0 0 5px rgba(255, 215, 0, 0.5), /* Hafif iç gölge */
+                0 0 20px rgba(255, 215, 0, 0.8), /* Güçlü dış parıltı */
+                0 0 30px rgba(255, 215, 0, 0.5); 
+             letter-spacing: 3px; /* Harf aralığı artırıldı */
              line-height: 1;
         }
 
         header h1::after {
             content: var(--logo-content);
             display: block;
-            font-size: 0.6em;
-            margin-top: 5px;
-            font-weight: 400;
-            letter-spacing: 2px;
+            font-size: 0.65em; /* Biraz büyütüldü */
+            margin-top: 8px; /* Boşluk arttı */
+            font-weight: 500; /* Daha kalın */
+            letter-spacing: 3px; 
             color: var(--text-color); 
+            opacity: 0.7; /* Daha iyi kontrast */
         }
         
         /* HAFTALIK SÜRE GÖSTERİMİ GLOW */
@@ -345,24 +350,24 @@
         }
         
         /* ======================================= */
-        /* YKS GERİ SAYIM SAYACI STİLLERİ (YENİ YATAY VE ÜSTTE) */
+        /* YKS GERİ SAYIM SAYACI STİLLERİ (YATAY, ESTETİK VE YUVARLAK) */
         /* ======================================= */
         #yks-countdown-container {
-            width: 100%; /* Tam Genişlik */
-            padding: 20px 40px; /* Kenar boşluklarıyla uyumlu */
-            background-color: var(--header-bg); /* Üst çubuk ile uyumlu arkaplan */
+            width: 100%; 
+            padding: 20px 40px; 
+            background-color: var(--header-bg); 
             border-bottom: 2px solid var(--border-color);
             display: flex;
-            justify-content: center; /* Ortala */
+            justify-content: center; 
             align-items: center;
-            gap: 30px; /* Sayıcılar arası boşluk */
+            gap: 30px; 
         }
         
         #yks-countdown-container h2 {
             font-size: 1.2em;
             font-weight: 900;
             color: var(--logo-accent);
-            text-shadow: 0 0 10px rgba(251, 192, 45, 0.5);
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.6);
             padding-right: 30px;
             border-right: 1px solid var(--border-color);
             line-height: 1.2;
@@ -380,12 +385,15 @@
         }
 
         .countdown-item {
-            width: 90px; /* Daha küçük kare boyut */
-            height: 90px; 
+            width: 80px; /* Daha küçük ve dengeli boyut */
+            height: 80px; 
             position: relative;
             display: flex;
             justify-content: center;
             align-items: center;
+            /* Kesin yuvarlaklık ve taşma engeli */
+            overflow: hidden; 
+            border-radius: 50%; 
         }
         
         .countdown-svg {
@@ -401,14 +409,14 @@
         .countdown-circle-bg {
             fill: none;
             stroke: var(--countdown-bg);
-            stroke-width: 8; 
+            stroke-width: 6; /* Kalınlık azaltıldı, taşmayı engeller */
         }
         
         /* Doluluk çemberi - akıcı animasyon için */
         .countdown-circle-fill {
             fill: none;
             stroke: var(--countdown-fill);
-            stroke-width: 6; 
+            stroke-width: 5; /* Kalınlık azaltıldı */
             stroke-linecap: round; 
             transition: stroke-dashoffset 0.9s linear; 
             filter: drop-shadow(0 0 3px var(--countdown-shadow)); 
@@ -422,7 +430,7 @@
         
         .countdown-value strong {
             display: block;
-            font-size: 2.2em; /* Yazı boyutu küçültüldü */
+            font-size: 2.0em; /* Yazı boyutu ayarlandı */
             font-weight: 900;
             line-height: 1;
             text-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
@@ -430,7 +438,7 @@
         
         .countdown-value span {
             display: block;
-            font-size: 0.7em;
+            font-size: 0.65em;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 1px;
@@ -682,9 +690,9 @@
             
             <div class="countdown-group">
                 <div class="countdown-item">
-                    <svg class="countdown-svg" viewBox="0 0 70 70">
-                        <circle class="countdown-circle-bg" cx="35" cy="35" r="30"></circle>
-                        <circle id="days-circle" class="countdown-circle-fill" cx="35" cy="35" r="30"></circle>
+                    <svg class="countdown-svg" viewBox="0 0 80 80">
+                        <circle class="countdown-circle-bg" cx="40" cy="40" r="35"></circle>
+                        <circle id="days-circle" class="countdown-circle-fill" cx="40" cy="40" r="35"></circle>
                     </svg>
                     <div class="countdown-value">
                         <strong id="days-value">0</strong>
@@ -693,9 +701,9 @@
                 </div>
                 
                 <div class="countdown-item">
-                    <svg class="countdown-svg" viewBox="0 0 70 70">
-                        <circle class="countdown-circle-bg" cx="35" cy="35" r="30"></circle>
-                        <circle id="hours-circle" class="countdown-circle-fill" cx="35" cy="35" r="30"></circle>
+                    <svg class="countdown-svg" viewBox="0 0 80 80">
+                        <circle class="countdown-circle-bg" cx="40" cy="40" r="35"></circle>
+                        <circle id="hours-circle" class="countdown-circle-fill" cx="40" cy="40" r="35"></circle>
                     </svg>
                     <div class="countdown-value">
                         <strong id="hours-value">00</strong>
@@ -704,9 +712,9 @@
                 </div>
                 
                 <div class="countdown-item">
-                    <svg class="countdown-svg" viewBox="0 0 70 70">
-                        <circle class="countdown-circle-bg" cx="35" cy="35" r="30"></circle>
-                        <circle id="minutes-circle" class="countdown-circle-fill" cx="35" cy="35" r="30"></circle>
+                    <svg class="countdown-svg" viewBox="0 0 80 80">
+                        <circle class="countdown-circle-bg" cx="40" cy="40" r="35"></circle>
+                        <circle id="minutes-circle" class="countdown-circle-fill" cx="40" cy="40" r="35"></circle>
                     </svg>
                     <div class="countdown-value">
                         <strong id="minutes-value">00</strong>
@@ -715,9 +723,9 @@
                 </div>
                 
                 <div class="countdown-item">
-                    <svg class="countdown-svg" viewBox="0 0 70 70">
-                        <circle class="countdown-circle-bg" cx="35" cy="35" r="30"></circle>
-                        <circle id="seconds-circle" class="countdown-circle-fill" cx="35" cy="35" r="30"></circle>
+                    <svg class="countdown-svg" viewBox="0 0 80 80">
+                        <circle class="countdown-circle-bg" cx="40" cy="40" r="35"></circle>
+                        <circle id="seconds-circle" class="countdown-circle-fill" cx="40" cy="40" r="35"></circle>
                     </svg>
                     <div class="countdown-value">
                         <strong id="seconds-value">00</strong>
@@ -771,7 +779,7 @@
     
     <script>
         // =======================================
-        // JS GLOBAL AYARLAR (v9.94)
+        // JS GLOBAL AYARLAR (v9.95)
         // =======================================
         
         const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
@@ -795,8 +803,8 @@
         let musicVolume = parseInt(localStorage.getItem('musicVolume') || '15');
         
         // YKS Sayaç Değişkenleri
-        // Yarıçap (r=30) kullanıldı. Çevre: 2 * Math.PI * r
-        const YKS_CIRCUMFERENCE = 2 * Math.PI * 30; 
+        // Yarıçap (r=35) kullanıldı. Çevre: 2 * Math.PI * r
+        const YKS_CIRCUMFERENCE = 2 * Math.PI * 35; 
         let yksInterval = null;
 
         // =======================================
