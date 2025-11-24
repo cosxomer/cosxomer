@@ -779,7 +779,7 @@
     
     <script>
         // =======================================
-        // JS GLOBAL AYARLAR (v9.95)
+        // JS GLOBAL AYARLAR (v9.96)
         // =======================================
         
         const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
@@ -869,9 +869,11 @@
             // YENİ: YKS Sayacını Başlat
             startYksCountdown();
 
-            document.getElementById('study-hours').addEventListener('input', updateTimerFromInputsAndReset);
-            document.getElementById('study-minutes').addEventListener('input', updateTimerFromInputsAndReset);
-            document.getElementById('study-seconds').addEventListener('input', updateTimerFromInputsAndReset);
+            // *** POMODORO FIX: Input eventleri artık 'blur' (odak kaybetme) ile çalışacak ***
+            // Böylece yazı yazarken kesilme yaşanmayacak.
+            document.getElementById('study-hours').addEventListener('blur', updateTimerFromInputsAndReset);
+            document.getElementById('study-minutes').addEventListener('blur', updateTimerFromInputsAndReset);
+            document.getElementById('study-seconds').addEventListener('blur', updateTimerFromInputsAndReset);
 
             document.addEventListener('click', function(e) {
                 if (currentOpenForm && 
@@ -1251,6 +1253,7 @@
             const taskIndex = tasks.findIndex(t => t.text === text);
             if (taskIndex !== -1) {
                 tasks[taskIndex].completed = completed;
+                tasks[taskIndex].completedTime = completed ? Date.now() : null; 
                 saveTasks(dayIndex, tasks); 
             }
         }
@@ -1438,14 +1441,27 @@
             const minutes = getInputValue('study-minutes');
             const seconds = getInputValue('study-seconds');
             
-            const newInitialSeconds = (hours * 3600) + (minutes * 60) + seconds;
+            // Input değerlerini 0-99 aralığında tutmak için güvenli bir giriş kontrolü
+            const safeHours = Math.max(0, Math.min(99, hours));
+            const safeMinutes = Math.max(0, Math.min(59, minutes));
+            const safeSeconds = Math.max(0, Math.min(59, seconds));
+
+            // Input alanlarını düzeltilmiş değerlerle güncelle (Sadece blur event'inde!)
+            document.getElementById('study-hours').value = safeHours;
+            document.getElementById('study-minutes').value = safeMinutes;
+            document.getElementById('study-seconds').value = safeSeconds;
+            
+            const newInitialSeconds = (safeHours * 3600) + (safeMinutes * 60) + safeSeconds;
             initialSeconds = Math.max(0, newInitialSeconds);
         }
 
         function updateTimerFromInputsAndReset() {
-            if (isTimerRunning) return; 
-            updateTimerFromInputs();
-            resetTimer(true, false); 
+            // Sadece zamanlayıcı çalışmıyorsa veya duraklatılmışsa süreyi günceller ve sıfırlar
+            if (!isTimerRunning || isPaused) { 
+                updateTimerFromInputs();
+                // isPaused false'a ayarlanmaz, böylece ayar yaparken sıfırla düğmesi gibi davranmaz.
+                resetTimer(true, false); 
+            }
             savePomodoroState();
         }
 
@@ -1513,6 +1529,7 @@
         }
 
         function startTimer() {
+            // Başlat butonuna basıldığında da süreyi kontrol et
             updateTimerFromInputs(); 
             
             if (initialSeconds <= 0) {
