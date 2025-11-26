@@ -1,0 +1,2114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>COSX ÖMER DERS ÇİZELGESİ - LUXURY PRO</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&family=Playfair+Display:ital,wght@1,700;1,900&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ======================================= */
+        /* TEMEL STİLLER VE TEMA DEĞİŞKENLERİ */
+        /* ======================================= */
+        :root {
+            /* Varsayılan Tema (LUXURY DARK MODE) */
+            --bg-color: #0d0e14; 
+            --container-bg: #1e2029; 
+            --header-bg: #14161c; 
+            --header-text: #ffffff;
+            --text-color: #c9d1d9; 
+            --border-color: #383a47;
+            --day-bg: #1e2029; 
+            --accent-color: #bb86fc; 
+            --accent-glow: rgba(187, 134, 252, 0.7);
+            --button-bg: #30363d; 
+            --button-hover: #40454c;
+            --progress-bg: #30363d;
+            --progress-fill: #bb86fc;
+            --progress-complete: #fbc02d; 
+            --pomodoro-bg: #14161c;
+            --pomodoro-accent: #f87171; 
+            --logo-content: "ODAK VE BAŞARI YÖNETİMİ";
+            --logo-accent: #FFD700; 
+            --task-bg: #272a33;
+            --task-completed-bg: #383a47;
+            --day-header-color: #e5e7eb;
+            --task-text-color: #ffffff;
+            --theme-icon-color: #c9d1d9;
+            --day-border: 1px solid #383a47; 
+            --instagram-bg: #30363d;
+            --instagram-text: #c9d1d9;
+            --theme-controls-bg: #272a33;
+            --countdown-bg: #14161c;
+            --countdown-fill: #00bcd4; 
+            --countdown-text: #ffffff;
+            --countdown-shadow: rgba(0, 188, 212, 0.8);
+        }
+        
+        /* Tema Değişimi */
+        .light-mode {
+            /* Light Mode Değişkenleri... */
+            --bg-color: #f7f7f7;
+            --container-bg: #ffffff;
+            --header-bg: #e5e7eb;
+            --header-text: #1f2937;
+            --text-color: #374151;
+            --border-color: #d1d5db;
+            --day-bg: #ffffff;
+            --accent-color: #4f46e5;
+            --accent-glow: rgba(79, 70, 229, 0.4);
+            --button-bg: #e5e7eb;
+            --button-hover: #d1d5db;
+            --progress-bg: #e5e7eb;
+            --progress-fill: #4f46e5;
+            --progress-complete: #059669;
+            --pomodoro-bg: #e5e7eb;
+            --pomodoro-accent: #ef4444;
+            --logo-content: "ODAK VE BAŞARI YÖNETİMİ";
+            --logo-accent: #4f46e5;
+            --task-bg: #f9fafb;
+            --task-completed-bg: #e5e7eb;
+            --day-header-color: #1f2937;
+            --task-text-color: #1f2937;
+            --theme-icon-color: #1f2937;
+            --day-border: 1px solid #d1d5db;
+            --instagram-bg: #e5e7eb;
+            --instagram-text: #374151;
+            --theme-controls-bg: #ffffff;
+            --countdown-bg: #e5e7eb;
+            --countdown-fill: #10b981;
+            --countdown-text: #1f2937;
+            --countdown-shadow: rgba(16, 185, 129, 0.6);
+        }
+
+        .kitty-mode {
+            /* Kitty Mode Değişkenleri... */
+            --bg-color: #fee2e2;
+            --container-bg: #ffffff;
+            --header-bg: #fecaca;
+            --header-text: #9f1239;
+            --text-color: #4b5563;
+            --border-color: #fecaca;
+            --day-bg: #ffffff;
+            --accent-color: #fb7185;
+            --accent-glow: rgba(251, 113, 133, 0.7);
+            --button-bg: #fecaca;
+            --button-hover: #fca5a5;
+            --progress-bg: #fecaca;
+            --progress-fill: #f472b6;
+            --progress-complete: #10b981;
+            --pomodoro-bg: #fecaca;
+            --pomodoro-accent: #ef4444;
+            --logo-content: "ODAK VE BAŞARI YÖNETİMİ";
+            --logo-accent: #fb7185;
+            --task-bg: #fff1f2;
+            --task-completed-bg: #fecaca;
+            --day-header-color: #9f1239;
+            --task-text-color: #1f2937;
+            --theme-icon-color: #9f1239;
+            --day-border: 1px solid #fca5a5;
+            --instagram-bg: #fecaca;
+            --instagram-text: #9f1239;
+            --theme-controls-bg: #ffffff;
+            --countdown-bg: #fecaca;
+            --countdown-fill: #f472b6;
+            --countdown-text: #9f1239;
+            --countdown-shadow: rgba(244, 114, 182, 0.6);
+        }
+
+        .spiderman-mode {
+            /* Spiderman Mode Değişkenleri... */
+            --bg-color: #1c1c1c;
+            --container-bg: #2c2c2c;
+            --header-bg: #3b3b3b;
+            --header-text: #ffffff;
+            --text-color: #e5e7eb;
+            --border-color: #4f4f4f;
+            --day-bg: #2c2c2c;
+            --accent-color: #ef4444; /* Kırmızı */
+            --accent-glow: rgba(239, 68, 68, 0.7);
+            --button-bg: #4b4b4b;
+            --button-hover: #5a5a5a;
+            --progress-bg: #4b4b4b;
+            --progress-fill: #3b82f6; /* Mavi */
+            --progress-complete: #10b981;
+            --pomodoro-bg: #3b3b3b;
+            --pomodoro-accent: #facc15; /* Sarı */
+            --logo-content: "ODAK VE BAŞARI YÖNETİMİ";
+            --logo-accent: #ef4444;
+            --task-bg: #3b3b3b;
+            --task-completed-bg: #4b4b4b;
+            --day-header-color: #ffffff;
+            --task-text-color: #ffffff;
+            --theme-icon-color: #ffffff;
+            --day-border: 1px solid #4f4f4f;
+            --instagram-bg: #4b4b4b;
+            --instagram-text: #e5e7eb;
+            --theme-controls-bg: #2c2c2c;
+            --countdown-bg: #3b3b3b;
+            --countdown-fill: #3b82f6;
+            --countdown-text: #ffffff;
+            --countdown-shadow: rgba(59, 130, 246, 0.6);
+        }
+        
+        /* ======================================= */
+        /* GENEL STİLLER */
+        /* ======================================= */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s, box-shadow 0.3s;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 0;
+            flex-grow: 1;
+        }
+
+        /* ======================================= */
+        /* HEADER STİLİ */
+        /* ======================================= */
+        header {
+            background-color: var(--header-bg);
+            padding: 20px 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        header h1 {
+            color: var(--logo-accent);
+            font-size: 1.8em;
+            font-weight: 900;
+        }
+
+        header h1::before {
+            content: var(--logo-content);
+            font-family: 'Playfair Display', serif;
+            font-style: italic;
+            font-weight: 700;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 15px;
+            font-weight: 600;
+            font-size: 0.9em;
+            color: var(--header-text);
+        }
+        
+        #instagram-link {
+            color: var(--instagram-text);
+            text-decoration: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            background-color: var(--instagram-bg);
+            font-size: 0.9em;
+            transition: background-color 0.2s;
+        }
+        
+        #instagram-link:hover {
+            background-color: var(--accent-color);
+            color: var(--header-text);
+        }
+
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            background-color: var(--button-bg);
+            color: var(--header-text);
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        button:hover {
+            background-color: var(--button-hover);
+        }
+
+        .pomodoro-btn {
+            background-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .pomodoro-btn:hover {
+            background-color: var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-glow);
+            transform: translateY(-2px);
+        }
+        
+        /* Tema Kontrolleri */
+        .theme-controls {
+            display: flex;
+            background-color: var(--theme-controls-bg);
+            border-radius: 8px;
+            padding: 5px;
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .theme-button {
+            background: none;
+            border: none;
+            padding: 8px;
+            color: var(--theme-icon-color);
+            font-size: 1.1em;
+            border-radius: 6px;
+        }
+        
+        .theme-button.active, .theme-button:hover {
+            background-color: var(--accent-color);
+            color: var(--header-text);
+            box-shadow: 0 2px 5px var(--accent-glow);
+        }
+
+        /* ======================================= */
+        /* YKS GERİ SAYIM STİLİ */
+        /* ======================================= */
+        #yks-countdown-container {
+            padding: 20px 40px;
+            background-color: var(--countdown-bg);
+            margin: 20px 40px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .countdown-header {
+            font-size: 1.5em;
+            font-weight: 700;
+            color: var(--logo-accent);
+            margin-bottom: 20px;
+            text-shadow: 0 0 5px var(--countdown-shadow);
+        }
+
+        .countdown-grid {
+            display: flex;
+            gap: 30px;
+            justify-content: center;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .countdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .countdown-svg {
+            width: 60px;  /* DÜZELTME: Çember boyutu */
+            height: 60px; /* DÜZELTME: Çember boyutu */
+            transform: rotate(-90deg);
+        }
+
+        .countdown-track, .countdown-fill {
+            fill: none;
+            stroke-width: 10;
+            transition: stroke-dashoffset 0.5s;
+        }
+
+        .countdown-track {
+            stroke: var(--border-color);
+            opacity: 0.5;
+        }
+
+        .countdown-fill {
+            stroke: var(--countdown-fill);
+            stroke-linecap: round;
+        }
+
+        .countdown-value {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.1em;
+            font-weight: 700;
+            color: var(--countdown-text);
+        }
+
+        .countdown-label {
+            margin-top: 5px;
+            font-size: 0.8em;
+            color: var(--text-color);
+        }
+
+        #yks-target-date {
+            font-size: 0.9em;
+            color: var(--text-color);
+            font-style: italic;
+        }
+
+        /* ======================================= */
+        /* ÇİZELGE GENEL STİLİ */
+        /* ======================================= */
+        .main-content {
+            padding: 0 40px 40px 40px;
+        }
+
+        #schedule-container {
+            margin-top: 20px;
+        }
+
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 20px;
+        }
+
+        /* ======================================= */
+        /* GÜN HÜCRESİ STİLİ */
+        /* ======================================= */
+        .day-cell {
+            background-color: var(--day-bg);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            border: var(--day-border);
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            transition: box-shadow 0.2s, background-color 0.2s;
+        }
+        
+        .day-cell.current-day {
+            box-shadow: 0 0 15px var(--accent-glow);
+            border-color: var(--accent-color);
+        }
+
+        .day-header {
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .day-header h2 {
+            font-size: 1.2em;
+            color: var(--day-header-color);
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .day-date {
+            font-size: 0.8em;
+            color: var(--text-color);
+        }
+
+        /* ======================================= */
+        /* İLERLEME ÇUBUĞU STİLİ */
+        /* ======================================= */
+        .progress-bar-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            flex-grow: 1;
+            height: 8px;
+            background-color: var(--progress-bg);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background-color: var(--progress-fill);
+            transition: width 0.5s;
+        }
+        
+        .progress-fill.complete {
+            background-color: var(--progress-complete);
+        }
+
+        .progress-percent {
+            font-size: 0.8em;
+            font-weight: 600;
+            color: var(--text-color);
+            width: 30px; 
+            text-align: right;
+        }
+        
+        .study-score {
+            margin-top: auto;
+            padding-top: 10px;
+            border-top: 1px dashed var(--border-color);
+            font-size: 0.9em;
+            font-weight: 600;
+            color: var(--accent-color);
+        }
+
+        /* ======================================= */
+        /* GÖREV LİSTESİ STİLİ */
+        /* ======================================= */
+        .task-management {
+            margin-bottom: 15px;
+        }
+
+        .add-task-btn {
+            width: 100%;
+            padding: 8px;
+            font-size: 0.9em;
+            background-color: var(--button-bg);
+        }
+        
+        .task-list {
+            list-style: none;
+            padding: 0;
+            margin-bottom: 15px;
+            min-height: 150px;
+        }
+        
+        .task-list.drag-over {
+            border: 2px dashed var(--accent-color);
+            background-color: rgba(187, 134, 252, 0.1);
+            border-radius: 8px;
+        }
+
+        .task-item {
+            background-color: var(--task-bg);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            cursor: grab;
+            border-left: 5px solid var(--accent-color);
+        }
+        
+        .task-item.dragging {
+            opacity: 0.4;
+        }
+        
+        .task-item.completed {
+            border-left-color: var(--progress-complete);
+            background-color: var(--task-completed-bg);
+            opacity: 0.7;
+            text-decoration: line-through;
+        }
+
+        .task-content-wrapper {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            color: var(--task-text-color);
+        }
+        
+        .task-text-content {
+            flex-grow: 1;
+            margin-left: 10px;
+        }
+        
+        .task-actions {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .task-checkbox {
+            margin-right: 5px;
+            transform: scale(1.2);
+        }
+        
+        .task-item button {
+            background: none;
+            border: none;
+            padding: 5px;
+            cursor: pointer;
+            color: var(--accent-color);
+            font-size: 1em;
+        }
+        
+        .task-item button:hover {
+            opacity: 0.8;
+        }
+        
+        .delete-btn {
+            color: var(--pomodoro-accent) !important;
+        }
+
+        .add-task-form-container {
+            display: none;
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--task-bg);
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-task-form-container input {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: var(--day-bg);
+            color: var(--text-color);
+        }
+
+        .form-actions button {
+            padding: 8px 12px;
+            margin-right: 10px;
+            font-size: 0.9em;
+        }
+
+        /* ======================================= */
+        /* MODAL STİLİ (Pomodoro ve Diğer) */
+        /* ======================================= */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none; /* Varsayılan olarak gizli */
+            justify-content: center;
+            align-items: center;
+            z-index: 5000;
+        }
+
+        .pomodoro-modal-content {
+            background-color: var(--pomodoro-bg);
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            border: 2px solid var(--pomodoro-accent);
+        }
+
+        .pomodoro-modal-content h2 {
+            color: var(--pomodoro-accent);
+            margin-bottom: 20px;
+        }
+
+        .timer-display {
+            font-size: 3.5em;
+            font-weight: 800;
+            color: var(--header-text);
+            margin-bottom: 25px;
+            letter-spacing: 2px;
+        }
+        
+        .time-inputs {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .time-inputs input {
+            width: 60px;
+            padding: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--day-bg);
+            color: var(--text-color);
+            font-size: 1.1em;
+            -moz-appearance: textfield; /* Firefox'taki okları kaldırır */
+        }
+        
+        .time-inputs input::-webkit-outer-spin-button,
+        .time-inputs input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        
+        .time-inputs span {
+            color: var(--text-color);
+            font-weight: 600;
+        }
+
+        .timer-controls button {
+            padding: 12px 20px;
+            margin: 5px;
+            font-size: 1em;
+            font-weight: 700;
+        }
+
+        #timer-control-btn {
+            background-color: var(--accent-color);
+            color: var(--header-text);
+        }
+        
+        .music-controls {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .music-controls label {
+            font-weight: 600;
+            color: var(--text-color);
+            margin-bottom: 5px;
+        }
+        
+        .music-controls input[type="range"] {
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
+        .music-controls button, .music-controls select {
+            width: 100%;
+            padding: 10px;
+            font-size: 0.9em;
+        }
+        
+        .close-modal-btn {
+            margin-top: 30px;
+            background: none;
+            color: var(--text-color);
+            font-size: 0.8em;
+            border: 1px solid var(--border-color);
+        }
+        
+        /* ======================================= */
+        /* YENİ GİRİŞ EKRANI STİLİ */
+        /* ======================================= */
+        .login-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg-color); 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10000; 
+            flex-direction: column;
+            text-align: center;
+        }
+
+        .login-box {
+            background-color: var(--container-bg);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7);
+            width: 90%;
+            max-width: 400px;
+            border: 2px solid var(--accent-color);
+        }
+
+        .login-box h2 {
+            color: var(--logo-accent);
+            margin-bottom: 25px;
+            font-size: 2em;
+        }
+
+        .login-box input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background-color: var(--task-bg);
+            color: var(--text-color);
+            font-size: 1em;
+        }
+
+        .login-box button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            background-color: var(--accent-color);
+            color: var(--header-text);
+            font-size: 1.1em;
+        }
+        
+        .login-box .toggle-form {
+            margin-top: 20px;
+            color: var(--text-color);
+            cursor: pointer;
+        }
+        
+        .login-box .toggle-form:hover {
+            color: var(--accent-color);
+        }
+        
+        /* ======================================= */
+        /* RESPONSIVE DÜZELTMELER */
+        /* ======================================= */
+        @media (max-width: 1200px) {
+            .schedule-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+            header, .main-content, #yks-countdown-container {
+                padding: 15px 20px;
+                margin: 15px 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .schedule-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            header {
+                flex-direction: column;
+                gap: 15px;
+                align-items: flex-start;
+            }
+            .header-controls {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .header-stats {
+                order: 3;
+                width: 100%;
+                justify-content: center;
+            }
+            .theme-controls {
+                order: 1;
+            }
+            #instagram-link {
+                order: 2;
+            }
+            .pomodoro-btn, #logout-btn {
+                order: 4;
+                flex-grow: 1;
+            }
+            .countdown-grid {
+                gap: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .schedule-grid {
+                grid-template-columns: 1fr;
+            }
+            .countdown-grid {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .countdown-item {
+                width: 45%;
+                margin: 5px 0;
+            }
+            .countdown-svg {
+                width: 50px;
+                height: 50px;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    
+    <div id="login-screen" class="login-overlay">
+        <div class="login-box">
+            <h2 id="auth-title">KULLANICI GİRİŞİ</h2>
+            <input type="email" id="auth-email" placeholder="E-posta" required>
+            <input type="password" id="auth-password" placeholder="Şifre" required>
+            <button id="auth-submit-btn" onclick="handleAuthSubmit()">GİRİŞ YAP</button>
+            <p class="toggle-form" onclick="toggleAuthMode()">Hesabın yok mu? **Kayıt Ol**</p>
+            <p id="auth-error" style="color: var(--pomodoro-accent); margin-top: 15px; font-weight: 600;"></p>
+        </div>
+    </div>
+    
+    <div id="custom-alert" class="alert-box" style="position: fixed; top: -50px; left: 50%; transform: translateX(-50%); background-color: #ef4444; color: white; padding: 15px 30px; border-radius: 8px; box-shadow: 0 6px 15px rgba(0, 0, 0, 0.3); z-index: 2000; font-weight: 600; opacity: 0; transition: opacity 0.5s, top 0.5s;"></div> 
+    
+    <div class="container" id="app-container" style="display:none;">
+        <header>
+            <h1></h1>
+            <div class="header-controls">
+                <div class="theme-controls">
+                    <button class="theme-button active" id="default-btn" onclick="setTheme('default', this)" title="Luxury Dark Mode"><i class="fas fa-gem"></i></button>
+                    <button class="theme-button" id="light-btn" onclick="setTheme('light', this)" title="Classic Mode (Soft Gray)"><i class="fas fa-sun"></i></button>
+                    <button class="theme-button" id="kitty-btn" onclick="setTheme('kitty', this)" title="Hello Kitty Tema (Pink Edition)"><i class="fas fa-heart"></i></button>
+                    <button class="theme-button" id="spiderman-btn" onclick="setTheme('spiderman', this)" title="Spiderman Tema"><i class="fas fa-spider"></i></button>
+                </div>
+                
+                <a id="instagram-link" href="https://instagram.com/cosxomer" target="_blank" title="Instagram Profilim">
+                    <i class="fab fa-instagram"></i> /cosxomer
+                </a>
+
+                <div class="header-stats">
+                    <span id="weekly-total-time">HAFTA: 0 sa 0 dk</span>
+                    <span id="today-worked-time">BUGÜN: 0 dk</span>
+                </div>
+                
+                <button class="pomodoro-btn" onclick="showPomodoroModal()">🍅 Pomodoro Başlat</button>
+                <button id="logout-btn" onclick="handleLogout()" style="background-color: var(--pomodoro-accent);">ÇIKIŞ YAP</button>
+            </div>
+        </header>
+
+        <div class="week-nav" style="padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; background-color: var(--button-bg); color: var(--header-text); font-weight: 600;">
+            <button class="nav-btn" onclick="changeWeek(-1)" style="background: none; border: 1px solid var(--header-text);">⬅ Önceki Hafta</button>
+            <span id="week-info" style="font-weight: 900; color: var(--logo-accent);"></span>
+            <button class="nav-btn" onclick="changeWeek(1)" style="background: none; border: 1px solid var(--header-text);">Sonraki Hafta ➡</button>
+        </div>
+        
+        <div id="yks-countdown-container">
+            <div class="countdown-header">YKS TYT & AYT Geri Sayım</div>
+            <div class="countdown-grid">
+                <div class="countdown-item">
+                    <svg class="countdown-svg" viewBox="0 0 100 100">
+                        <circle class="countdown-track" cx="50" cy="50" r="45"></circle>
+                        <circle class="countdown-fill" id="days-circle" cx="50" cy="50" r="45"></circle>
+                    </svg>
+                    <span class="countdown-value" id="days-value">0</span>
+                    <span class="countdown-label">GÜN</span>
+                </div>
+                <div class="countdown-item">
+                    <svg class="countdown-svg" viewBox="0 0 100 100">
+                        <circle class="countdown-track" cx="50" cy="50" r="45"></circle>
+                        <circle class="countdown-fill" id="hours-circle" cx="50" cy="50" r="45"></circle>
+                    </svg>
+                    <span class="countdown-value" id="hours-value">00</span>
+                    <span class="countdown-label">SAAT</span>
+                </div>
+                <div class="countdown-item">
+                    <svg class="countdown-svg" viewBox="0 0 100 100">
+                        <circle class="countdown-track" cx="50" cy="50" r="45"></circle>
+                        <circle class="countdown-fill" id="minutes-circle" cx="50" cy="50" r="45"></circle>
+                    </svg>
+                    <span class="countdown-value" id="minutes-value">00</span>
+                    <span class="countdown-label">DAKİKA</span>
+                </div>
+                <div class="countdown-item">
+                    <svg class="countdown-svg" viewBox="0 0 100 100">
+                        <circle class="countdown-track" cx="50" cy="50" r="45"></circle>
+                        <circle class="countdown-fill" id="seconds-circle" cx="50" cy="50" r="45"></circle>
+                    </svg>
+                    <span class="countdown-value" id="seconds-value">00</span>
+                    <span class="countdown-label">SANİYE</span>
+                </div>
+            </div>
+            <p id="yks-target-date">Hedef: Belirleniyor...</p>
+        </div>
+        
+        <div class="main-content">
+            <div id="schedule-container">
+                <div class="schedule-grid">
+                    </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="pomodoro-modal" class="modal-overlay">
+        <div class="pomodoro-modal-content">
+            <h2>🍅 ODAK SÜRESİ BAŞLAT</h2>
+            <div class="timer-display" id="timer-display">00:25:00</div>
+            
+            <div class="time-inputs">
+                <input type="number" id="study-hours" value="0" min="0" max="99" placeholder="saat">
+                <span>sa</span>
+                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="dk">
+                <span>dk</span>
+                <input type="number" id="study-seconds" value="0" min="0" max="59" placeholder="sn">
+                <span>sn</span>
+            </div>
+            
+            <div class="timer-controls">
+                <button id="timer-control-btn" onclick="startTimer()">BAŞLAT</button>
+                <button onclick="resetTimer(true, true)" style="background-color: var(--button-bg);">SIFIRLA</button>
+                <button onclick="finishTimer(false)" style="background-color: var(--pomodoro-accent);">KAYDET & ÇIK</button>
+            </div>
+
+            <div class="music-controls">
+                <label for="music-volume">Fon Müziği Sesi:</label>
+                <input type="range" id="music-volume" min="0" max="100" value="15" oninput="changeMusicVolume(this.value)">
+                <button onclick="toggleMusic(this)" id="music-toggle-btn"><i class="fas fa-play"></i> Müzik Başlat</button>
+                <select id="music-select" onchange="changeMusicSource(this.value)">
+                    <option value="none">Müzik Yok</option>
+                    <option value="rain.mp3">Yağmur Sesi</option>
+                    <option value="lofi.mp3" selected>Lofi Beats (Varsayılan)</option>
+                </select>
+            </div>
+
+            <button class="close-modal-btn" onclick="hidePomodoroModal()">Kapat (ESC)</button>
+        </div>
+    </div>
+    
+    <audio id="audio-player" loop></audio>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore-compat.js"></script>
+    
+    <script>
+        // =======================================
+        // 🚨 KENDİ FIREBASE AYARLARINIZI BURAYA YAPIŞTIRIN! 🚨
+        // =======================================
+        const firebaseConfig = {
+            // LÜTFEN BU YERE KENDİ AYARLARINIZI YAPIŞTIRIN
+            apiKey: "AIzaSyAzNCtpGZdh4N2UtD-ZUp_KHS_US452COE", 
+            authDomain: "cosxomer-7fdec.firebaseapp.com",
+            projectId: "cosxomer-7fdec",
+            storageBucket: "cosxomer-7fdec.firebasestorage.app",
+            messagingSenderId: "853886482736",
+            appId: "1:853886482736:web:416abcaa2e3b92546830f5",
+            measurementId: "G-3C642C0HLJ"
+        };
+        // Firebase Uygulamasını Başlat
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let currentUser = null; 
+        let authMode = 'login'; 
+        
+        // =======================================
+        // JS GLOBAL AYARLAR 
+        // =======================================
+        
+        const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
+        let currentOpenForm = null;
+        let currentWeekOffset = 0;
+        let draggedItem = null;
+        // YKS Tarihinin doğru hesaplanması için başlangıç tarihi
+        const YKS_TYT_DATE = getNextYksDate(21, 5, 10, 0);
+        // Pomodoro Değişkenleri
+        let timerInterval = null;
+        let initialSeconds = 25 * 60;
+        let isPaused = false;
+        let isTimerRunning = false; 
+        let expectedTime = null;
+        let remainingTimeOnPause = initialSeconds * 1000; 
+
+        let audioPlayer;
+        let musicVolume = parseInt(localStorage.getItem('musicVolume') || '15');
+        
+        // YKS Sayaç Değişkenleri
+        const YKS_CIRCUMFERENCE = 2 * Math.PI * 45; // 45 yerine 35'i kullanıyorduk ama 45 de genelde dairenin yarıçapı, tutarlı olması için 45 yapıyorum. 
+        let yksInterval = null;
+
+        // =======================================
+        // GİRİŞ/KAYIT FONKSİYONLARI (Authentication)
+        // =======================================
+        
+        function toggleAuthMode() {
+            authMode = authMode === 'login' ? 'register' : 'login';
+            document.getElementById('auth-title').textContent = authMode === 'login' ? 'KULLANICI GİRİŞİ' : 'YENİ KAYIT OL';
+            document.getElementById('auth-submit-btn').textContent = authMode === 'login' ? 'GİRİŞ YAP' : 'KAYIT OL';
+            document.querySelector('.toggle-form').innerHTML = authMode === 'login' ? 'Hesabın yok mu? **Kayıt Ol**' : 'Zaten hesabın var mı? **Giriş Yap**';
+            document.getElementById('auth-error').textContent = '';
+        }
+
+        async function handleAuthSubmit() {
+            const email = document.getElementById('auth-email').value;
+            const password = document.getElementById('auth-password').value;
+            const errorElement = document.getElementById('auth-error');
+            errorElement.textContent = '';
+            if (!email || password.length < 6) {
+                errorElement.textContent = "Geçerli bir e-posta ve en az 6 haneli şifre girin.";
+                return;
+            }
+
+            try {
+                if (authMode === 'register') {
+                    await auth.createUserWithEmailAndPassword(email, password);
+                    showCustomAlert("Kayıt başarılı! Giriş yapılıyor...", '#10b981');
+                } else {
+                    await auth.signInWithEmailAndPassword(email, password);
+                    showCustomAlert("Giriş başarılı! Hoş geldin Ömer.", '#10b981');
+                }
+            } catch (error) {
+                let errorMessage;
+                switch (error.code) {
+                    case 'auth/user-not-found':
+                    case 'auth/wrong-password':
+                        errorMessage = "E-posta veya şifre hatalı.";
+                        break;
+                    case 'auth/email-already-in-use':
+                        errorMessage = "Bu e-posta zaten kullanımda.";
+                        break;
+                    default:
+                        errorMessage = "Bir hata oluştu: " + error.message;
+                }
+                errorElement.textContent = errorMessage;
+            }
+        }
+        
+        async function handleLogout() {
+            try {
+                await auth.signOut();
+            } catch (error) {
+                console.error("Çıkış yapma hatası:", error);
+                showCustomAlert("Çıkış yaparken bir sorun oluştu.", '#ef4444');
+            }
+        }
+
+        // =======================================
+        // UYGULAMA DURUMU VE BAŞLATMA
+        // =======================================
+        
+        // Uygulama yüklendiğinde çalışacak ana başlatma fonksiyonu
+        function initializeApp() {
+            createDayCells();
+            audioPlayer = document.getElementById('audio-player');
+            if (audioPlayer) audioPlayer.volume = musicVolume / 100;
+            loadTheme(); 
+            loadWeekFromURL();
+            renderSchedule();
+            // ASYNC Veri yükleme ve arayüz çizimi
+            loadPomodoroState();
+            startYksCountdown();
+            
+            // Pomodoro input dinleyicileri
+            const studyHours = document.getElementById('study-hours');
+            if(studyHours) studyHours.addEventListener('blur', updateTimerFromInputsAndReset);
+            const studyMinutes = document.getElementById('study-minutes');
+            if(studyMinutes) studyMinutes.addEventListener('blur', updateTimerFromInputsAndReset);
+            const studySeconds = document.getElementById('study-seconds');
+            if(studySeconds) studySeconds.addEventListener('blur', updateTimerFromInputsAndReset);
+            
+            document.addEventListener('click', function(e) {
+                if (currentOpenForm && 
+                    !currentOpenForm.contains(e.target) && 
+                    !e.target.classList.contains('add-task-btn') &&
+                    !e.target.closest('.task-item')) { 
+                    closeOpenForm();
+                }
+            });
+            setupDragAndDropListeners();
+        }
+
+        // Firebase Auth durumu değiştiğinde (Giriş yapıldığında/Çıkış yapıldığında)
+        auth.onAuthStateChanged(user => {
+            const loginScreen = document.getElementById('login-screen');
+            const appContainer = document.getElementById('app-container');
+            
+            if (user) {
+                currentUser = user;
+                loginScreen.style.display = 'none';
+                appContainer.style.display = 'block';
+                
+                // Kullanıcı giriş yaptığında uygulamayı başlat
+                initializeApp(); 
+            } else {
+                currentUser = null;
+                loginScreen.style.display = 'flex';
+                appContainer.style.display = 'none';
+            }
+        });
+
+        // =======================================
+        // FİRESTORE İLE VERİ YÖNETİMİ (ASYNC)
+        // =======================================
+        
+        function getFirestoreDocRef() {
+            if (!currentUser) return null;
+            return db.collection('users').doc(currentUser.uid).collection('weeks').doc(String(currentWeekOffset));
+        }
+
+        async function loadDataFromFirestore() {
+            const docRef = getFirestoreDocRef();
+            if (!docRef) return { tasks: {}, scores: [0, 0, 0, 0, 0, 0, 0] };
+            try {
+                const doc = await docRef.get();
+                if (doc.exists) {
+                    return doc.data();
+                }
+                return { tasks: {}, scores: [0, 0, 0, 0, 0, 0, 0] };
+            } catch (error) {
+                console.error("Veri yükleme hatası:", error);
+                return { tasks: {}, scores: [0, 0, 0, 0, 0, 0, 0] };
+            }
+        }
+
+        async function saveDataToFirestore(data) {
+            const docRef = getFirestoreDocRef();
+            if (!docRef) return;
+            
+            try {
+                await docRef.set(data, { merge: true });
+            } catch (error) {
+                console.error("Veri kaydetme hatası:", error);
+                showCustomAlert("Veri kaydı başarısız oldu.", '#ef4444');
+            }
+        }
+
+        async function loadTasks(dayIndex) {
+            const data = await loadDataFromFirestore();
+            return (data.tasks && data.tasks[String(dayIndex)]) || [];
+        }
+
+        async function saveTasks(dayIndex, tasks) {
+            const data = await loadDataFromFirestore();
+            if (!data.tasks) data.tasks = {};
+            data.tasks[String(dayIndex)] = tasks;
+            await saveDataToFirestore(data);
+            await updateDayProgress(dayIndex);
+        }
+
+        async function loadStudyScores() {
+            const data = await loadDataFromFirestore();
+            return data.scores || [0, 0, 0, 0, 0, 0, 0];
+        }
+        
+        async function saveStudyScore(dayIndex, minutes) {
+            const scores = await loadStudyScores();
+            scores[dayIndex] = (scores[dayIndex] || 0) + minutes;
+            await saveDataToFirestore({ scores: scores });
+            await renderStudyScores();
+            await updateWeeklyTotalTime();
+        }
+
+        // =======================================
+        // TARİH VE HAFTA YÖNETİMİ
+        // =======================================
+        
+        function getStartOfWeek(date) {
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1); 
+            const startOfWeek = new Date(date);
+            startOfWeek.setDate(diff);
+            startOfWeek.setHours(0, 0, 0, 0); 
+            return startOfWeek;
+        }
+
+        function calculateWeekStart(offset) {
+            const today = new Date();
+            const startOfWeek = getStartOfWeek(today);
+            const targetDate = new Date(startOfWeek);
+            targetDate.setDate(startOfWeek.getDate() + (offset * 7));
+            return targetDate;
+        }
+
+        async function renderSchedule() {
+            const weekStart = calculateWeekStart(currentWeekOffset);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+            
+            const weekStartStr = weekStart.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+            const weekEndStr = weekEnd.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+            
+            const weekInfoElement = document.getElementById('week-info');
+            if (weekInfoElement) {
+                weekInfoElement.textContent = `${weekStartStr} - ${weekEndStr}`;
+            }
+
+            for (let i = 0; i < 7; i++) {
+                const dayDate = new Date(weekStart);
+                dayDate.setDate(weekStart.getDate() + i);
+                
+                const dateElement = document.getElementById(`date-${i}`);
+                if (dateElement) {
+                    dateElement.textContent = dayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'numeric' });
+                }
+                await renderTasks(i); 
+                await updateDayProgress(i);
+            }
+            
+            await renderStudyScores();
+            await updateWeeklyTotalTime(); 
+            updateURL();
+        }
+
+        function changeWeek(direction) {
+            currentWeekOffset += direction;
+            renderSchedule();
+        }
+        
+        function updateURL() {
+            const url = new URL(window.location);
+            url.searchParams.set('week', currentWeekOffset);
+            window.history.pushState({}, '', url);
+        }
+
+        function loadWeekFromURL() {
+            const params = new URLSearchParams(window.location.search);
+            const week = params.get('week');
+            if (week !== null) {
+                currentWeekOffset = parseInt(week) || 0;
+            }
+        }
+        
+        // =======================================
+        // GÜNLÜK HÜCRELERİ OLUŞTURMA
+        // =======================================
+        
+        function createDayCells() {
+            const scheduleGrid = document.querySelector('.schedule-grid');
+            if (!scheduleGrid) return;
+            scheduleGrid.innerHTML = ''; 
+
+            const today = new Date();
+            const currentDayIndex = (today.getDay() + 6) % 7; // Pazartesi = 0
+
+            for (let i = 0; i < 7; i++) {
+                const dayCell = document.createElement('div');
+                dayCell.className = 'day-cell';
+                dayCell.setAttribute('id', `day-${i}`);
+                dayCell.setAttribute('data-day-index', i);
+                
+                if (i === currentDayIndex && currentWeekOffset === 0) {
+                    dayCell.classList.add('current-day');
+                }
+
+                dayCell.innerHTML = `
+                    <div class="day-header">
+                        <h2>${DAY_NAMES[i]}</h2>
+                        <span class="day-date" id="date-${i}"></span>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="progress-fill-${i}"></div>
+                            </div>
+                            <span class="progress-percent" id="progress-percent-${i}">0%</span>
+                        </div>
+                    </div>
+                    <div class="task-management">
+                        <button class="add-task-btn" onclick="showAddTaskForm(${i})">
+                            <i class="fas fa-plus"></i> Görev Ekle
+                        </button>
+                    </div>
+                    
+                    <div class="add-task-form-container">
+                        <input type="text" id="input-${i}" placeholder="Görev Adı..." onkeydown="if(event.key === 'Enter') { addTask(${i}, document.getElementById('input-${i}').value); closeOpenForm(); }">
+                        <div class="form-actions">
+                            <button onclick="addTask(${i}, document.getElementById('input-${i}').value)">Ekle</button>
+                            <button onclick="closeOpenForm()">İptal</button>
+                        </div>
+                    </div>
+                    
+                    <ul class="task-list" data-day-index="${i}">
+                        </ul>
+                    <p class="study-score" id="score-${i}">Çalışma: 0 dk</p>
+                `;
+                scheduleGrid.appendChild(dayCell);
+            }
+        }
+
+        // =======================================
+        // GÖREV YÖNETİMİ VE İLERLEME
+        // =======================================
+        
+        async function updateDayProgress(dayIndex) {
+            const tasks = await loadTasks(dayIndex);
+            const totalTasks = tasks.length;
+            const completedTasks = tasks.filter(t => t.completed).length;
+
+            const percentage = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
+            const fillElement = document.getElementById(`progress-fill-${dayIndex}`);
+            const percentElement = document.getElementById(`progress-percent-${dayIndex}`);
+            if (fillElement && percentElement) {
+                fillElement.style.width = `${percentage}%`;
+                percentElement.textContent = `${percentage}%`;
+
+                if (percentage === 100 && totalTasks > 0) {
+                    fillElement.classList.add('complete');
+                } else {
+                    fillElement.classList.remove('complete');
+                }
+            }
+        }
+        
+        async function renderTasks(dayIndex) {
+            const taskList = document.querySelector(`#day-${dayIndex} .task-list`);
+            if (!taskList) return;
+
+            taskList.innerHTML = '';
+            const tasks = await loadTasks(dayIndex); 
+            
+            tasks.forEach(task => createTaskElement(taskList, dayIndex, task.text, task.completed));
+        }
+
+        function createTaskElement(taskList, dayIndex, text, completed = false) {
+            const listItem = document.createElement('li');
+            listItem.className = 'task-item' + (completed ? ' completed' : '');
+            listItem.draggable = true; 
+            listItem.setAttribute('data-task-text', text);
+            listItem.addEventListener('dragstart', (e) => {
+                draggedItem = listItem;
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', text); 
+                setTimeout(() => listItem.classList.add('dragging'), 0);
+            });
+            listItem.addEventListener('dragend', () => {
+                if (draggedItem) {
+                    draggedItem.classList.remove('dragging');
+                    draggedItem = null;
+                }
+                reorderTasksInStorage(dayIndex);
+            });
+            
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'task-content-wrapper';
+            
+            const actionsDiv = document.createElement('div');
+            actionsDiv.className = 'task-actions';
+            actionsDiv.style.display = 'flex';
+            actionsDiv.style.alignItems = 'center';
+            actionsDiv.style.gap = '5px';
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'task-checkbox';
+            checkbox.checked = completed;
+            checkbox.style.transform = 'scale(1.2)';
+            checkbox.addEventListener('change', function() {
+                const newCompleted = this.checked;
+                listItem.classList.toggle('completed', newCompleted);
+                updateTaskCompletion(dayIndex, text, newCompleted);
+            });
+
+            const taskSpan = document.createElement('span');
+            taskSpan.textContent = text;
+            taskSpan.className = 'task-text-content';
+
+            const moveButton = document.createElement('button');
+            moveButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+            moveButton.className = 'move-btn';
+            moveButton.style.padding = '5px';
+            moveButton.style.borderRadius = '4px';
+            moveButton.style.background = 'none';
+            moveButton.style.color = 'var(--accent-color)';
+            moveButton.onclick = function(e) {
+                e.stopPropagation();
+                moveTaskToNextDay(dayIndex, text);
+            };
+
+            const deleteButton = document.createElement('button');
+            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            deleteButton.className = 'delete-btn';
+            deleteButton.style.background = 'none';
+            deleteButton.style.color = 'var(--pomodoro-accent)';
+            deleteButton.style.fontSize = '1.1em';
+            deleteButton.style.padding = '0 5px';
+            deleteButton.onclick = function(e) {
+                e.stopPropagation();
+                deleteTaskFromStorage(dayIndex, text);
+                listItem.remove();
+            };
+            
+            actionsDiv.appendChild(checkbox);
+            actionsDiv.appendChild(moveButton);
+            
+            contentWrapper.appendChild(actionsDiv);
+            contentWrapper.appendChild(taskSpan);
+            contentWrapper.appendChild(deleteButton);
+            
+            listItem.appendChild(contentWrapper);
+            taskList.appendChild(listItem);
+        }
+
+        async function reorderTasksInStorage(dayIndex) {
+            const taskList = document.querySelector(`#day-${dayIndex} .task-list`);
+            if (!taskList) return;
+
+            const reorderedTasks = [];
+            const taskElements = taskList.querySelectorAll('.task-item');
+            const existingTasks = await loadTasks(dayIndex);
+
+            taskElements.forEach(item => {
+                const taskText = item.getAttribute('data-task-text');
+                const existingTask = existingTasks.find(t => t.text === taskText);
+                if (existingTask) {
+                    reorderedTasks.push(existingTask);
+                }
+            });
+            await saveTasks(dayIndex, reorderedTasks);
+        }
+
+        async function addTask(dayIndex, text) {
+            const inputText = text.trim();
+            if (inputText === "") {
+                showCustomAlert("Görev adı boş olamaz.", '#fbc02d');
+                return;
+            }
+
+            let tasks = await loadTasks(dayIndex);
+            if (tasks.some(t => t.text === inputText)) {
+                showCustomAlert("Bu görev zaten bu günde var.", '#fbc02d');
+                return;
+            }
+
+            tasks.push({ text: inputText, completed: false });
+            await saveTasks(dayIndex, tasks);
+            
+            const taskList = document.querySelector(`#day-${dayIndex} .task-list`);
+            if (taskList) {
+                createTaskElement(taskList, dayIndex, inputText, false);
+            }
+            document.getElementById(`input-${dayIndex}`).value = '';
+            showCustomAlert(`${DAY_NAMES[dayIndex]} gününe yeni görev eklendi.`, '#00bcd4');
+        }
+
+        async function deleteTaskFromStorage(dayIndex, text) {
+            let tasks = await loadTasks(dayIndex);
+            tasks = tasks.filter(t => t.text !== text);
+            await saveTasks(dayIndex, tasks);
+            showCustomAlert(`'${text}' görevi silindi.`, '#ef4444');
+        }
+
+        async function updateTaskCompletion(dayIndex, text, completed) {
+            let tasks = await loadTasks(dayIndex);
+            const task = tasks.find(t => t.text === text);
+            if (task) {
+                task.completed = completed;
+                await saveTasks(dayIndex, tasks);
+                if(completed) {
+                    showCustomAlert(`'${text}' tamamlandı. Aferin Ömer!`, '#10b981');
+                } else {
+                    showCustomAlert(`'${text}' tekrar açıldı.`, '#fbc02d');
+                }
+            }
+        }
+
+        async function moveTaskToNextDay(dayIndex, text) {
+            const nextDayIndex = (dayIndex + 1) % 7;
+            let currentTasks = await loadTasks(dayIndex);
+            let nextDayTasks = await loadTasks(nextDayIndex);
+            
+            const taskToMove = currentTasks.find(t => t.text === text);
+            if (!taskToMove) return;
+
+            if (nextDayTasks.some(t => t.text === text)) {
+                showCustomAlert("Bu görev zaten ertesi güne eklenmiş.", '#fbc02d');
+                return;
+            }
+
+            currentTasks = currentTasks.filter(t => t.text !== text);
+            nextDayTasks.push({ text: taskToMove.text, completed: false });
+
+            await saveTasks(dayIndex, currentTasks);
+            await saveTasks(nextDayIndex, nextDayTasks);
+
+            await renderTasks(dayIndex);
+            await renderTasks(nextDayIndex);
+            showCustomAlert(`${text} görevi ${DAY_NAMES[nextDayIndex]} gününe taşındı.`, '#00bcd4');
+        }
+
+        function showAddTaskForm(dayIndex) {
+            closeOpenForm();
+            const formContainer = document.getElementById(`day-${dayIndex}`).querySelector('.add-task-form-container');
+            if (formContainer) {
+                formContainer.style.display = 'block';
+                currentOpenForm = formContainer;
+                document.getElementById(`input-${dayIndex}`).focus();
+            }
+        }
+
+        function closeOpenForm() {
+            if (currentOpenForm) {
+                currentOpenForm.style.display = 'none';
+                currentOpenForm = null;
+            }
+        }
+
+        // =======================================
+        // DRAG AND DROP
+        // =======================================
+        function getDragAfterElement(container, y) {
+            const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+
+            return draggableElements.reduce((closest, child) => {
+                const box = child.getBoundingClientRect();
+                const offset = y - box.top - box.height / 2;
+                if (offset < 0 && offset > closest.offset) {
+                    return { offset: offset, element: child };
+                } else {
+                    return closest;
+                }
+            }, { offset: Number.NEGATIVE_INFINITY }).element;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            const currentList = e.currentTarget;
+            if (!draggedItem) return;
+            const afterElement = getDragAfterElement(currentList, e.clientY);
+            
+            if (afterElement == null) {
+                currentList.appendChild(draggedItem);
+            } else {
+                currentList.insertBefore(draggedItem, afterElement);
+            }
+        }
+
+        async function handleDrop(e) {
+            e.preventDefault();
+            if (!draggedItem) return;
+
+            const currentList = e.currentTarget;
+            const currentDayIndex = parseInt(currentList.dataset.dayIndex);
+            
+            const originalTaskText = draggedItem.getAttribute('data-task-text');
+            const originalDayIndex = draggedItem.closest('.day-cell').dataset.dayIndex;
+
+            if (originalDayIndex != currentDayIndex) {
+                // Farklı günden geliyorsa taşıma mantığını kullan
+                draggedItem.remove();
+                // Eski listeden kaldır
+                await deleteTaskFromStorage(parseInt(originalDayIndex), originalTaskText);
+                // Yeni güne ekle
+                await addTask(currentDayIndex, originalTaskText);
+                showCustomAlert(`${originalTaskText} görevi ${DAY_NAMES[currentDayIndex]} gününe taşındı.`, '#00bcd4');
+                // renderTasks(originalDayIndex) zaten deleteTaskFromStorage içinde yapılıyor.
+            } else {
+                // Aynı gün içinde sıralama değişti
+                await reorderTasksInStorage(currentDayIndex);
+            }
+        }
+
+        function setupDragAndDropListeners() {
+            const taskLists = document.querySelectorAll('.task-list');
+            taskLists.forEach(list => {
+                list.addEventListener('dragover', handleDragOver);
+                list.addEventListener('drop', handleDrop);
+                list.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    list.classList.add('drag-over');
+                });
+                list.addEventListener('dragleave', () => {
+                    list.classList.remove('drag-over');
+                });
+            });
+        }
+        
+        // =======================================
+        // POMODORO VE ZAMAN YÖNETİMİ
+        // =======================================
+
+        function savePomodoroState() {
+            const state = {
+                isRunning: isTimerRunning,
+                isPaused: isPaused,
+                initialSeconds: initialSeconds,
+                remainingTime: isTimerRunning ? expectedTime - Date.now() : remainingTimeOnPause,
+                timestamp: Date.now()
+            };
+            localStorage.setItem('pomodoroState', JSON.stringify(state));
+        }
+
+        function loadPomodoroState() {
+            const stateJson = localStorage.getItem('pomodoroState');
+            if (!stateJson) return;
+
+            const state = JSON.parse(stateJson);
+            initialSeconds = state.initialSeconds;
+            
+            const hours = Math.floor(initialSeconds / 3600);
+            const minutes = Math.floor((initialSeconds % 3600) / 60);
+            const seconds = initialSeconds % 60;
+            
+            const studyHours = document.getElementById('study-hours');
+            if(studyHours) studyHours.value = hours;
+            const studyMinutes = document.getElementById('study-minutes');
+            if(studyMinutes) studyMinutes.value = minutes;
+            const studySeconds = document.getElementById('study-seconds');
+            if(studySeconds) studySeconds.value = seconds;
+
+            if (state.isRunning && !state.isPaused) {
+                const elapsedSinceSave = Date.now() - state.timestamp;
+                remainingTimeOnPause = state.remainingTime - elapsedSinceSave;
+                
+                if (remainingTimeOnPause <= 1000) {
+                    resetTimer(true, true);
+                    finishTimer(true);
+                    return;
+                }
+                isTimerRunning = true;
+                isPaused = false;
+                expectedTime = Date.now() + remainingTimeOnPause;
+                startInterval();
+                disableTimerInputs(true);
+            } else {
+                isTimerRunning = state.isRunning;
+                isPaused = state.isPaused;
+                remainingTimeOnPause = state.remainingTime;
+                updateTimerDisplay(remainingTimeOnPause);
+            }
+        }
+
+        function startInterval() {
+            if(timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => updateTimerDisplay(null, true), 100);
+        }
+
+        function updateTimerFromInputs() {
+            const hours = getInputValue('study-hours');
+            const minutes = getInputValue('study-minutes');
+            const seconds = getInputValue('study-seconds');
+            
+            const safeHours = Math.max(0, Math.min(99, hours));
+            const safeMinutes = Math.max(0, Math.min(59, minutes));
+            const safeSeconds = Math.max(0, Math.min(59, seconds));
+            
+            document.getElementById('study-hours').value = safeHours;
+            document.getElementById('study-minutes').value = safeMinutes;
+            document.getElementById('study-seconds').value = safeSeconds;
+            
+            const newInitialSeconds = (safeHours * 3600) + (safeMinutes * 60) + safeSeconds;
+            initialSeconds = Math.max(0, newInitialSeconds);
+        }
+
+        function updateTimerFromInputsAndReset() {
+            if (!isTimerRunning || isPaused) {
+                updateTimerFromInputs();
+                resetTimer(true, false);
+            }
+            savePomodoroState();
+        }
+
+        function showPomodoroModal() {
+            const modal = document.getElementById('pomodoro-modal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function hidePomodoroModal() {
+            const modal = document.getElementById('pomodoro-modal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function formatTime(totalSeconds) {
+            totalSeconds = Math.max(0, totalSeconds || 0);
+            const hours = Math.floor(totalSeconds / 3600);
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            const seconds = Math.floor(totalSeconds % 60);
+            const milliseconds = Math.round((totalSeconds - Math.floor(totalSeconds)) * 1000);
+            
+            const paddedHours = hours.toString().padStart(2, '0');
+            const paddedMinutes = minutes.toString().padStart(2, '0');
+            const paddedSeconds = seconds.toString().padStart(2, '0');
+            const paddedMs = Math.floor(milliseconds / 100).toString(); // Yüzde bir saniye
+            
+            return `${paddedHours}:${paddedMinutes}:${paddedSeconds}`; 
+            // Milisaniyeyi gösterirsen hızlı güncelleme için: return `${paddedHours}:${paddedMinutes}:${paddedSeconds}.${paddedMs}`;
+        }
+
+        function updateTimerDisplay(remainingMs = null, checkExpiry = false) {
+            const now = Date.now();
+            if (remainingMs === null) {
+                if (isPaused) {
+                    remainingMs = remainingTimeOnPause;
+                } else {
+                    remainingMs = expectedTime - now;
+                }
+            }
+            
+            const totalSeconds = remainingMs / 1000;
+            const timerDisplay = document.getElementById('timer-display');
+            if (timerDisplay) {
+                timerDisplay.textContent = formatTime(totalSeconds);
+            }
+
+            if (checkExpiry && remainingMs <= 0) {
+                clearInterval(timerInterval);
+                finishTimer(true);
+            }
+            
+            if (isTimerRunning && !isPaused) {
+                remainingTimeOnPause = remainingMs; // Çalışırken kalan süreyi sürekli güncelle
+            }
+
+            savePomodoroState();
+        }
+
+        function startTimer() {
+            if (!isTimerRunning) {
+                updateTimerFromInputs(); // Başlatmadan önce inputlardan al
+                expectedTime = Date.now() + (initialSeconds * 1000);
+                isTimerRunning = true;
+                isPaused = false;
+                startInterval();
+                disableTimerInputs(true);
+                const controlBtn = document.getElementById('timer-control-btn');
+                if(controlBtn) {
+                    controlBtn.textContent = "DURAKLAT";
+                    controlBtn.onclick = pauseTimer;
+                }
+                // Müzik kontrolü
+                const musicSelect = document.getElementById('music-select');
+                if(musicSelect.value !== 'none' && audioPlayer.paused) {
+                    toggleMusic(document.getElementById('music-toggle-btn'));
+                }
+            } else if (isPaused) {
+                expectedTime = Date.now() + remainingTimeOnPause;
+                isPaused = false;
+                startInterval();
+                const controlBtn = document.getElementById('timer-control-btn');
+                if(controlBtn) {
+                    controlBtn.textContent = "DURAKLAT";
+                    controlBtn.onclick = pauseTimer;
+                }
+                if(audioPlayer && audioPlayer.paused) {
+                    toggleMusic(document.getElementById('music-toggle-btn'));
+                }
+            }
+            savePomodoroState();
+        }
+
+        function pauseTimer() {
+            if (isTimerRunning && !isPaused) {
+                clearInterval(timerInterval);
+                isPaused = true;
+                // remainingTimeOnPause değeri en son updateTimerDisplay içinde ayarlanmış olmalı
+                const controlBtn = document.getElementById('timer-control-btn');
+                if(controlBtn) {
+                    controlBtn.textContent = "DEVAM ET";
+                    controlBtn.onclick = startTimer;
+                }
+                if(audioPlayer && !audioPlayer.paused) {
+                    toggleMusic(document.getElementById('music-toggle-btn'));
+                }
+            }
+            savePomodoroState();
+        }
+
+        async function finishTimer(isCompleted) {
+            if (timerInterval) clearInterval(timerInterval);
+            if (audioPlayer) audioPlayer.pause();
+            
+            const initialMs = initialSeconds * 1000;
+            const remainingMs = Math.max(0, remainingTimeOnPause);
+            const workedTimeMs = initialMs - remainingMs;
+            
+            const workedMinutes = Math.round(workedTimeMs / 60000); // Yuvarlanmış dakika
+
+            isTimerRunning = false;
+            isPaused = false;
+
+            if (workedMinutes > 0) {
+                const dayIndex = (new Date().getDay() + 6) % 7;
+                const dayName = DAY_NAMES[dayIndex];
+                
+                await saveStudyScore(dayIndex, workedMinutes);
+                
+                const formattedScore = formatMinutesToHoursMinutes(workedMinutes);
+                let message = isCompleted ? 
+                    `Tebrikler, Ömer! ${formattedScore} çalışma başarıyla tamamlandı ve ${dayName} gününe kaydedildi.` : 
+                    `Ömer, ${formattedScore} çalışma ${dayName} gününe kaydedildi.`;
+                showCustomAlert(message, '#38bdf8');
+            } else if (!isCompleted && initialSeconds > 0) {
+                showCustomAlert("Çok kısa çalıştınız, süre kaydedilmedi.");
+            }
+            
+            resetTimer(true, true);
+            hidePomodoroModal();
+            localStorage.removeItem('pomodoroState');
+        }
+
+        function resetTimer(clearIntervalFlag = true, enableInputs = true) {
+            if (clearIntervalFlag) clearInterval(timerInterval);
+            isTimerRunning = false;
+            isPaused = false;
+            
+            // Input değerlerini alıp initialSeconds'ı yeniden hesapla
+            updateTimerFromInputs(); 
+            remainingTimeOnPause = initialSeconds * 1000;
+
+            updateTimerDisplay(remainingTimeOnPause);
+            disableTimerInputs(!enableInputs); // reset yaparken inputlar açık kalabilir
+
+            const controlBtn = document.getElementById('timer-control-btn');
+            if(controlBtn) {
+                controlBtn.textContent = "BAŞLAT";
+                controlBtn.onclick = startTimer;
+            }
+            if(audioPlayer && !audioPlayer.paused) {
+                 toggleMusic(document.getElementById('music-toggle-btn'));
+            }
+        }
+
+        function disableTimerInputs(disabled) {
+            const hours = document.getElementById('study-hours');
+            if(hours) hours.disabled = disabled;
+            const minutes = document.getElementById('study-minutes');
+            if(minutes) minutes.disabled = disabled;
+            const seconds = document.getElementById('study-seconds');
+            if(seconds) seconds.disabled = disabled;
+        }
+
+        // =======================================
+        // YKS GERİ SAYIM
+        // =======================================
+        
+        function getNextYksDate(day, month, hour, minute) {
+            const today = new Date();
+            let year = today.getFullYear();
+            
+            // Javascript'te aylar 0'dan başlar (0 = Ocak, 5 = Haziran)
+            let targetDate = new Date(year, month, day, hour, minute, 0); 
+            
+            if (targetDate <= today) {
+                targetDate = new Date(year + 1, month, day, hour, minute, 0);
+            }
+            return targetDate;
+        }
+
+        function setDashOffset(id, ratio) {
+            const circle = document.getElementById(id);
+            if (circle) {
+                const offset = YKS_CIRCUMFERENCE * (1 - ratio);
+                circle.style.strokeDasharray = `${YKS_CIRCUMFERENCE} ${YKS_CIRCUMFERENCE}`;
+                circle.style.strokeDashoffset = offset;
+            }
+        }
+
+        function startYksCountdown() {
+            updateYksCountdown();
+            if (yksInterval) clearInterval(yksInterval);
+            yksInterval = setInterval(updateYksCountdown, 1000);
+            
+            const targetDateElement = document.getElementById('yks-target-date');
+            if(targetDateElement) {
+                const targetStr = YKS_TYT_DATE.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' });
+                targetDateElement.textContent = `Hedef: ${targetStr} @ 10:00`;
+            }
+        }
+
+        function updateYksCountdown() {
+            const now = new Date();
+            const distance = YKS_TYT_DATE.getTime() - now.getTime();
+
+            if (distance < 0) {
+                clearInterval(yksInterval);
+                const container = document.getElementById('yks-countdown-container');
+                if (container) {
+                    container.innerHTML = `<h2 style="color: var(--pomodoro-accent); margin: auto;">YKS GERÇEKLEŞTİ! YENİ HEDEFLER BELİRLEME ZAMANI.</h2>`;
+                    container.style.justifyContent = 'center';
+                }
+                return;
+            }
+
+            const totalDays = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hoursLeft = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutesLeft = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const secondsLeft = Math.floor((distance % (1000 * 60)) / 1000);
+
+            // Değerleri Güncelle
+            const daysValue = document.getElementById('days-value');
+            if (daysValue) daysValue.textContent = totalDays;
+            const hoursValue = document.getElementById('hours-value');
+            if (hoursValue) hoursValue.textContent = hoursLeft.toString().padStart(2, '0');
+            const minutesValue = document.getElementById('minutes-value');
+            if (minutesValue) minutesValue.textContent = minutesLeft.toString().padStart(2, '0');
+            const secondsValue = document.getElementById('seconds-value');
+            if (secondsValue) secondsValue.textContent = secondsLeft.toString().padStart(2, '0');
+
+            // Çemberleri Güncelle
+            const secondsRatio = secondsLeft / 60;
+            setDashOffset('seconds-circle', secondsRatio);
+            const minutesRatio = (minutesLeft + secondsRatio) / 60;
+            setDashOffset('minutes-circle', minutesRatio);
+            const hoursRatio = (hoursLeft + minutesRatio * 60 / 3600) / 24; 
+            setDashOffset('hours-circle', hoursRatio); 
+            const daysRatio = totalDays % 365 / 365; // Yıllık gösterim
+            setDashOffset('days-circle', daysRatio);
+        }
+
+        // =======================================
+        // TEMA YÖNETİMİ
+        // =======================================
+        
+        const themes = {
+            'default': {
+                /* Luxury Dark Mode Değişkenleri... (root ile aynı) */
+                '--bg-color': '#0d0e14', '--container-bg': '#1e2029', '--header-bg': '#14161c', '--header-text': '#ffffff', '--text-color': '#c9d1d9', '--border-color': '#383a47', '--day-bg': '#1e2029', '--accent-color': '#bb86fc', '--accent-glow': 'rgba(187, 134, 252, 0.7)', '--button-bg': '#30363d', '--button-hover': '#40454c', '--progress-bg': '#30363d', '--progress-fill': '#bb86fc', '--progress-complete': '#fbc02d', '--pomodoro-bg': '#14161c', '--pomodoro-accent': '#f87171', '--logo-content': "ODAK VE BAŞARI YÖNETİMİ", '--logo-accent': '#FFD700', '--task-bg': '#272a33', '--task-completed-bg': '#383a47', '--day-header-color': '#e5e7eb', '--task-text-color': '#ffffff', '--theme-icon-color': '#c9d1d9', '--day-border': '1px solid #383a47', '--instagram-bg': '#30363d', '--instagram-text': '#c9d1d9', '--theme-controls-bg': '#272a33', '--countdown-bg': '#14161c', '--countdown-fill': '#00bcd4', '--countdown-text': '#ffffff', '--countdown-shadow': 'rgba(0, 188, 212, 0.8)', 
+            },
+            'light': {
+                /* Light Mode Değişkenleri... */
+                '--bg-color': '#f7f7f7', '--container-bg': '#ffffff', '--header-bg': '#e5e7eb', '--header-text': '#1f2937', '--text-color': '#374151', '--border-color': '#d1d5db', '--day-bg': '#ffffff', '--accent-color': '#4f46e5', '--accent-glow': 'rgba(79, 70, 229, 0.4)', '--button-bg': '#e5e7eb', '--button-hover': '#d1d5db', '--progress-bg': '#e5e7eb', '--progress-fill': '#4f46e5', '--progress-complete': '#059669', '--pomodoro-bg': '#e5e7eb', '--pomodoro-accent': '#ef4444', '--logo-content': "ODAK VE BAŞARI YÖNETİMİ", '--logo-accent': '#4f46e5', '--task-bg': '#f9fafb', '--task-completed-bg': '#e5e7eb', '--day-header-color': '#1f2937', '--task-text-color': '#1f2937', '--theme-icon-color': '#1f2937', '--day-border': '1px solid #d1d5db', '--instagram-bg': '#e5e7eb', '--instagram-text': '#374151', '--theme-controls-bg': '#ffffff', '--countdown-bg': '#e5e7eb', '--countdown-fill': '#10b981', '--countdown-text': '#1f2937', '--countdown-shadow': 'rgba(16, 185, 129, 0.6)',
+            },
+            'kitty': {
+                /* Kitty Mode Değişkenleri... */
+                '--bg-color': '#fee2e2', '--container-bg': '#ffffff', '--header-bg': '#fecaca', '--header-text': '#9f1239', '--text-color': '#4b5563', '--border-color': '#fecaca', '--day-bg': '#ffffff', '--accent-color': '#fb7185', '--accent-glow': 'rgba(251, 113, 133, 0.7)', '--button-bg': '#fecaca', '--button-hover': '#fca5a5', '--progress-bg': '#fecaca', '--progress-fill': '#f472b6', '--progress-complete': '#10b981', '--pomodoro-bg': '#fecaca', '--pomodoro-accent': '#ef4444', '--logo-content': "ODAK VE BAŞARI YÖNETİMİ", '--logo-accent': '#fb7185', '--task-bg': '#fff1f2', '--task-completed-bg': '#fecaca', '--day-header-color': '#9f1239', '--task-text-color': '#1f2937', '--theme-icon-color': '#9f1239', '--day-border': '1px solid #fca5a5', '--instagram-bg': '#fecaca', '--instagram-text': '#9f1239', '--theme-controls-bg': '#ffffff', '--countdown-bg': '#fecaca', '--countdown-fill': '#f472b6', '--countdown-text': '#9f1239', '--countdown-shadow': 'rgba(244, 114, 182, 0.6)',
+            },
+            'spiderman': {
+                /* Spiderman Mode Değişkenleri... */
+                '--bg-color': '#1c1c1c', '--container-bg': '#2c2c2c', '--header-bg': '#3b3b3b', '--header-text': '#ffffff', '--text-color': '#e5e7eb', '--border-color': '#4f4f4f', '--day-bg': '#2c2c2c', '--accent-color': '#ef4444', '--accent-glow': 'rgba(239, 68, 68, 0.7)', '--button-bg': '#4b4b4b', '--button-hover': '#5a5a5a', '--progress-bg': '#4b4b4b', '--progress-fill': '#3b82f6', '--progress-complete': '#10b981', '--pomodoro-bg': '#3b3b3b', '--pomodoro-accent': '#facc15', '--logo-content': "ODAK VE BAŞARI YÖNETİMİ", '--logo-accent': '#ef4444', '--task-bg': '#3b3b3b', '--task-completed-bg': '#4b4b4b', '--day-header-color': '#ffffff', '--task-text-color': '#ffffff', '--theme-icon-color': '#ffffff', '--day-border': '1px solid #4f4f4f', '--instagram-bg': '#4b4b4b', '--instagram-text': '#e5e7eb', '--theme-controls-bg': '#2c2c2c', '--countdown-bg': '#3b3b3b', '--countdown-fill': '#3b82f6', '--countdown-text': '#ffffff', '--countdown-shadow': 'rgba(59, 130, 246, 0.6)',
+            }
+        };
+
+        function setTheme(themeName, button) {
+            const theme = themes[themeName];
+            if (!theme) return;
+            
+            for (const [key, value] of Object.entries(theme)) {
+                document.documentElement.style.setProperty(key, value);
+            }
+            
+            document.body.className = themeName === 'default' ? '' : `${themeName}-mode`;
+            localStorage.setItem('theme', themeName);
+            
+            document.querySelectorAll('.theme-button').forEach(btn => btn.classList.remove('active'));
+            if (button) button.classList.add('active');
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'default';
+            const button = document.getElementById(`${savedTheme}-btn`);
+            setTheme(savedTheme, button);
+        }
+
+        // =======================================
+        // PUAN VE SÜRE HESAPLAMALARI
+        // =======================================
+
+        function formatMinutesToHoursMinutes(totalMinutes) {
+            if (totalMinutes < 1) return `0 dk`;
+            if (totalMinutes < 60) return `${totalMinutes} dk`;
+
+            const hours = Math.floor(totalMinutes / 60);
+            const minutes = Math.round(totalMinutes % 60);
+            
+            let result = '';
+            if (hours > 0) {
+                result += `${hours} sa`;
+            }
+            if (minutes > 0 || hours === 0) {
+                if (hours > 0) result += ' ';
+                result += `${minutes} dk`;
+            }
+            return result.trim();
+        }
+
+        async function updateWeeklyTotalTime() {
+            const scores = await loadStudyScores();
+            const totalMinutes = scores.reduce((sum, score) => sum + (score || 0), 0);
+            const displayElement = document.getElementById('weekly-total-time');
+            if (displayElement) {
+                displayElement.textContent = `HAFTA: ${formatMinutesToHoursMinutes(totalMinutes)}`;
+            }
+            updateTodayWorkedTime(scores);
+        }
+        
+        async function renderStudyScores() {
+            const scores = await loadStudyScores();
+            let todayWorkedMinutes = 0;
+            const currentDayIndex = (new Date().getDay() + 6) % 7; 
+
+            for (let i = 0; i < 7; i++) {
+                const scoreMinutes = scores[i] || 0;
+                const scoreArea = document.getElementById(`score-${i}`);
+                
+                if (i === currentDayIndex) {
+                    todayWorkedMinutes = scoreMinutes;
+                }
+                
+                if (scoreArea) {
+                    scoreArea.textContent = `Çalışma: ${formatMinutesToHoursMinutes(scoreMinutes)}`;
+                }
+            }
+            
+            const todayWorkedDisplay = document.getElementById('today-worked-time');
+            if (todayWorkedDisplay) {
+                todayWorkedDisplay.textContent = `BUGÜN: ${formatMinutesToHoursMinutes(todayWorkedMinutes)}`;
+            }
+        }
+        
+        function updateTodayWorkedTime(scores = null) {
+            // Bu fonksiyon renderStudyScores tarafından çağrılıyor ama burada tutarlılık için güncelledik
+            if (!scores) return; // Eğer skorlar renderStudyScores'dan gelmezse hesaplama
+
+            let todayWorkedMinutes = 0;
+            const currentDayIndex = (new Date().getDay() + 6) % 7; 
+
+            if(scores[currentDayIndex]) {
+                todayWorkedMinutes = scores[currentDayIndex];
+            }
+            
+            const todayWorkedDisplay = document.getElementById('today-worked-time');
+            if (todayWorkedDisplay) {
+                todayWorkedDisplay.textContent = `BUGÜN: ${formatMinutesToHoursMinutes(todayWorkedMinutes)}`;
+            }
+        }
+        
+        // =======================================
+        // POMODORO MÜZİK KONTROL FONKSİYONLARI (DÜZELTME: EKSİK KOD EKLENDİ)
+        // =======================================
+
+        function changeMusicVolume(volume) {
+            musicVolume = parseInt(volume);
+            localStorage.setItem('musicVolume', musicVolume);
+            if (audioPlayer) audioPlayer.volume = musicVolume / 100;
+        }
+
+        function toggleMusic(button) {
+            if (!audioPlayer) return;
+            if (audioPlayer.paused) {
+                audioPlayer.play();
+                button.innerHTML = '<i class="fas fa-pause"></i> Müzik Duraklat';
+            } else {
+                audioPlayer.pause();
+                button.innerHTML = '<i class="fas fa-play"></i> Müzik Başlat';
+            }
+        }
+
+        function changeMusicSource(source) {
+            if (!audioPlayer) return;
+            if (source === 'none') {
+                audioPlayer.pause();
+                audioPlayer.removeAttribute('src');
+            } else {
+                audioPlayer.src = source;
+                audioPlayer.play();
+            }
+            const toggleBtn = document.getElementById('music-toggle-btn');
+            if(toggleBtn) toggleBtn.innerHTML = '<i class="fas fa-pause"></i> Müzik Duraklat';
+        }
+
+        // =======================================
+        // HELPER FONKSİYONLAR & UYARI
+        // =======================================
+        function getInputValue(elementId) {
+            const element = document.getElementById(elementId);
+            if (!element) return 0;
+            const value = element.value;
+            return parseInt(value) || 0; 
+        }
+
+        function showCustomAlert(message, backgroundColor = '#ef4444') {
+            const alertBox = document.getElementById('custom-alert');
+            if (!alertBox) return;
+            
+            alertBox.style.backgroundColor = backgroundColor;
+            alertBox.textContent = message;
+            alertBox.style.opacity = '1';
+            alertBox.style.top = '30px'; 
+
+            setTimeout(() => {
+                alertBox.style.opacity = '0';
+                alertBox.style.top = '-50px'; 
+            }, 4000);
+        }
+
+    </script>
+</body>
+</html>
