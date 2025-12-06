@@ -161,7 +161,7 @@
         }
 
         /* ======================================= */
-        /* ZORUNLU GİRİŞ KAPISI STİLİ */
+        /* ZORUNLU GİRİŞ KAPISI STİLİ KORUNDU */
         /* ======================================= */
         #login-gate {
             position: fixed;
@@ -259,7 +259,8 @@
         header {
             background-color: var(--header-bg);
             color: var(--header-text);
-            padding: 30px 40px;
+            /* ÖNCEKİ DÜZELTME: Header dikey paddingi azaltıldı */
+            padding: 20px 40px; 
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -357,6 +358,13 @@
             color: var(--pomodoro-accent);
             box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
         }
+
+        /* YENİ STATS KUTU STİLİ */
+        #today-question-count, #week-question-count {
+            border: 1px solid var(--countdown-fill);
+            color: var(--countdown-fill);
+            box-shadow: 0 0 8px rgba(0, 188, 212, 0.5);
+        }
         
         .theme-controls {
              display: flex;
@@ -423,7 +431,8 @@
         
         #yks-countdown-container {
             width: 100%;
-            padding: 20px 40px; 
+            /* ÖNCEKİ DÜZELTME: YKS dikey paddingi azaltıldı */
+            padding: 10px 40px; 
             background-color: var(--header-bg); 
             border-bottom: 2px solid var(--border-color);
             display: flex;
@@ -708,13 +717,22 @@
              border-color: var(--accent-color);
         }
 
-        /* Görev Sütunlarının Genişletilmesi (Değişiklik burada yapıldı) */
+        /* Görev Sütunlarının Genişletilmesi */
         .schedule-grid {
-            display: grid;
-            grid-template-columns: repeat(7, minmax(250px, 1fr)); /* Min genişlik 250px'e çıkarıldı */
+            /* TABLO MODU (YAN YANA SIKIŞTIRILMIŞ - Desktop Default) */
+            grid-template-columns: repeat(7, 1fr); 
+            display: grid; /* Display grid eklemesi yapıldı */
             border-top: 1px solid var(--border-color); 
-            overflow-x: auto; 
+            overflow-x: hidden; 
             min-width: 100%;
+            transition: all 0.3s ease-in-out;
+        }
+        
+        /* KAYDIRMALI MOD (ŞİMDİKİ İSTEDİĞİN MOD) */
+        .schedule-grid.scrolling-mode {
+             /* Her sütuna minimum 300px genişlik vererek yatay kaydırma sağlar */
+             grid-template-columns: repeat(7, minmax(300px, 1fr)); 
+             overflow-x: auto;
         }
         
         .day-cell {
@@ -739,6 +757,31 @@
         .add-task-btn {
             margin-top: auto;
         }
+        
+        /* YENİ SORU KAYIT KUTUSU STİLİ KORUNDU */
+        .question-input-box {
+            margin-bottom: 15px; 
+            display: flex; 
+            align-items: center; 
+            gap: 5px;
+        }
+        
+        .question-input-box input {
+            flex-grow: 1; 
+            padding: 8px; 
+            border: 1px solid var(--border-color); 
+            border-radius: 4px; 
+            background-color: var(--task-bg); 
+            color: var(--text-color);
+            transition: border-color 0.2s;
+            box-shadow: none;
+            text-align: center;
+        }
+        
+        .question-input-box input:focus {
+             outline: none;
+             border-color: var(--countdown-fill);
+        }
 
         /* Responsive Query'ler Korundu */
 
@@ -757,10 +800,16 @@
             .header-stats, .theme-controls {
                 margin-top: 10px;
             }
+            /* GÖRÜNÜM BUTONU İÇİN ÖNCELİK */
+            #view-toggle-btn {
+                 order: 1; 
+                 min-width: 200px;
+                 flex-grow: 1;
+            }
             .pomodoro-btn {
-                order: -1;
-                width: 100%;
-                margin-bottom: 10px;
+                order: 2;
+                min-width: 200px;
+                flex-grow: 1;
             }
             .auth-section {
                  order: -2;
@@ -825,8 +874,10 @@
                 padding: 10px 8px;
                 min-height: 400px;
             }
+            /* Mobil için sütunları yatay kaydırmalı (SCROLLING MODE) yapar */
             .schedule-grid {
-                 grid-template-columns: repeat(7, minmax(100px, 1fr)); 
+                 grid-template-columns: repeat(7, minmax(90vw, 1fr)); 
+                 overflow-x: auto !important;
             }
             #yks-countdown-container {
                  padding: 15px 20px;
@@ -835,8 +886,9 @@
                  width: 60px;
                  height: 60px;
             }
+            /* YKS Sayaç Görsel Fix (Yazının çember dışına taşmaması için) */
             .countdown-value strong {
-                 font-size: 1.5em;
+                 font-size: 1.2em; 
             }
             .countdown-value span {
                  font-size: 0.5em;
@@ -867,7 +919,7 @@
             }
         }
         
-        /* ÖZEL UYARI KUTUSU STİLİ */
+        /* ÖZEL UYARI KUTUSU STİLİ KORUNDU */
         #custom-alert {
             position: fixed;
             top: -50px;
@@ -882,7 +934,7 @@
             transition: opacity 0.5s, top 0.5s;
         }
         
-        /* EKLENEN HTML ELEMENTLERİ İÇİN STİLLER */
+        /* EKLENEN HTML ELEMENTLERİ İÇİN STİLLER KORUNDU */
         .day-header {
              font-size: 1.3em; 
              font-weight: 800;
@@ -901,6 +953,12 @@
              text-shadow: 0 0 5px rgba(248, 113, 113, 0.3);
              margin-bottom: 10px; 
              text-align: center;
+        }
+        
+        /* YENİ EKLENEN SORU SKORU GÖRÜNÜMÜ KORUNDU */
+        #day-question-score {
+             color: var(--countdown-fill);
+             text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);
         }
         
         .task-list {
@@ -973,6 +1031,8 @@
                 <div class="header-stats">
                     <span id="all-time-score"><i class="fas fa-trophy"></i> Toplam: 0s</span>
                     <span id="today-worked-time"><i class="fas fa-clock"></i> Bugün: 0s</span>
+                    <span id="today-question-count"><i class="fas fa-bullseye"></i> Bugün Çözülen: 0 soru</span>
+                    <span id="week-question-count"><i class="fas fa-chart-bar"></i> Bu Hafta: 0 soru</span>
                 </div>
 
                 <div class="theme-controls">
@@ -981,6 +1041,8 @@
                     <button class="theme-button" data-theme="spiderman" onclick="setTheme('spiderman')"><i class="fas fa-spider"></i></button>
                 </div>
                 
+                <button id="view-toggle-btn" onclick="toggleScheduleView()" style="background-color: var(--button-bg); color: var(--text-color);"><i class="fas fa-arrows-alt-h"></i> <span id="view-toggle-text">Yatay Kaydırma Modu</span></button>
+
                 <button id="pomodoro-btn" onclick="showPomodoroModal()" class="pomodoro-btn" style="background-color: var(--pomodoro-accent);"><i class="fas fa-hourglass-half"></i> ODAK ZAMANI</button>
                 
                 <a id="instagram-link" href="https://instagram.com/cosxomer" target="_blank">
@@ -1109,9 +1171,45 @@
         let auth;
         let currentUser = null;
         const fallbackUserName = 'Ömer'; // Varsayılan kullanıcı adı
+        
+        // =======================================
+        // YENİ EK: GÖRÜNÜM MODU YÖNETİMİ
+        // =======================================
+        let isScrollingView = localStorage.getItem('isScrollingView') === 'true'; // Başlangıç değeri localStorage'dan alınır
+        
+        function updateScheduleView() {
+            const grid = document.querySelector('.schedule-grid');
+            const btnText = document.getElementById('view-toggle-text');
+            const btnIcon = document.querySelector('#view-toggle-btn i');
+
+            if (!grid || !btnText || !btnIcon) return;
+
+            if (isScrollingView) {
+                grid.classList.add('scrolling-mode');
+                btnText.textContent = 'Tablo Moduna Geç';
+                btnIcon.className = 'fas fa-grip-vertical';
+            } else {
+                grid.classList.remove('scrolling-mode');
+                btnText.textContent = 'Yatay Kaydırma Modu';
+                btnIcon.className = 'fas fa-arrows-alt-h';
+            }
+        }
+        
+        function toggleScheduleView() {
+            // Mobil görünümde kalmasını istemediği için 768px üzeri ekranlarda çalışmalı.
+            if (window.innerWidth <= 768) {
+                 showCustomAlert("Görünüm modu geçişi sadece masaüstü ekranlarında kullanılabilir.", '#f97316', 3000);
+                 return;
+            }
+            isScrollingView = !isScrollingView;
+            localStorage.setItem('isScrollingView', isScrollingView);
+            updateScheduleView();
+            showCustomAlert(isScrollingView ? "Görünüm: Yatay Kaydırmalı Mod" : "Görünüm: Tablo Modu", '#0ea5e9');
+        }
+
 
         // =======================================
-        // TEMA YÖNETİMİ FONKSİYONLARI
+        // TEMA YÖNETİMİ FONKSİYONLARI KORUNDU
         // =======================================
         function setTheme(themeName) {
             document.body.setAttribute('data-theme', themeName);
@@ -1136,7 +1234,7 @@
         }
 
         // =======================================
-        // FIREBASE AUTH FONKSİYONLARI
+        // FIREBASE AUTH FONKSİYONLARI KORUNDU
         // =======================================
         function initFirebaseAuth() {
             if (!window.firebase.apps.length) {
@@ -1235,6 +1333,7 @@
                 updateUserInfo(currentUser);
                 renderSchedule();
                 updateAllDayScoresAndToday();
+                updateQuestionStats(); // YENİ: Soru istatistiklerini yükle
             } else {
                 loginGate.style.opacity = '1';
                 loginGate.style.display = 'flex';
@@ -1265,7 +1364,7 @@
         }
         
         // =======================================
-        // SABİT DEĞİŞKENLER
+        // SABİT DEĞİŞKENLER KORUNDU
         // =======================================
         const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
         const YKS_CIRCUMFERENCE = 2 * Math.PI * 18;
@@ -1274,7 +1373,7 @@
         let openFormDayIndex = null;
         
         // =======================================
-        // YKS GERİ SAYIM (21 Haziran 2026 @ 10:00)
+        // YKS GERİ SAYIM KORUNDU
         // =======================================
         const YKS_TARGET_DATE_MS = new Date(2026, 5, 21, 10, 0, 0).getTime();
         let yksInterval;
@@ -1290,7 +1389,6 @@
 
             const totalDays = Math.floor(distance / (1000 * 60 * 60 * 24));
             const totalWeeks = Math.floor(totalDays / 7);
-            const daysLeft = totalDays % 7;
             const hoursLeft = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutesLeft = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const secondsLeft = Math.floor((distance % (1000 * 60)) / 1000);
@@ -1321,7 +1419,7 @@
         }
 
         // =======================================
-        // TARİH VE ZAMAN YÖNETİMİ
+        // TARİH VE ZAMAN YÖNETİMİ KORUNDU
         // =======================================
         function getStartOfWeek(date) {
             const day = date.getDay(); // 0 (Pazar) - 6 (Cumartesi)
@@ -1350,9 +1448,16 @@
         function getScoreKey(dayIndex) {
             return `score_${getStorageKey(dayIndex)}`;
         }
+        
+        // YENİ: Soru Sayısı Key'i KORUNDU
+        function getQuestionKey(dayIndex) {
+            // Soru skorları için benzersiz bir key oluşturur
+            return `questions_${getStorageKey(dayIndex).split('_').slice(1).join('_')}`;
+        }
+
 
         // =======================================
-        // GÖREV YÖNETİMİ (CRUD & RENDER)
+        // GÖREV YÖNETİMİ (CRUD & RENDER) KORUNDU
         // =======================================
         function loadTasks(dayIndex) {
             const key = getStorageKey(dayIndex);
@@ -1415,7 +1520,8 @@
                 });
             }
             updateDayProgress(dayIndex);
-            updateDayScoreDisplay(dayIndex); // Günlük süreyi güncelle
+            updateDayScoreDisplay(dayIndex); // Günlük çalışma süresini güncelle
+            updateDayQuestionScoreDisplay(dayIndex); // YENİ: Günlük soru skorunu güncelle
         }
 
         function createTaskElement(taskList, dayIndex, text, completed = false) {
@@ -1667,7 +1773,7 @@
         }
         
         // =======================================
-        // DRAG AND DROP YÖNETİMİ
+        // DRAG AND DROP YÖNETİMİ KORUNDU
         // =======================================
         function handleDragOver(e) {
             e.preventDefault(); 
@@ -1747,7 +1853,7 @@
         }
         
         // =======================================
-        // POMODORO VE SÜRE YÖNETİMİ
+        // POMODORO VE SÜRE YÖNETİMİ KORUNDU
         // =======================================
         let timerInterval = null;
         let isTimerRunning = false;
@@ -1990,7 +2096,7 @@
         }
 
         // =======================================
-        // PUAN YÖNETİMİ
+        // PUAN VE İSTATİSTİK YÖNETİMİ (ÇALIŞMA SÜRESİ) KORUNDU
         // =======================================
         function loadStudyScore(dayIndex) {
             const key = getScoreKey(dayIndex);
@@ -2000,8 +2106,8 @@
         function saveStudyScore(dayIndex, minutes) {
             const currentScore = loadStudyScore(dayIndex);
             localStorage.setItem(getScoreKey(dayIndex), currentScore + minutes);
-            updateAllDayScoresAndToday();
-            updateDayScoreDisplay(dayIndex); // Skor değişince gün başlığını da güncelle
+            updateAllDayScoresAndToday(); // İsim aynı kaldı, çalışma süresi istatistiklerini günceller
+            updateDayScoreDisplay(dayIndex); 
         }
         
         function formatMinutesToHoursMinutes(totalMinutes) {
@@ -2080,6 +2186,86 @@
             document.getElementById('today-worked-time').textContent = `⏱️ Bugün: ${formatMinutesToHoursMinutes(todayScore)}`;
         }
 
+        // =======================================
+        // YENİ: SORU SAYISI YÖNETİMİ
+        // =======================================
+        function loadQuestionScore(dayIndex) {
+            const key = getQuestionKey(dayIndex);
+            return parseInt(localStorage.getItem(key)) || 0;
+        }
+
+        function saveQuestionScore(dayIndex, count) {
+            const currentCount = loadQuestionScore(dayIndex);
+            localStorage.setItem(getQuestionKey(dayIndex), currentCount + count);
+            updateQuestionStats();
+            updateDayQuestionScoreDisplay(dayIndex); 
+        }
+        
+        // YENİ EK: Soru sayısını sıfırlama fonksiyonu
+        function resetQuestionCount(dayIndex) {
+             const dayName = DAY_NAMES[dayIndex];
+             // Kullanıcının silme hakkı olması istendiği için onay iste
+             if (confirm(`${dayName} günü için kaydedilmiş tüm soru sayısını (şu an: ${loadQuestionScore(dayIndex)} soru) SIFIRLAMAK istediğinizden emin misiniz?`)) {
+                 const key = getQuestionKey(dayIndex);
+                 localStorage.setItem(key, 0); // Sayıyı 0 olarak kaydet
+                 
+                 // Güncel ekranı yenile
+                 updateQuestionStats();
+                 updateDayQuestionScoreDisplay(dayIndex);
+                 
+                 showCustomAlert(`${dayName} günü soru sayısı başarıyla SIFIRLANDI.`, '#ef4444');
+             }
+        }
+
+        function updateDayQuestionScoreDisplay(dayIndex) {
+            const scoreElement = document.getElementById(`day-question-score-${dayIndex}`);
+            if (scoreElement) {
+                const score = loadQuestionScore(dayIndex);
+                scoreElement.textContent = `Soru: ${score} adet`;
+            }
+        }
+        
+        function getWeekQuestionCount() {
+            let weekTotal = 0;
+            for (let i = 0; i < 7; i++) {
+                weekTotal += loadQuestionScore(i);
+            }
+            return weekTotal;
+        }
+
+        function updateQuestionStats() {
+            let todayQuestions = 0;
+
+            const today = new Date();
+            const todayKey = getQuestionKey((today.getDay() + 6) % 7);
+            
+            // Bugünün skorunu al
+            todayQuestions = parseInt(localStorage.getItem(todayKey)) || 0;
+            
+            // Haftalık skoru al
+            const weekQuestions = getWeekQuestionCount();
+            
+            // Header Stat güncelleme
+            document.getElementById('today-question-count').textContent = `🎯 Bugün Çözülen: ${todayQuestions} soru`;
+            document.getElementById('week-question-count').textContent = `📈 Bu Hafta: ${weekQuestions} soru`;
+        }
+
+        function handleQuestionEntry(dayIndex) {
+            const inputElement = document.getElementById(`question-count-input-${dayIndex}`);
+            const count = getNumber(inputElement.value);
+            
+            if (count <= 0) {
+                 showCustomAlert("Lütfen sıfırdan büyük bir soru sayısı giriniz.", '#f97316');
+                 return;
+            }
+
+            saveQuestionScore(dayIndex, count);
+            inputElement.value = ''; // Sıfırla
+            
+            const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
+            showCustomAlert(`Tebrikler ${userName}! ${count} yeni soru kaydedildi.`, '#22c55e');
+        }
+
 
         function getNumber(value) {
             return parseInt(value) || 0;
@@ -2110,6 +2296,13 @@
                     <div class="day-cell" id="day-${i}" data-day-index="${i}">
                         <h3 class="day-header">${DAY_NAMES[i]} <span id="date-${i}" style="font-size: 0.7em; opacity: 0.8; font-weight: 500;"></span></h3>
                         <span class="day-score-display" id="day-score-${i}">Çalışma: 0 dk</span>
+                        <span class="day-score-display" id="day-question-score-${i}" style="margin-bottom: 5px; color: var(--countdown-fill); text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);">Soru: 0 adet</span>
+                        
+                        <div class="question-input-box">
+                            <input type="number" id="question-count-input-${i}" placeholder="Soru Sayısı" min="0">
+                            <button onclick="handleQuestionEntry(${i})" style="background-color: #22c55e; color: white; padding: 0; font-size: 1em; width: 36px; height: 36px; min-width: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-check"></i></button>
+                            <button onclick="resetQuestionCount(${i})" title="Bu günün soru sayısını sıfırla" style="background-color: var(--pomodoro-accent); color: white; padding: 0; font-size: 1em; width: 36px; height: 36px; min-width: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-trash-alt"></i></button>
+                        </div>
                         
                         <div class="day-progress-area">
                             <div class="day-progress-container" id="progress-container-${i}" style="display: none;">
@@ -2169,7 +2362,9 @@
             }
 
             updateAllDayScoresAndToday();
+            updateQuestionStats(); // YENİ: Soru istatistiklerini güncelle
             setupDragAndDropListeners();
+            updateScheduleView(); // YENİ: Görünüm ayarını uygula
         }
 
         function changeWeek(direction) {
@@ -2212,6 +2407,20 @@
             document.getElementById('study-minutes').addEventListener('input', updateTimerFromInputsAndReset);
             document.getElementById('study-seconds').addEventListener('input', updateTimerFromInputsAndReset);
             
+            document.querySelectorAll('.question-input-box input').forEach(input => {
+                 input.addEventListener('input', updateTimerFromInputsAndReset);
+                 input.addEventListener('keydown', (e) => {
+                     if (e.key === 'Enter') {
+                         e.preventDefault();
+                         const dayIndex = parseInt(input.closest('.day-cell').dataset.dayIndex);
+                         handleQuestionEntry(dayIndex);
+                     }
+                 });
+            });
+
+            // YENİ EK: Görünüm modu başlangıçta yüklendi
+            updateScheduleView();
+
             window.onpopstate = () => {
                 loadWeekFromURL();
                 renderSchedule();
