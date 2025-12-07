@@ -147,12 +147,10 @@
             color: var(--header-text);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
             transform: scale(1);
-            /* **POMODORO BUTON DÜZENLEMESİ BAŞLANGIÇ** */
             display: flex; 
             align-items: center; 
             justify-content: center; 
             gap: 8px;
-            /* **POMODORO BUTON DÜZENLEMESİ BİTİŞ** */
         }
         
         button:active {
@@ -259,7 +257,6 @@
         header {
             background-color: var(--header-bg);
             color: var(--header-text);
-            /* ÖNCEKİ DÜZELTME: Header dikey paddingi azaltıldı */
             padding: 20px 40px; 
             display: flex;
             justify-content: space-between;
@@ -396,6 +393,7 @@
             border: 1px solid var(--header-text);
         }
 
+        /* INSTAGRAM LİNKİ GÜNCELLENDİ */
         #instagram-link {
             background-color: var(--instagram-bg);
             color: var(--instagram-text);
@@ -431,7 +429,6 @@
         
         #yks-countdown-container {
             width: 100%;
-            /* ÖNCEKİ DÜZELTME: YKS dikey paddingi azaltıldı */
             padding: 10px 40px; 
             background-color: var(--header-bg); 
             border-bottom: 2px solid var(--border-color);
@@ -675,7 +672,6 @@
              padding: 12px 25px;
              font-size: 1.1em;
              min-width: 120px;
-             /* İkon ve Metin çakışmasını engellemek için */
              gap: 8px;
         }
         
@@ -692,7 +688,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 8px; /* İkon ve Metin çakışmasını engellemek için */
+            gap: 8px; 
         }
         
         /* Pomodoro Süre Ayarlama Alanı Düzeltmeleri */
@@ -721,7 +717,7 @@
         .schedule-grid {
             /* TABLO MODU (YAN YANA SIKIŞTIRILMIŞ - Desktop Default) */
             grid-template-columns: repeat(7, 1fr); 
-            display: grid; /* Display grid eklemesi yapıldı */
+            display: grid; 
             border-top: 1px solid var(--border-color); 
             overflow-x: hidden; 
             min-width: 100%;
@@ -919,66 +915,66 @@
             }
         }
         
-        /* ÖZEL UYARI KUTUSU STİLİ KORUNDU */
+        /* ÖZEL UYARI KUTUSU STİL... */
         #custom-alert {
             position: fixed;
-            top: -50px;
-            right: 20px;
-            padding: 10px 20px;
-            color: white;
+            top: -50px; 
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 30px;
             border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-            z-index: 2000;
+            color: white;
             font-weight: 600;
+            z-index: 5000;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s ease-in-out; 
             opacity: 0;
-            transition: opacity 0.5s, top 0.5s;
+            text-align: center;
         }
-        
-        /* EKLENEN HTML ELEMENTLERİ İÇİN STİLLER KORUNDU */
+
+        /* SKOR VE GÖREV LİSTESİ STİLİ KORUNDU */
         .day-header {
-             font-size: 1.3em; 
-             font-weight: 800;
+             font-size: 1.8em;
+             font-weight: 900;
              color: var(--day-header-color);
-             margin-bottom: 5px; /* Altındaki süre için boşluk azaltıldı */
+             border-bottom: 1px solid var(--border-color);
+             padding-bottom: 8px;
+             margin-bottom: 10px;
              text-align: center;
-             padding-bottom: 5px;
-             border-bottom: 2px solid var(--border-color);
         }
 
         .day-score-display {
              display: block;
-             font-size: 0.85em;
-             font-weight: 600;
-             color: var(--pomodoro-accent); 
-             text-shadow: 0 0 5px rgba(248, 113, 113, 0.3);
-             margin-bottom: 10px; 
              text-align: center;
+             margin-bottom: 5px;
+             font-size: 1em;
+             font-weight: 700;
+             color: var(--accent-color);
+             text-shadow: 0 0 5px var(--accent-glow);
         }
-        
         /* YENİ EKLENEN SORU SKORU GÖRÜNÜMÜ KORUNDU */
         #day-question-score {
-             color: var(--countdown-fill);
-             text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);
+            color: var(--countdown-fill);
+            text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);
         }
-        
+
         .task-list {
-             list-style: none;
-             padding: 0;
-             margin: 0;
-             flex-grow: 1; 
-             min-height: 10px; 
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            min-height: 10px;
         }
-        
         .task-text-content {
-             flex-grow: 1; 
+             flex-grow: 1;
              font-weight: 600;
              color: var(--task-text-color);
              display: block;
         }
-
     </style>
 </head>
 <body>
+    
     <div id="custom-alert" style="background-color: #ef4444;">Hata Mesajı</div>
 
     <div id="login-gate">
@@ -990,7 +986,7 @@
                 <div class="auth-tab active" id="login-tab" onclick="showAuthForm('login')">GİRİŞ YAP</div>
                 <div class="auth-tab" id="signup-tab" onclick="showAuthForm('signup')">KAYIT OL</div>
             </div>
-            
+
             <div id="login-form">
                 <input type="email" id="login-email" placeholder="E-posta Adresi" required>
                 <input type="password" id="login-password" placeholder="Şifre" required onkeydown="if(event.key === 'Enter') signInWithEmailPassword()">
@@ -1008,51 +1004,68 @@
                 </button>
             </div>
             
-            <p id="login-error-message" style="color: #ef4444; margin-top: 15px; font-weight: 600;"></p>
+            <p id="login-error-message" style="color: var(--pomodoro-accent); margin-top: 15px; font-weight: 600;"></p>
             
-            <a id="instagram-follow-btn" href="https://instagram.com/cosxomer" target="_blank">
-                <i class="fab fa-instagram"></i> Instagram'dan Takip Et /cosxomer
+            <a href="https://instagram.com/cosxomer" id="instagram-follow-btn" target="_blank">
+                <i class="fab fa-instagram"></i> COSX ÖMER'İ Takip Et
             </a>
-            <p style="color: var(--text-color); margin-top: 15px; font-size: 0.8em; opacity: 0.6;">Bu platformu kullanmak için giriş yapmalısınız.</p>
         </div>
     </div>
     
     <div class="container">
-        
+
         <header>
-            <h1></h1>
+            <h1>COSX ÖMER DERS ÇİZELGESİ</h1>
+            
             <div class="header-controls">
                 
-                <div class="auth-section" id="user-info" style="display: none;">
-                    <span id="username-display" style="font-weight: 700; color: var(--accent-color);"></span>
-                    <button id="logout-btn" onclick="signOutUser()" style="background-color: var(--pomodoro-accent); color: var(--header-text); padding: 5px 10px; font-size: 0.9em;"><i class="fas fa-sign-out-alt"></i> Çıkış Yap</button>
+                <div class="auth-section">
+                    <div id="user-info" style="display: none;">
+                        <span id="username-display" style="font-weight: 700;"></span>
+                    </div>
+                    <button id="logout-btn" onclick="signOutUser()" style="display: none; background-color: var(--pomodoro-accent); color: var(--header-text);">
+                        <i class="fas fa-sign-out-alt"></i> Çıkış Yap
+                    </button>
                 </div>
                 
                 <div class="header-stats">
-                    <span id="all-time-score"><i class="fas fa-trophy"></i> Toplam: 0s</span>
-                    <span id="today-worked-time"><i class="fas fa-clock"></i> Bugün: 0s</span>
-                    <span id="today-question-count"><i class="fas fa-bullseye"></i> Bugün Çözülen: 0 soru</span>
-                    <span id="week-question-count"><i class="fas fa-chart-bar"></i> Bu Hafta: 0 soru</span>
+                    <span id="all-time-score">🏆 Toplam: 0s 0dk</span>
+                    <span id="today-worked-time">⏱️ Bugün: 0s 0dk</span>
+                    <span id="today-question-count">🎯 Günlük Soru: 0</span>
+                    <span id="week-question-count">🎯 Haftalık Soru: 0</span>
                 </div>
 
                 <div class="theme-controls">
-                    <button class="theme-button" data-theme="luxury" onclick="setTheme('luxury')"><i class="fas fa-moon"></i></button>
-                    <button class="theme-button" data-theme="kitty" onclick="setTheme('kitty')"><i class="fas fa-cat"></i></button>
-                    <button class="theme-button" data-theme="spiderman" onclick="setTheme('spiderman')"><i class="fas fa-spider"></i></button>
+                    <button class="theme-button active" data-theme="luxury" onclick="setTheme('luxury')" title="Luxury Dark Theme">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="theme-button" data-theme="kitty" onclick="setTheme('kitty')" title="Hello Kitty Theme">
+                        <i class="fas fa-cat"></i>
+                    </button>
+                    <button class="theme-button" data-theme="spiderman" onclick="setTheme('spiderman')" title="Spiderman Theme">
+                        <i class="fas fa-spider"></i>
+                    </button>
                 </div>
-                
-                <button id="view-toggle-btn" onclick="toggleScheduleView()" style="background-color: var(--button-bg); color: var(--text-color);"><i class="fas fa-arrows-alt-h"></i> <span id="view-toggle-text">Yatay Kaydırma Modu</span></button>
 
-                <button id="pomodoro-btn" onclick="showPomodoroModal()" class="pomodoro-btn" style="background-color: var(--pomodoro-accent);"><i class="fas fa-hourglass-half"></i> ODAK ZAMANI</button>
+                <button class="pomodoro-btn" onclick="showPomodoroModal()" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; padding: 12px 20px;">
+                    <i class="fas fa-clock"></i> Pomodoro Başlat
+                </button>
                 
-                <a id="instagram-link" href="https://instagram.com/cosxomer" target="_blank">
-                     <i class="fab fa-instagram"></i> /cosxomer
+                <button id="view-toggle-btn" onclick="toggleScheduleView()" style="background-color: var(--countdown-fill); color: var(--header-text);">
+                    <i class="fas fa-arrows-alt-h"></i> <span id="view-toggle-text">Yatay Kaydırma Modu</span>
+                </button>
+
+                <a href="https://instagram.com/cosxomer" id="instagram-link" target="_blank">
+                    <i class="fab fa-instagram"></i> COSXOMER
                 </a>
+                
             </div>
         </header>
-
+        
         <div id="yks-countdown-container">
-            <h2>YKS 2026<br>Geri Sayım</h2>
+            <h2>
+                YKS 2026'ya Kalan Süre
+            </h2>
             <div class="countdown-group">
                 
                 <div class="countdown-item">
@@ -1076,7 +1089,7 @@
                         <span>Gün</span>
                     </div>
                 </div>
-                
+
                 <div class="countdown-item">
                     <svg class="countdown-svg" viewBox="0 0 40 40">
                         <circle class="countdown-circle-bg" cx="20" cy="20" r="18"></circle>
@@ -1110,11 +1123,11 @@
             </div>
             <p id="yks-target-date">21 Haziran 2026 @ 10:00</p>
         </div>
-
+        
         <div class="week-nav" style="padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; background-color: var(--container-bg); border-bottom: 1px solid var(--border-color);">
-             <button onclick="changeWeek(-1)" style="background-color: var(--accent-color); color: var(--header-text);"><i class="fas fa-chevron-left"></i> Önceki Hafta</button>
-             <h3 id="week-display" style="font-size: 1.5em; color: var(--header-text);">Mevcut Hafta</h3>
-             <button onclick="changeWeek(1)" style="background-color: var(--accent-color); color: var(--header-text);">Sonraki Hafta <i class="fas fa-chevron-right"></i></button>
+            <button onclick="changeWeek(-1)" style="background-color: var(--accent-color); color: var(--header-text);"><i class="fas fa-chevron-left"></i> Önceki Hafta</button>
+            <h3 id="week-display" style="font-size: 1.5em; font-weight: 800; color: var(--logo-accent); text-shadow: 0 0 8px rgba(255, 215, 0, 0.5);"></h3>
+            <button onclick="changeWeek(1)" style="background-color: var(--accent-color); color: var(--header-text);">Sonraki Hafta <i class="fas fa-chevron-right"></i></button>
         </div>
 
         <div class="main-content">
@@ -1123,57 +1136,74 @@
                     </div>
             </div>
         </div>
+        
     </div>
 
     <div id="pomodoro-modal" class="modal-overlay">
         <div class="pomodoro-content">
-            <button id="close-pomodoro-btn" onclick="hidePomodoroModal()" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; box-shadow: none;"><i class="fas fa-times"></i></button>
-            <h3 id="timer-status" style="color: var(--accent-color); margin-bottom: 15px; font-size: 1.5em;">Odak Zamanlayıcısı</h3>
+            <button onclick="document.getElementById('pomodoro-modal').style.display = 'none'; resetTimer(true, false);" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; padding: 5px 10px; box-shadow: none;">
+                 <i class="fas fa-times"></i>
+            </button>
+            
+            <h2 style="color: var(--pomodoro-accent); margin-bottom: 25px; font-size: 2em; text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);">ODAK ZAMANI</h2>
             
             <div class="pomodoro-time-inputs">
-                <input type="number" id="study-hours" value="0" min="0" max="24" placeholder="Saat">
-                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika">
-                <input type="number" id="study-seconds" value="0" min="0" max="59" placeholder="Saniye">
+                <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="updateTimerFromInputsAndReset()">
+                <span>:</span>
+                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="updateTimerFromInputsAndReset()">
+                <span>:</span>
+                <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="updateTimerFromInputsAndReset()">
             </div>
+            
+            <div class="timer-display" id="timer-display">00:25:00</div>
+            
+            <p id="timer-status" style="font-size: 1.1em; font-weight: 700; color: var(--accent-color); margin-bottom: 30px;"></p>
 
-            <div id="timer-display" class="timer-display">00:25:00</div>
-            
-            <p id="pomodoro-status" style="color: var(--pomodoro-accent); font-weight: 700; margin-top: 5px;">Hazır.</p>
-            
             <div class="timer-controls">
-                <div id="start-pause-container">
-                    <button id="start-btn" onclick="startTimer()" style="background-color: var(--accent-color); font-weight: 700; color: var(--header-text);"><i class="fas fa-play"></i> BAŞLAT</button>
-                    <button id="pause-btn" onclick="pauseTimer()" style="display: none; background-color: var(--accent-color); font-weight: 700; color: var(--header-text); opacity: 0;"><i class="fas fa-pause"></i> DURAKLAT</button>
-                </div>
-                <button id="reset-btn" onclick="resetTimer(true)" style="background-color: var(--button-bg);"><i class="fas fa-undo"></i> SIFIRLA</button>
-                <button id="finish-btn" onclick="finishTimer(false)"><i class="fas fa-stop"></i> BİTİR & KAYDET</button>
+                 
+                 <div>
+                     <button id="start-pause-btn" onclick="toggleTimer()" style="background-color: var(--accent-color); color: var(--header-text); font-size: 1.1em; font-weight: 700;">
+                         <i class="fas fa-play"></i> Başlat
+                     </button>
+                     <button id="resume-btn" onclick="startTimer()" style="display: none; background-color: var(--accent-color); color: var(--header-text); font-size: 1.1em; font-weight: 700;">
+                         <i class="fas fa-play"></i> Devam Et
+                     </button>
+                 </div>
+                 
+                <button id="reset-btn" onclick="resetTimer()" style="background-color: var(--button-bg); color: var(--header-text); font-size: 1.1em;">
+                     <i class="fas fa-undo"></i> Sıfırla
+                </button>
+                
+                <button id="finish-btn" onclick="finishTimer()">
+                     <i class="fas fa-check"></i> Bitir & Kaydet
+                </button>
             </div>
+            
+            <audio id="finish-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-bell-notification-927.mp3"></audio>
         </div>
     </div>
-    
-    <audio id="audio-player" src="bell.mp3" preload="auto"></audio>
     
     <script>
         
         // =======================================
-        // FIREBASE CONFIG - KESİNLEŞTİRİLMİŞ
+        // FIREBASE AYARLARI (KORUNDU)
         // =======================================
+        // ** GERÇEK KULLANIMDA BURAYA KENDİ FIREBASE AYARLARINIZI GİRMELİSİNİZ **
         const firebaseConfig = {
-            // ANAHTARLARINIZ
-            apiKey: "AIzaSyAzNCtpGZdh4N2UtD-ZUp_KHS_US452COE",
+            apiKey: "AIzaSyAzNCtpGZdh4N2UtD-ZUp_KHS_US452COE", 
             authDomain: "cosxomer-7fdec.firebaseapp.com",
             projectId: "cosxomer-7fdec",
             storageBucket: "cosxomer-7fdec.firebasestorage.app",
             messagingSenderId: "853886482736",
-            appId: "1:853886482736:web:416abcaa2e3b92546830f5" // SON SATIRDA VİRGÜL YOK
+            appId: "1:853886482736:web:416abcaa2e3b92546830f5"
         };
-
+        
         let auth;
         let currentUser = null;
-        const fallbackUserName = 'Ömer'; // Varsayılan kullanıcı adı
-        
+        const fallbackUserName = "Çalışkan";
+
         // =======================================
-        // YENİ EK: GÖRÜNÜM MODU YÖNETİMİ
+        // TEMA VE GÖRÜNÜM YÖNETİMİ (KORUNDU)
         // =======================================
         let isScrollingView = localStorage.getItem('isScrollingView') === 'true'; // Başlangıç değeri localStorage'dan alınır
         
@@ -1181,7 +1211,6 @@
             const grid = document.querySelector('.schedule-grid');
             const btnText = document.getElementById('view-toggle-text');
             const btnIcon = document.querySelector('#view-toggle-btn i');
-
             if (!grid || !btnText || !btnIcon) return;
 
             if (isScrollingView) {
@@ -1194,19 +1223,19 @@
                 btnIcon.className = 'fas fa-arrows-alt-h';
             }
         }
-        
+
         function toggleScheduleView() {
             // Mobil görünümde kalmasını istemediği için 768px üzeri ekranlarda çalışmalı.
             if (window.innerWidth <= 768) {
-                 showCustomAlert("Görünüm modu geçişi sadece masaüstü ekranlarında kullanılabilir.", '#f97316', 3000);
-                 return;
+                showCustomAlert("Görünüm modu geçişi sadece masaüstü ekranlarında kullanılabilir.", '#f97316', 3000);
+                return;
             }
+
             isScrollingView = !isScrollingView;
             localStorage.setItem('isScrollingView', isScrollingView);
             updateScheduleView();
             showCustomAlert(isScrollingView ? "Görünüm: Yatay Kaydırmalı Mod" : "Görünüm: Tablo Modu", '#0ea5e9');
         }
-
 
         // =======================================
         // TEMA YÖNETİMİ FONKSİYONLARI KORUNDU
@@ -1214,22 +1243,20 @@
         function setTheme(themeName) {
             document.body.setAttribute('data-theme', themeName);
             localStorage.setItem('theme', themeName);
-            
             const themeButtons = document.querySelectorAll('.theme-button');
             if (themeButtons.length > 0) {
                 themeButtons.forEach(btn => {
                     btn.classList.remove('active');
                 });
-                
                 const activeBtn = document.querySelector(`.theme-button[data-theme="${themeName}"]`);
                 if (activeBtn) {
                     activeBtn.classList.add('active');
                 }
             }
         }
-
+        
         function loadTheme() {
-            const savedTheme = localStorage.getItem('theme') || 'luxury'; 
+            const savedTheme = localStorage.getItem('theme') || 'luxury';
             setTheme(savedTheme);
         }
 
@@ -1253,14 +1280,20 @@
         }
 
         function getAuthErrorMessage(errorCode) {
-            switch(errorCode) {
-                case 'auth/wrong-password': return "Hatalı şifre.";
-                case 'auth/user-not-found': return "Böyle bir kullanıcı bulunamadı.";
-                case 'auth/email-already-in-use': return "Bu e-posta adresi zaten kullanımda.";
-                case 'auth/invalid-email': return "Geçersiz e-posta formatı.";
-                case 'auth/weak-password': return "Şifre en az 6 karakter olmalıdır.";
-                case 'auth/network-request-failed': return "Ağ bağlantı hatası. İnternet bağlantınızı kontrol edin.";
-                default: return "Giriş/Kayıt hatası. Lütfen bilgilerinizi kontrol edin.";
+             switch (errorCode) {
+                case 'auth/user-not-found':
+                case 'auth/wrong-password':
+                    return 'Hatalı e-posta veya şifre.';
+                case 'auth/email-already-in-use':
+                    return 'Bu e-posta adresi zaten kullanımda.';
+                case 'auth/weak-password':
+                    return 'Şifre en az 6 karakter olmalıdır.';
+                case 'auth/invalid-email':
+                    return 'Geçersiz e-posta adresi.';
+                case 'auth/network-request-failed':
+                    return 'Ağ bağlantı hatası. İnternet bağlantınızı kontrol edin.';
+                default:
+                    return 'Bir hata oluştu. Lütfen tekrar deneyin. (' + errorCode + ')';
             }
         }
 
@@ -1269,23 +1302,24 @@
             const password = document.getElementById('login-password').value;
             const errorMessage = document.getElementById('login-error-message');
             errorMessage.textContent = '';
-
+            
             if (!email || !password) {
-                errorMessage.textContent = 'Lütfen e-posta ve şifrenizi giriniz.';
-                return;
+                 errorMessage.textContent = 'Lütfen e-posta ve şifrenizi giriniz.';
+                 return;
             }
 
             if (auth && auth.signInWithEmailAndPassword) {
                 auth.signInWithEmailAndPassword(email, password)
                     .then(() => {
+                        // Başarılı giriş handleAuthStateChange içinde yapılacak
                         errorMessage.textContent = '';
-                        showCustomAlert("Giriş başarılı! Hoş geldin, " + (auth.currentUser.displayName || fallbackUserName), '#22c55e');
+                        showCustomAlert("Giriş başarılı! Hoş geldin, " + (currentUser ? currentUser.displayName : fallbackUserName), '#22c55e');
                     })
                     .catch((error) => {
                         errorMessage.textContent = getAuthErrorMessage(error.code);
                     });
             } else {
-                errorMessage.textContent = 'Hata: Kimlik doğrulama servisi kullanılamıyor.';
+                 errorMessage.textContent = 'Hata: Kimlik doğrulama servisi kullanılamıyor.';
             }
         }
 
@@ -1295,19 +1329,19 @@
             const password = document.getElementById('signup-password').value;
             const errorMessage = document.getElementById('login-error-message');
             errorMessage.textContent = '';
-
+            
             if (!username || !email || !password) {
-                errorMessage.textContent = 'Lütfen tüm alanları doldurunuz.';
-                return;
+                 errorMessage.textContent = 'Lütfen tüm alanları doldurunuz.';
+                 return;
             }
-
+            
             if (auth && auth.createUserWithEmailAndPassword) {
                 auth.createUserWithEmailAndPassword(email, password)
                     .then((userCredential) => {
                         // Kullanıcı adını Firebase'e kaydet
-                        return userCredential.user.updateProfile({
+                        return userCredential.user.updateProfile({ 
                             displayName: username,
-                            photoURL: "placeholder.png"
+                            photoURL: "placeholder.png" 
                         });
                     })
                     .then(() => {
@@ -1318,17 +1352,18 @@
                         errorMessage.textContent = getAuthErrorMessage(error.code);
                     });
             } else {
-                errorMessage.textContent = 'Hata: Kimlik doğrulama servisi kullanılamıyor.';
+                 errorMessage.textContent = 'Hata: Kimlik doğrulama servisi kullanılamıyor.';
             }
         }
 
         function handleAuthStateChange(user) {
             const loginGate = document.getElementById('login-gate');
-            currentUser = user; 
-            
+            currentUser = user;
             if (currentUser) {
                 loginGate.style.opacity = '0';
-                setTimeout(() => { loginGate.style.display = 'none'; }, 300);
+                setTimeout(() => {
+                    loginGate.style.display = 'none';
+                }, 300);
                 document.getElementById('logout-btn').style.display = 'flex';
                 updateUserInfo(currentUser);
                 renderSchedule();
@@ -1341,14 +1376,13 @@
                 document.getElementById('user-info').style.display = 'none';
             }
         }
-
+        
         function updateUserInfo(currentUser) {
             const userInfo = document.getElementById('user-info');
             const usernameDisplay = document.getElementById('username-display');
-            
             if (currentUser) {
                 userInfo.style.display = 'flex';
-                usernameDisplay.textContent = currentUser.displayName || fallbackUserName; 
+                usernameDisplay.textContent = currentUser.displayName || fallbackUserName;
             } else {
                 userInfo.style.display = 'none';
             }
@@ -1357,7 +1391,7 @@
         function signOutUser() {
             if (!auth) return;
             auth.signOut().then(() => {
-                showCustomAlert("Başarıyla çıkış yapıldı.", '#0ea5e9');
+                 showCustomAlert("Başarıyla çıkış yapıldı.", '#0ea5e9');
             }).catch(error => {
                 console.error("Çıkış hatası:", error);
             });
@@ -1367,157 +1401,87 @@
         // SABİT DEĞİŞKENLER KORUNDU
         // =======================================
         const DAY_NAMES = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
-        const YKS_CIRCUMFERENCE = 2 * Math.PI * 18;
-        let currentWeekOffset = 0;
+        const TARGET_DATE = new Date('2026-06-21T10:00:00'); // YKS 2026 Tahmini Tarihi
+        const YKS_RADIUS = 18;
+        const YKS_CIRCUMFERENCE = 2 * Math.PI * YKS_RADIUS;
+        
+        // =======================================
+        // GÖREV YÖNETİMİ (KORUNDU)
+        // =======================================
+        let currentWeekOffset = 0; // 0 = Bu hafta, -1 = Önceki hafta, 1 = Sonraki hafta
         let draggedItem = null;
         let openFormDayIndex = null;
         
-        // =======================================
-        // YKS GERİ SAYIM KORUNDU
-        // =======================================
-        const YKS_TARGET_DATE_MS = new Date(2026, 5, 21, 10, 0, 0).getTime();
-        let yksInterval;
-        
-        function updateCountdown() {
-            const now = new Date().getTime();
-            let distance = YKS_TARGET_DATE_MS - now;
-            
-            if (distance < 0) {
-                distance = 0;
-                clearInterval(yksInterval);
-            }
-
-            const totalDays = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const totalWeeks = Math.floor(totalDays / 7);
-            const hoursLeft = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutesLeft = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-            const secondsLeft = Math.floor((distance % (1000 * 60)) / 1000);
-
-            // Değerleri HTML'e yazma
-            // YKS sayacında gün ve haftanın yeri değiştirildi (Hafta solda)
-            document.getElementById('days-value').textContent = totalDays.toString().padStart(2, '0');
-            document.getElementById('weeks-value').textContent = totalWeeks.toString().padStart(2, '0');
-            document.getElementById('hours-value').textContent = hoursLeft.toString().padStart(2, '0');
-            document.getElementById('minutes-value').textContent = minutesLeft.toString().padStart(2, '0');
-            document.getElementById('seconds-value').textContent = secondsLeft.toString().padStart(2, '0');
-
-            // Çemberleri Güncelleme (Çemberler için maks değerler: 365 gün, 52 hafta, 24 saat, 60 dakika, 60 saniye)
-            updateCircle('days-circle', totalDays, 365); 
-            updateCircle('weeks-circle', totalWeeks, 52); 
-            updateCircle('hours-circle', hoursLeft, 24); 
-            updateCircle('minutes-circle', minutesLeft, 60); 
-            updateCircle('seconds-circle', secondsLeft, 60); 
-        }
-
-        function updateCircle(id, value, max) {
-            const circle = document.getElementById(id);
-            if (!circle) return;
-            const percentage = (max - value) / max;
-            const offset = YKS_CIRCUMFERENCE * percentage;
-            circle.style.strokeDasharray = `${YKS_CIRCUMFERENCE} ${YKS_CIRCUMFERENCE}`;
-            circle.style.strokeDashoffset = offset;
-        }
-
-        // =======================================
-        // TARİH VE ZAMAN YÖNETİMİ KORUNDU
-        // =======================================
-        function getStartOfWeek(date) {
-            const day = date.getDay(); // 0 (Pazar) - 6 (Cumartesi)
-            const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Pazartesiyi bul (TR'de hafta Pazartesi başlar)
-            return new Date(date.getFullYear(), date.getMonth(), diff);
-        }
-        
-        function getStorageKey(dayIndex) {
-            return getStorageKeyByOffset(currentWeekOffset, dayIndex);
-        }
-
-        function getStorageKeyByOffset(weekOffset, dayIndex) {
-            const today = new Date();
-            const startOfCurrentWeek = getStartOfWeek(today);
-            startOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + weekOffset * 7);
-            const targetDate = new Date(startOfCurrentWeek);
-            targetDate.setDate(targetDate.getDate() + dayIndex);
-            
-            const month = targetDate.getMonth() + 1;
-            const day = targetDate.getDate();
-            const year = targetDate.getFullYear();
-            
-            return `tasks_${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-        }
-        
-        function getScoreKey(dayIndex) {
-            return `score_${getStorageKey(dayIndex)}`;
-        }
-        
-        // YENİ: Soru Sayısı Key'i KORUNDU
-        function getQuestionKey(dayIndex) {
-            // Soru skorları için benzersiz bir key oluşturur
-            return `questions_${getStorageKey(dayIndex).split('_').slice(1).join('_')}`;
-        }
-
-
-        // =======================================
-        // GÖREV YÖNETİMİ (CRUD & RENDER) KORUNDU
-        // =======================================
         function loadTasks(dayIndex) {
             const key = getStorageKey(dayIndex);
             const tasksJson = localStorage.getItem(key);
-            let tasks = tasksJson ? JSON.parse(tasksJson) : [];
-            
-            // Tamamlanmış görevleri sona taşı
-            tasks.sort((a, b) => {
-                if (a.completed && !b.completed) return 1;
-                if (!a.completed && b.completed) return -1;
-                return 0;
-            });
-
-            return tasks;
+            return tasksJson ? JSON.parse(tasksJson) : [];
         }
 
         function saveTasks(dayIndex, tasks) {
             const key = getStorageKey(dayIndex);
+            // Tamamlanmış görevleri alta taşı
+            tasks.sort((a, b) => {
+                if (a.completed && !b.completed) return 1;
+                if (!a.completed && b.completed) return -1;
+                return 0; 
+            });
             localStorage.setItem(key, JSON.stringify(tasks));
+            updateDayProgress(dayIndex);
         }
 
-        function reorderTasksInStorage(dayIndex) {
-            const list = document.getElementById(`task-list-${dayIndex}`);
-            if (!list) return;
+        function addTask(dayIndex, taskText) {
+            let tasks = loadTasks(dayIndex);
+            if (!taskText || tasks.some(t => t.text === taskText)) return;
+            
+            // "1s" veya "30dk" gibi süreleri parse etme logiği buraya eklenebilir. Şimdilik sadece metin olarak ekliyoruz.
+            tasks.unshift({ text: taskText, completed: false, completedTime: null }); // Yeni görevleri başa ekle
+            saveTasks(dayIndex, tasks);
+            renderTasks(dayIndex);
+            
+            const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
+            showCustomAlert(`"${taskText}" görevi ${DAY_NAMES[dayIndex]} için eklendi.`, '#bb86fc');
+        }
 
-            let reorderedTasks = [];
-            list.querySelectorAll('.task-item').forEach(item => {
-                const text = item.getAttribute('data-task-text');
-                const isCompleted = item.classList.contains('completed');
-                
-                // Mevcut verilerden detayları al (completedTime vb.)
-                const existingTasks = loadTasks(dayIndex, false); 
-                const existingTask = existingTasks.find(t => t.text === text);
+        function deleteTaskFromStorage(dayIndex, taskText) {
+             let tasks = loadTasks(dayIndex);
+             const initialLength = tasks.length;
+             tasks = tasks.filter(t => t.text !== taskText);
+             if (tasks.length < initialLength) {
+                 saveTasks(dayIndex, tasks);
+                 return true;
+             }
+             return false;
+        }
 
-                reorderedTasks.push({
-                    text: text,
-                    completed: isCompleted,
-                    completedTime: existingTask ? existingTask.completedTime : null
-                });
-            });
-
-            saveTasks(dayIndex, reorderedTasks);
+        function updateTaskCompletion(dayIndex, taskText, isCompleted) {
+             let tasks = loadTasks(dayIndex);
+             const task = tasks.find(t => t.text === taskText);
+             if (task) {
+                 task.completed = isCompleted;
+                 task.completedTime = isCompleted ? new Date().toISOString() : null;
+                 saveTasks(dayIndex, tasks);
+                 updateDayProgress(dayIndex);
+             }
         }
         
         function renderTasks(dayIndex) {
             const taskList = document.getElementById(`task-list-${dayIndex}`);
             if (!taskList) return;
 
-            // Önceki form varsa kapat
-            closeOpenForm();
+            // Önceki uyarıyı temizle
+            const previousAlert = taskList.querySelector('.empty-task-alert');
+            if (previousAlert) previousAlert.remove();
             
-            const tasks = loadTasks(dayIndex);
             taskList.innerHTML = '';
-
+            const tasks = loadTasks(dayIndex);
+            
             if (tasks.length === 0) {
-                 taskList.innerHTML = `<li style="color: var(--text-color); opacity: 0.6; font-size: 0.9em; text-align: center; padding: 10px;">Henüz görev yok.</li>`;
+                 taskList.innerHTML = `<li class="empty-task-alert" style="color: var(--text-color); opacity: 0.9em; text-align: center; padding: 10px;">Henüz görev yok.</li>`;
             } else {
                  tasks.forEach(task => {
-                    createTaskElement(taskList, dayIndex, task.text, task.completed);
-                });
+                     createTaskElement(taskList, dayIndex, task.text, task.completed);
+                 });
             }
             updateDayProgress(dayIndex);
             updateDayScoreDisplay(dayIndex); // Günlük çalışma süresini güncelle
@@ -1525,163 +1489,149 @@
         }
 
         function createTaskElement(taskList, dayIndex, text, completed = false) {
-            const listItem = document.createElement('li');
-            listItem.className = 'task-item' + (completed ? ' completed' : '');
-            listItem.draggable = true;
-            listItem.setAttribute('data-task-text', text);
-            listItem.addEventListener('dragstart', (e) => {
-                draggedItem = listItem;
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', text);
-                listItem.classList.add('dragging');
-                closeOpenForm();
-            });
-            listItem.addEventListener('dragend', () => {
-                listItem.classList.remove('dragging');
-            });
+             const listItem = document.createElement('li');
+             listItem.className = 'task-item' + (completed ? ' completed' : '');
+             listItem.draggable = true;
+             listItem.setAttribute('data-task-text', text);
+             listItem.addEventListener('dragstart', (e) => {
+                 draggedItem = listItem;
+                 e.dataTransfer.effectAllowed = 'move';
+                 e.dataTransfer.setData('text/plain', text);
+                 listItem.classList.add('dragging');
+                 closeOpenForm();
+             });
+             listItem.addEventListener('dragend', () => {
+                 listItem.classList.remove('dragging');
+             });
 
-            const contentWrapper = document.createElement('div');
-            contentWrapper.className = 'task-content-wrapper';
-            
-            const taskSpan = document.createElement('span');
-            taskSpan.className = 'task-text-content';
-            taskSpan.textContent = text;
-            taskSpan.style.color = 'var(--task-text-color)';
-            taskSpan.style.wordBreak = 'break-word';
+             const contentWrapper = document.createElement('div');
+             contentWrapper.className = 'task-content-wrapper';
 
-            const actionsDiv = document.createElement('div');
-            actionsDiv.style.display = 'flex';
-            actionsDiv.style.alignItems = 'center';
-            actionsDiv.style.gap = '10px';
-            actionsDiv.style.flexShrink = '0';
-            actionsDiv.style.marginRight = '10px';
+             const taskSpan = document.createElement('span');
+             taskSpan.className = 'task-text-content';
+             taskSpan.textContent = text;
+             taskSpan.style.color = 'var(--task-text-color)';
+             taskSpan.style.wordBreak = 'break-word';
 
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.checked = completed;
-            checkbox.style.width = '16px';
-            checkbox.style.height = '16px';
-            checkbox.style.cursor = 'pointer';
-            checkbox.onchange = function() {
-                const isChecked = this.checked;
-                updateTaskCompletion(dayIndex, text, isChecked);
-                listItem.classList.toggle('completed', isChecked);
-                reorderTasksInStorage(dayIndex);
-                renderTasks(dayIndex); // Yeniden render ederek sıralama düzeltilebilir
+             const actionsDiv = document.createElement('div');
+             actionsDiv.style.display = 'flex';
+             actionsDiv.style.alignItems = 'center';
+             actionsDiv.style.gap = '10px';
+             actionsDiv.style.flexShrink = '0';
+             actionsDiv.style.marginRight = '10px';
 
-                if (isChecked) {
-                    const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
-                    showCustomAlert(`Tebrikler, ${userName}! "${text}" görevi tamamlandı.`, '#22c55e');
-                }
-            };
+             const checkbox = document.createElement('input');
+             checkbox.type = 'checkbox';
+             checkbox.checked = completed;
+             checkbox.style.width = '16px';
+             checkbox.style.height = '16px';
+             checkbox.style.cursor = 'pointer';
+             checkbox.onchange = function() {
+                 const isChecked = this.checked;
+                 updateTaskCompletion(dayIndex, text, isChecked);
+                 listItem.classList.toggle('completed', isChecked);
+                 reorderTasksInStorage(dayIndex);
+                 renderTasks(dayIndex); // Yeniden render ederek sıralama düzeltilebilir
+                 if (isChecked) {
+                     const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
+                     showCustomAlert(`Tebrikler, ${userName}! "${text}" görevi tamamlandı.`, '#22c55e');
+                 }
+             };
 
-            const moveButton = document.createElement('button');
-            moveButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
-            moveButton.title = 'Yarına Taşı';
-            moveButton.style.backgroundColor = 'transparent';
-            moveButton.style.color = 'var(--text-color)';
-            moveButton.style.padding = '5px';
-            moveButton.style.boxShadow = 'none';
-            moveButton.style.transform = 'scale(1)';
-            moveButton.onclick = (e) => {
+             const moveButton = document.createElement('button');
+             moveButton.innerHTML = '<i class="fas fa-arrow-right"></i>';
+             moveButton.style.backgroundColor = 'transparent';
+             moveButton.style.color = 'var(--text-color)';
+             moveButton.style.boxShadow = 'none';
+             moveButton.style.padding = '5px';
+             moveButton.style.fontSize = '0.8em';
+             moveButton.onclick = function(e) {
+                 e.stopPropagation(); // Checkbox'ın tetiklenmesini engelle
+                 if (confirm(`"${text}" görevini sonraki güne taşımak istediğinizden emin misiniz?`)) {
+                     moveTaskToNextDay(dayIndex, text);
+                 }
+             };
+             
+             const deleteButton = document.createElement('button');
+             deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
+             deleteButton.style.backgroundColor = 'transparent';
+             deleteButton.style.color = '#ef4444'; // Kırmızı renk
+             deleteButton.style.boxShadow = 'none';
+             deleteButton.style.padding = '5px';
+             deleteButton.style.fontSize = '0.8em';
+             deleteButton.onclick = function(e) {
                  e.stopPropagation();
-                 moveTaskToNextDay(dayIndex, text);
-            };
+                 if (confirm(`"${text}" görevini silmek istediğinizden emin misiniz?`)) {
+                     deleteTaskFromStorage(dayIndex, text);
+                     renderTasks(dayIndex);
+                     showCustomAlert(`"${text}" görevi silindi.`, '#ef4444');
+                 }
+             };
 
-            const deleteButton = document.createElement('button');
-            deleteButton.innerHTML = '<i class="fas fa-trash-alt"></i>';
-            deleteButton.title = 'Görevi Sil';
-            deleteButton.style.backgroundColor = 'transparent';
-            deleteButton.style.color = 'var(--pomodoro-accent)';
-            deleteButton.style.padding = '5px';
-            deleteButton.style.boxShadow = 'none';
-            deleteButton.style.transform = 'scale(1)';
-            deleteButton.onclick = (e) => {
-                e.stopPropagation();
-                if (confirm(`"${text}" görevini silmek istediğinizden emin misiniz?`)) {
-                    deleteTaskFromStorage(dayIndex, text);
-                    showCustomAlert(`"${text}" görevi silindi.`, '#f97316');
-                    renderTasks(dayIndex);
-                }
-            };
-            
-            actionsDiv.appendChild(checkbox);
-            actionsDiv.appendChild(moveButton);
-            actionsDiv.appendChild(deleteButton);
-
-            contentWrapper.appendChild(taskSpan);
-            contentWrapper.appendChild(actionsDiv);
-            
-            listItem.appendChild(contentWrapper);
-            taskList.appendChild(listItem);
+             actionsDiv.appendChild(checkbox);
+             actionsDiv.appendChild(moveButton);
+             actionsDiv.appendChild(deleteButton);
+             
+             contentWrapper.appendChild(taskSpan);
+             contentWrapper.appendChild(actionsDiv);
+             
+             listItem.appendChild(contentWrapper);
+             taskList.appendChild(listItem);
         }
-
-        function updateTaskCompletion(dayIndex, text, completed) {
-            let tasks = loadTasks(dayIndex);
-            const taskIndex = tasks.findIndex(task => task.text === text);
-            if (taskIndex > -1) {
-                tasks[taskIndex].completed = completed;
-                tasks[taskIndex].completedTime = completed ? Date.now() : null;
-                saveTasks(dayIndex, tasks);
-            }
-        }
-
-        function deleteTaskFromStorage(dayIndex, text) {
-            let tasks = loadTasks(dayIndex);
-            tasks = tasks.filter(task => task.text !== text);
-            saveTasks(dayIndex, tasks);
-        }
-
+        
         function moveTaskToNextDay(currentDayIndex, taskText) {
-            let currentTasks = loadTasks(currentDayIndex);
-            const taskToMove = currentTasks.find(task => task.text === taskText);
-            if (!taskToMove) return;
+             let currentTasks = loadTasks(currentDayIndex);
+             const taskIndex = currentTasks.findIndex(t => t.text === taskText);
+             if (taskIndex === -1) return;
 
-            currentTasks = currentTasks.filter(task => task.text !== taskText);
-            saveTasks(currentDayIndex, currentTasks);
+             const taskToMove = currentTasks.splice(taskIndex, 1)[0]; // Görevi listeden çıkar
+             saveTasks(currentDayIndex, currentTasks); 
 
-            let nextDayIndex = currentDayIndex + 1;
-            let nextWeekOffset = currentWeekOffset;
-            if (nextDayIndex > 6) {
-                nextDayIndex = 0;
-                nextWeekOffset += 1;
-            }
-            
-            const nextDayKey = getStorageKeyByOffset(nextWeekOffset, nextDayIndex);
-            let nextDayTasksJson = localStorage.getItem(nextDayKey);
-            let nextDayTasks = nextDayTasksJson ? JSON.parse(nextDayTasksJson) : [];
-            
-            if (nextDayTasks.some(t => t.text === taskText)) {
-                showCustomAlert("Bu görev zaten hedef günde mevcut.", '#f97316');
-                currentTasks.push(taskToMove); // Taşıma başarısız, geri ekle
-                saveTasks(currentDayIndex, currentTasks);
-                renderTasks(currentDayIndex);
-                return;
-            }
+             let nextDayIndex = currentDayIndex + 1;
+             let nextWeekOffset = currentWeekOffset;
 
-            taskToMove.completed = false;
-            taskToMove.completedTime = null;
-            nextDayTasks.push(taskToMove);
-            localStorage.setItem(nextDayKey, JSON.stringify(nextDayTasks));
-            
-            showCustomAlert(`${taskText} görevi ${DAY_NAMES[nextDayIndex]} gününe taşındı.`, '#0ea5e9');
-            renderTasks(currentDayIndex);
-            
-            // Eğer yeni gün mevcut haftadaysa, onu da hemen render et
-            if (nextWeekOffset === currentWeekOffset) {
+             if (nextDayIndex > 6) {
+                 nextDayIndex = 0;
+                 nextWeekOffset += 1;
+             }
+
+             const nextDayKey = getStorageKeyByOffset(nextWeekOffset, nextDayIndex);
+             let nextDayTasksJson = localStorage.getItem(nextDayKey);
+             let nextDayTasks = nextDayTasksJson ? JSON.parse(nextDayTasksJson) : [];
+             
+             if (nextDayTasks.some(t => t.text === taskText)) {
+                 showCustomAlert("Bu görev zaten hedef günde mevcut.", '#f97316');
+                 currentTasks.push(taskToMove); // Taşıma başarısız, geri ekle
+                 saveTasks(currentDayIndex, currentTasks); 
+                 renderTasks(currentDayIndex);
+                 return;
+             }
+
+             taskToMove.completed = false;
+             taskToMove.completedTime = null;
+             nextDayTasks.unshift(taskToMove); // Başlangıca ekle
+             localStorage.setItem(nextDayKey, JSON.stringify(nextDayTasks));
+             
+             showCustomAlert(`${taskText} görevi ${DAY_NAMES[nextDayIndex]} gününe taşındı.`, '#0ea5e9');
+             renderTasks(currentDayIndex); 
+             
+             // Eğer yeni gün mevcut haftadaysa, onu da hemen render et
+             if (nextWeekOffset === currentWeekOffset) {
                  renderTasks(nextDayIndex);
                  updateDayProgress(nextDayIndex);
-            }
-            updateDayProgress(currentDayIndex);
+             }
+             
+             updateDayProgress(currentDayIndex);
         }
 
         function showAddTaskForm(dayIndex) {
             if (openFormDayIndex !== null && openFormDayIndex !== dayIndex) {
                 closeOpenForm();
             }
+            
             const dayCell = document.getElementById(`day-${dayIndex}`);
             if (!dayCell) return;
-            
+
             const existingForm = dayCell.querySelector('.add-task-form');
             if (existingForm) {
                 // Form zaten açıksa kapat
@@ -1694,105 +1644,108 @@
             form.style.padding = '10px 0';
             form.style.marginTop = '10px';
             form.style.borderTop = '1px dashed var(--border-color)';
-            
+
             const input = document.createElement('input');
             input.type = 'text';
             input.placeholder = 'Yeni görev (örn: Matematik 1s 30dk)';
             input.style.width = '100%';
             input.style.padding = '8px';
             input.style.marginBottom = '8px';
-            input.style.border = '1px solid var(--accent-color)';
+            input.style.border = '1px solid var(--border-color)';
             input.style.borderRadius = '4px';
             input.style.backgroundColor = 'var(--task-bg)';
             input.style.color = 'var(--text-color)';
-            input.focus();
-
-            const button = document.createElement('button');
-            button.textContent = 'Ekle';
-            button.style.width = '100%';
-            button.style.backgroundColor = 'var(--accent-color)';
-            // İkon ve metin çakışmasını engellemek için düzeltme
-            button.style.display = 'flex'; 
-            button.style.justifyContent = 'center'; 
-            button.style.gap = '8px';
-            button.innerHTML = '<i class="fas fa-plus"></i> Görev Ekle';
-
-
-            button.onclick = () => {
-                addTask(dayIndex, input.value);
-            };
-            
-            input.onkeydown = (e) => {
+            input.onkeydown = function(e) {
                  if (e.key === 'Enter') {
-                     addTask(dayIndex, input.value);
+                     e.preventDefault();
+                     const text = input.value.trim();
+                     if (text) {
+                         addTask(dayIndex, text);
+                         closeOpenForm();
+                     } else {
+                         showCustomAlert("Lütfen bir görev giriniz.", '#f97316', 2000);
+                     }
+                 }
+            };
+
+            const saveBtn = document.createElement('button');
+            saveBtn.textContent = 'Görevi Ekle';
+            saveBtn.style.width = '100%';
+            saveBtn.style.backgroundColor = 'var(--accent-color)';
+            saveBtn.style.color = 'var(--header-text)';
+            saveBtn.onclick = function() {
+                 const text = input.value.trim();
+                 if (text) {
+                     addTask(dayIndex, text);
+                     closeOpenForm();
+                 } else {
+                     showCustomAlert("Lütfen bir görev giriniz.", '#f97316', 2000);
                  }
             };
 
             form.appendChild(input);
-            form.appendChild(button);
+            form.appendChild(saveBtn);
             
-            const cellContentWrapper = dayCell.querySelector('.cell-content-wrapper');
-            if(cellContentWrapper) {
-                 cellContentWrapper.appendChild(form);
+            // "Görev Ekle" butonunun hemen üstüne eklenmeli (add-task-btn'in üstüne)
+            const wrapper = dayCell.querySelector('.cell-content-wrapper');
+            const addTaskButton = dayCell.querySelector('.add-task-btn');
+            
+            if (wrapper && addTaskButton) {
+                 wrapper.insertBefore(form, addTaskButton);
+                 openFormDayIndex = dayIndex;
+                 input.focus();
             }
-            
-            openFormDayIndex = dayIndex;
-        }
-
-        function closeOpenForm() {
-            if (openFormDayIndex === null) return;
-            const dayCell = document.getElementById(`day-${openFormDayIndex}`);
-            if (!dayCell) return;
-            
-            const form = dayCell.querySelector('.add-task-form');
-            if (form) {
-                form.remove();
-            }
-            openFormDayIndex = null;
-        }
-
-        function addTask(dayIndex, taskText) {
-            taskText = taskText.trim();
-            if (!taskText) {
-                 showCustomAlert("Lütfen bir görev giriniz.", '#f97316');
-                 return;
-            }
-            
-            let tasks = loadTasks(dayIndex);
-            if (tasks.some(t => t.text === taskText)) {
-                 showCustomAlert("Bu görev zaten mevcut.", '#f97316');
-                 return;
-            }
-            
-            tasks.unshift({ text: taskText, completed: false, completedTime: null });
-            saveTasks(dayIndex, tasks);
-            
-            showCustomAlert(`${DAY_NAMES[dayIndex]} gününe yeni görev eklendi.`, '#38bdf8');
-            renderTasks(dayIndex);
-            closeOpenForm();
         }
         
-        // =======================================
-        // DRAG AND DROP YÖNETİMİ KORUNDU
-        // =======================================
+        function closeOpenForm() {
+             if (openFormDayIndex !== null) {
+                 const dayCell = document.getElementById(`day-${openFormDayIndex}`);
+                 const form = dayCell ? dayCell.querySelector('.add-task-form') : null;
+                 if (form) {
+                     form.remove();
+                 }
+                 openFormDayIndex = null;
+             }
+        }
+
+        function reorderTasksInStorage(dayIndex) {
+            const taskList = document.getElementById(`task-list-${dayIndex}`);
+            if (!taskList) return;
+
+            const newOrderTexts = [...taskList.querySelectorAll('.task-item')]
+                .map(item => item.getAttribute('data-task-text'));
+            
+            const allTasks = loadTasks(dayIndex);
+            
+            // Mevcut görevleri yeni sıraya göre düzenle
+            const reorderedTasks = newOrderTexts.map(text => allTasks.find(t => t.text === text)).filter(t => t);
+            
+            // Kayıp görev olmadığından emin ol (olası bir hata durumunda)
+            if (reorderedTasks.length === allTasks.length) {
+                 const key = getStorageKey(dayIndex);
+                 localStorage.setItem(key, JSON.stringify(reorderedTasks));
+            }
+        }
+        
+        // SÜRÜKLE BIRAK YÖNETİMİ KORUNDU
         function handleDragOver(e) {
-            e.preventDefault(); 
-            e.dataTransfer.dropEffect = 'move';
+             e.preventDefault();
+             e.dataTransfer.dropEffect = 'move';
         }
 
         function handleDrop(e) {
-            e.preventDefault();
-            if (!draggedItem) return;
-            
-            const targetList = this; 
-            const currentDayIndex = parseInt(targetList.dataset.dayIndex);
-            const taskText = draggedItem.getAttribute('data-task-text');
-            
-            // Eğer aynı gün içindeyse, sadece DOM'u değiştir
-            const sourceTaskList = draggedItem.closest('.task-list');
-            const sourceDayIndex = parseInt(sourceTaskList.dataset.dayIndex);
-            
-            if (sourceDayIndex === currentDayIndex) {
+             e.preventDefault();
+             if (!draggedItem) return;
+
+             const targetList = this;
+             const currentDayIndex = parseInt(targetList.dataset.dayIndex);
+             const taskText = draggedItem.getAttribute('data-task-text');
+
+             // Eğer aynı gün içindeyse, sadece DOM'u değiştir
+             const sourceTaskList = draggedItem.closest('.task-list');
+             const sourceDayIndex = parseInt(sourceTaskList.dataset.dayIndex);
+
+             if (sourceDayIndex === currentDayIndex) {
                  // Sürüklenen öğeyi bırakılan yerin üstüne ekle
                  const afterElement = getDragAfterElement(targetList, e.clientY);
                  if (afterElement == null) {
@@ -1802,112 +1755,103 @@
                  }
                  reorderTasksInStorage(currentDayIndex);
                  renderTasks(currentDayIndex); // Yeniden render ederek sıralama düzeltilebilir
-            } else {
-                // Farklı güne taşınıyorsa
-                draggedItem.classList.remove('dragging');
-                
-                deleteTaskFromStorage(sourceDayIndex, taskText);
+             } else {
+                 // Farklı güne taşınıyorsa
+                 draggedItem.classList.remove('dragging');
+                 deleteTaskFromStorage(sourceDayIndex, taskText);
 
-                let targetTasks = loadTasks(currentDayIndex);
-                if (targetTasks.some(t => t.text === taskText)) {
-                    showCustomAlert("Bu görev zaten hedef günde mevcut.", '#f97316');
-                    renderTasks(sourceDayIndex); 
-                    draggedItem = null;
-                    return;
-                }
-                
-                targetTasks.push({ text: taskText, completed: false, completedTime: null });
-                saveTasks(currentDayIndex, targetTasks);
-                
-                showCustomAlert(`${taskText} görevi ${DAY_NAMES[currentDayIndex]} gününe taşındı.`, '#0ea5e9');
-                renderTasks(sourceDayIndex); 
-                renderTasks(currentDayIndex);
-            }
-            
-            draggedItem = null;
-            updateDayProgress(currentDayIndex);
+                 let targetTasks = loadTasks(currentDayIndex);
+                 if (targetTasks.some(t => t.text === taskText)) {
+                     showCustomAlert("Bu görev zaten hedef günde mevcut.", '#f97316');
+                     renderTasks(sourceDayIndex);
+                     draggedItem = null;
+                     return;
+                 }
+
+                 // Yeni güne ekle
+                 targetTasks.unshift({ text: taskText, completed: false, completedTime: null }); // Başa ekle
+                 saveTasks(currentDayIndex, targetTasks);
+
+                 showCustomAlert(`${taskText} görevi ${DAY_NAMES[currentDayIndex]} gününe taşındı.`, '#0ea5e9');
+                 renderTasks(sourceDayIndex);
+                 renderTasks(currentDayIndex);
+             }
+             draggedItem = null;
+             updateDayProgress(currentDayIndex);
         }
 
         function getDragAfterElement(container, y) {
-            const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
+             const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
 
-            return draggableElements.reduce((closest, child) => {
-                const box = child.getBoundingClientRect();
-                const offset = y - box.top - box.height / 2;
-                if (offset < 0 && offset > closest.offset) {
-                    return { offset: offset, element: child };
-                } else {
-                    return closest;
-                }
-            }, { offset: Number.NEGATIVE_INFINITY }).element;
+             return draggableElements.reduce((closest, child) => {
+                 const box = child.getBoundingClientRect();
+                 const offset = y - box.top - box.height / 2;
+                 if (offset < 0 && offset > closest.offset) {
+                     return { offset: offset, element: child };
+                 } else {
+                     return closest;
+                 }
+             }, { offset: Number.NEGATIVE_INFINITY }).element;
         }
 
         function setupDragAndDropListeners() {
-            const taskLists = document.querySelectorAll('.task-list');
-            taskLists.forEach(list => {
-                list.removeEventListener('dragover', handleDragOver);
-                list.removeEventListener('drop', handleDrop);
-                list.addEventListener('dragover', handleDragOver);
-                list.addEventListener('drop', handleDrop);
-            });
+             const taskLists = document.querySelectorAll('.task-list');
+             taskLists.forEach(list => {
+                 list.addEventListener('dragover', handleDragOver);
+                 list.addEventListener('drop', handleDrop);
+             });
         }
         
         // =======================================
-        // POMODORO VE SÜRE YÖNETİMİ KORUNDU
+        // POMODORO VE ZAMAN YÖNETİMİ (KORUNDU)
         // =======================================
-        let timerInterval = null;
+        let initialSeconds = 25 * 60; // 25 dakika
+        let remainingTimeOnPause = initialSeconds * 1000;
         let isTimerRunning = false;
         let isPaused = false;
-        let initialSeconds = 25 * 60;
-        let expectedTime = 0;
-        let remainingTimeOnPause = initialSeconds * 1000;
-        let audioPlayer;
-        const musicVolume = 100;
+        let timerInterval;
+        let expectedTime;
+        let audioPlayer = document.getElementById('finish-sound');
 
         function savePomodoroState() {
-            const state = {
-                isRunning: isTimerRunning,
-                isPaused: isPaused,
-                initialSeconds: initialSeconds,
-                remainingTime: isTimerRunning ? expectedTime - Date.now() : remainingTimeOnPause,
-                timestamp: Date.now()
-            };
-            localStorage.setItem('pomodoroState', JSON.stringify(state));
+             const state = {
+                 initialSeconds,
+                 remainingTime: remainingTimeOnPause,
+                 isTimerRunning,
+                 isPaused
+             };
+             localStorage.setItem('pomodoroState', JSON.stringify(state));
         }
 
         function loadPomodoroState() {
-            const stateJson = localStorage.getItem('pomodoroState');
-            if (!stateJson) {
-                updateTimerDisplay(initialSeconds * 1000);
-                return;
-            }
+             const stateJson = localStorage.getItem('pomodoroState');
+             if (!stateJson) return;
 
-            const state = JSON.parse(stateJson);
-            
-            initialSeconds = state.initialSeconds;
-            
-            if (state.isRunning) {
-                const elapsedSinceSave = Date.now() - state.timestamp;
-                const remaining = state.remainingTime - elapsedSinceSave;
-                
-                if (remaining > 1000) { // 1 saniyeden fazla süre kaldıysa devam et
-                    remainingTimeOnPause = remaining;
-                    isPaused = false;
-                    startTimer(false); // Başlatma uyarısı olmadan devam et
-                } else {
-                    // Süre dolduysa
-                    remainingTimeOnPause = 0;
-                    finishTimer(true); // Süre dolduğu için tamamla
-                }
-            } else if (state.isPaused) {
-                remainingTimeOnPause = state.remainingTime;
-                isPaused = true;
-                updateTimerVisuals();
-            } else {
+             const state = JSON.parse(stateJson);
+             initialSeconds = state.initialSeconds;
+             isTimerRunning = state.isTimerRunning;
+             
+             if (state.isTimerRunning) {
+                 // Eğer sayaç çalışır durumdaysa, kalan süreyi hesapla
+                 const elapsedTime = Date.now() - (localStorage.getItem('pomodoroExpectedTime') || Date.now());
+                 const timeDiff = state.initialSeconds * 1000 - elapsedTime;
+                 
+                 if (timeDiff > 1000) { // Sayaç dolmamışsa
+                     remainingTimeOnPause = timeDiff;
+                     expectedTime = Date.now() + remainingTimeOnPause;
+                     startTimer(false);
+                 } else {
+                     finishTimer(true); // Süre dolduğu için tamamla
+                 }
+             } else if (state.isPaused) {
+                 remainingTimeOnPause = state.remainingTime;
+                 isPaused = true;
+                 updateTimerVisuals();
+             } else {
                  remainingTimeOnPause = state.initialSeconds * 1000;
                  updateTimerDisplay(remainingTimeOnPause);
-            }
-            updateTimerInputs();
+             }
+             updateTimerInputs();
         }
 
         function showPomodoroModal() {
@@ -1921,25 +1865,25 @@
             const seconds = parseInt(document.getElementById('study-seconds').value) || 0;
             initialSeconds = hours * 3600 + minutes * 60 + seconds;
         }
-
+        
         function updateTimerFromInputsAndReset() {
-            if (isTimerRunning || isPaused) {
+             if (isTimerRunning || isPaused) {
                  showCustomAlert("Süreler, zamanlayıcı durdurulmuşken değiştirilebilir. Lütfen önce durdurun.", '#f97316');
                  // Eski değerleri geri yükle
                  updateTimerInputs(); 
                  return;
-            }
-            updateTimerFromInputs();
-            remainingTimeOnPause = initialSeconds * 1000;
-            updateTimerDisplay(remainingTimeOnPause);
-            savePomodoroState();
+             }
+             updateTimerFromInputs();
+             remainingTimeOnPause = initialSeconds * 1000;
+             updateTimerDisplay(remainingTimeOnPause);
+             savePomodoroState();
         }
-
+        
         function updateTimerInputs() {
-            const totalSeconds = initialSeconds;
-            document.getElementById('study-hours').value = Math.floor(totalSeconds / 3600);
-            document.getElementById('study-minutes').value = Math.floor((totalSeconds % 3600) / 60);
-            document.getElementById('study-seconds').value = Math.floor(totalSeconds % 60);
+             const totalSeconds = initialSeconds;
+             document.getElementById('study-hours').value = Math.floor(totalSeconds / 3600);
+             document.getElementById('study-minutes').value = Math.floor((totalSeconds % 3600) / 60);
+             document.getElementById('study-seconds').value = Math.floor(totalSeconds % 60);
         }
 
         function startTimer(showAlert = true) {
@@ -1959,7 +1903,7 @@
             expectedTime = Date.now() + remainingTimeOnPause;
             isTimerRunning = true;
             isPaused = false;
-
+            
             if (showAlert) {
                  showCustomAlert("Odak süresi başladı!", '#bb86fc');
             }
@@ -1967,73 +1911,70 @@
             updateTimerVisuals();
             timerInterval = setInterval(tick, 1000);
             savePomodoroState();
-        }
-
-        function tick() {
-            const remaining = expectedTime - Date.now();
-            remainingTimeOnPause = remaining;
-
-            if (remaining <= 0) {
-                clearInterval(timerInterval);
-                remainingTimeOnPause = 0;
-                updateTimerDisplay(0);
-                finishTimer(true); // Süre dolduğu için tamamla
-                updateTimerVisuals();
-                return;
-            }
-            updateTimerDisplay(remaining);
-            savePomodoroState();
+            localStorage.setItem('pomodoroExpectedTime', expectedTime);
         }
 
         function pauseTimer() {
-            if (!isTimerRunning || isPaused) return;
+            if (!isTimerRunning) return;
+            
             clearInterval(timerInterval);
+            isTimerRunning = false;
             isPaused = true;
-            isTimerRunning = true; // Timer hala aktif ama duraklatıldı
-            showCustomAlert("Süre duraklatıldı.", '#f97316');
+            
             updateTimerVisuals();
             savePomodoroState();
+            showCustomAlert("Zamanlayıcı duraklatıldı.", '#f97316');
         }
 
+        function toggleTimer() {
+             if (isTimerRunning && !isPaused) {
+                 pauseTimer();
+             } else {
+                 startTimer();
+             }
+        }
+
+        function tick() {
+            const now = Date.now();
+            remainingTimeOnPause = Math.max(0, expectedTime - now);
+            
+            updateTimerDisplay(remainingTimeOnPause);
+            savePomodoroState();
+
+            if (remainingTimeOnPause <= 0) {
+                 clearInterval(timerInterval);
+                 finishTimer(true);
+            }
+        }
+        
         function updateTimerVisuals() {
-            const startBtn = document.getElementById('start-btn');
-            const pauseBtn = document.getElementById('pause-btn');
-            const statusText = document.getElementById('pomodoro-status');
+            const startPauseBtn = document.getElementById('start-pause-btn');
+            const resumeBtn = document.getElementById('resume-btn');
+            const statusDisplay = document.getElementById('timer-status');
             
             if (isTimerRunning && !isPaused) {
-                 if(startBtn) {
-                     startBtn.style.display = 'none';
-                     startBtn.style.opacity = '0';
-                     startBtn.style.visibility = 'hidden';
-                 }
-                 if(pauseBtn) {
-                     pauseBtn.style.display = 'flex';
-                     pauseBtn.style.opacity = '1';
-                     pauseBtn.style.visibility = 'visible';
-                 }
-                 if(statusText) statusText.textContent = "ÇALIŞIYOR...";
+                // Çalışıyor
+                startPauseBtn.innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+                startPauseBtn.onclick = pauseTimer;
+                startPauseBtn.style.display = 'block';
+                resumeBtn.style.display = 'none';
+                statusDisplay.textContent = "Çalışıyor...";
+            } else if (isPaused) {
+                // Duraklatıldı
+                startPauseBtn.style.display = 'none';
+                resumeBtn.style.display = 'block';
+                statusDisplay.textContent = "Duraklatıldı. Devam etmek için tıklayın.";
             } else {
-                 if(startBtn) {
-                     startBtn.style.display = 'flex';
-                     startBtn.style.opacity = '1';
-                     startBtn.style.visibility = 'visible';
-                 }
-                 if(pauseBtn) {
-                     pauseBtn.style.display = 'none';
-                     pauseBtn.style.opacity = '0';
-                     pauseBtn.style.visibility = 'hidden';
-                 }
-                 if(statusText) statusText.textContent = isPaused ? "DURAKLATILDI" : "Hazır.";
+                // Hazır/Sıfırlandı
+                startPauseBtn.innerHTML = '<i class="fas fa-play"></i> Başlat';
+                startPauseBtn.onclick = startTimer;
+                startPauseBtn.style.display = 'block';
+                resumeBtn.style.display = 'none';
+                statusDisplay.textContent = "Hazır.";
             }
-            updateTimerDisplay(remainingTimeOnPause);
-        }
-
-        function hidePomodoroModal() {
-            document.getElementById('pomodoro-modal').style.display = 'none';
         }
 
         function formatTime(totalSeconds) {
-            totalSeconds = Math.max(0, totalSeconds || 0);
             const hours = Math.floor(totalSeconds / 3600);
             const minutes = Math.floor((totalSeconds % 3600) / 60);
             const seconds = Math.floor(totalSeconds % 60);
@@ -2043,7 +1984,7 @@
         function updateTimerDisplay(remainingTimeMs) {
             const display = document.getElementById('timer-display');
             if (display) {
-                 display.textContent = formatTime(Math.ceil(remainingTimeMs / 1000));
+                display.textContent = formatTime(Math.ceil(remainingTimeMs / 1000));
             }
         }
 
@@ -2051,11 +1992,13 @@
             clearInterval(timerInterval);
             isTimerRunning = false;
             isPaused = false;
+            
             if (restoreInputs) {
-                 updateTimerFromInputs();
+                updateTimerFromInputs();
             }
             remainingTimeOnPause = initialSeconds * 1000;
             updateTimerVisuals();
+            
             if(showResetAlert) {
                  showCustomAlert("Zamanlayıcı sıfırlandı.", '#0ea5e9');
             }
@@ -2063,16 +2006,17 @@
         }
 
         function finishTimer(isCompleted = false) {
-            clearInterval(timerInterval);
-            const initialMs = initialSeconds * 1000;
-            const remainingMs = Math.max(0, remainingTimeOnPause);
-            const workedTimeMs = initialMs - remainingMs;
-            const workedMinutes = Math.round(workedTimeMs / 60000);
+             clearInterval(timerInterval);
+             
+             const initialMs = initialSeconds * 1000;
+             const remainingMs = Math.max(0, remainingTimeOnPause);
+             const workedTimeMs = initialMs - remainingMs;
+             const workedMinutes = Math.round(workedTimeMs / 60000);
 
-            isTimerRunning = false;
-            isPaused = false;
-            
-            if (workedMinutes > 0) {
+             isTimerRunning = false;
+             isPaused = false;
+
+             if (workedMinutes > 0) {
                  const dayIndex = (new Date().getDay() + 6) % 7; // Pazartesi = 0
                  const dayName = DAY_NAMES[dayIndex];
                  saveStudyScore(dayIndex, workedMinutes);
@@ -2080,108 +2024,94 @@
                  const formattedScore = formatMinutesToHoursMinutes(workedMinutes);
                  const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
                  let message;
+                 
                  if (isCompleted) {
-                     message = `Tebrikler, ${userName}! ${formattedScore} çalışma başarıyla tamamlandı ve ${dayName} gününe kaydedildi.`;
-                     if(audioPlayer) audioPlayer.play();
+                      message = `Tebrikler, ${userName}! ${formattedScore} çalışma başarıyla tamamlandı ve ${dayName} gününe kaydedildi.`;
+                      if(audioPlayer) audioPlayer.play();
                  } else {
-                     message = `${userName}, ${formattedScore} çalışma ${dayName} gününe kaydedildi.`;
+                      message = `${userName}, ${formattedScore} çalışma ${dayName} gününe kaydedildi.`;
                  }
                  showCustomAlert(message, '#38bdf8');
-            } else if (!isCompleted) {
+             } else if (!isCompleted) {
                  showCustomAlert("Kaydedilecek süre bulunamadı.", '#f97316');
-            }
-
-            resetTimer(true, false);
-            savePomodoroState();
-        }
-
-        // =======================================
-        // PUAN VE İSTATİSTİK YÖNETİMİ (ÇALIŞMA SÜRESİ) KORUNDU
-        // =======================================
-        function loadStudyScore(dayIndex) {
-            const key = getScoreKey(dayIndex);
-            return parseInt(localStorage.getItem(key)) || 0;
-        }
-
-        function saveStudyScore(dayIndex, minutes) {
-            const currentScore = loadStudyScore(dayIndex);
-            localStorage.setItem(getScoreKey(dayIndex), currentScore + minutes);
-            updateAllDayScoresAndToday(); // İsim aynı kaldı, çalışma süresi istatistiklerini günceller
-            updateDayScoreDisplay(dayIndex); 
+             }
+             
+             resetTimer(false, false); // Sayacı sıfırla, alert gösterme
         }
         
         function formatMinutesToHoursMinutes(totalMinutes) {
-            if (totalMinutes < 60) return `${totalMinutes} dk`;
             const hours = Math.floor(totalMinutes / 60);
             const minutes = totalMinutes % 60;
-            if (minutes === 0) return `${hours} sa`;
-            return `${hours} sa ${minutes} dk`;
+            return `${hours}s ${minutes}dk`;
+        }
+
+        // =======================================
+        // PUAN YÖNETİMİ (KORUNDU)
+        // =======================================
+        function loadDayScore(dayIndex) {
+            const key = getScoreKey(dayIndex);
+            return parseInt(localStorage.getItem(key)) || 0; // Dakika cinsinden
+        }
+        
+        function saveStudyScore(dayIndex, minutes) {
+             const currentScore = loadDayScore(dayIndex);
+             localStorage.setItem(getScoreKey(dayIndex), currentScore + minutes);
+             updateDayScoreDisplay(dayIndex);
+             updateAllDayScoresAndToday();
         }
 
         function updateDayScoreDisplay(dayIndex) {
-            const scoreElement = document.getElementById(`day-score-${dayIndex}`);
-            if (scoreElement) {
-                const score = loadStudyScore(dayIndex);
-                scoreElement.textContent = `Çalışma: ${formatMinutesToHoursMinutes(score)}`;
+            const display = document.getElementById(`day-score-${dayIndex}`);
+            if (display) {
+                const score = loadDayScore(dayIndex);
+                display.textContent = `Çalışma: ${formatMinutesToHoursMinutes(score)}`;
             }
         }
-
+        
         function updateDayProgress(dayIndex) {
-            const taskList = document.getElementById(`task-list-${dayIndex}`);
-            if (!taskList) return;
-
-            const allTasks = loadTasks(dayIndex);
-            const totalTasks = allTasks.length;
-            const completedTasks = allTasks.filter(t => t.completed).length;
-
-            const progressContainer = document.getElementById(`progress-container-${dayIndex}`);
-            const progressFill = document.getElementById(`progress-fill-${dayIndex}`);
-            const percentageText = document.getElementById(`progress-percentage-${dayIndex}`);
-
-            if (!progressContainer || !progressFill || !percentageText) return;
+            const progressFill = document.getElementById(`day-progress-fill-${dayIndex}`);
+            const percentageText = document.getElementById(`day-progress-percentage-${dayIndex}`);
             
-            if (totalTasks === 0) {
-                 progressContainer.style.display = 'none';
-                 return;
-            }
-            
-            progressContainer.style.display = 'block';
-            
+            if (!progressFill || !percentageText) return;
+
+            const tasks = loadTasks(dayIndex);
+            const totalTasks = tasks.length;
+            const completedTasks = tasks.filter(t => t.completed).length;
+
             const percentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
             progressFill.style.width = `${percentage}%`;
             percentageText.textContent = `${Math.round(percentage)}%`;
 
             if (percentage === 100 && totalTasks > 0) {
-                 progressFill.classList.add('complete');
+                progressFill.classList.add('complete');
             } else {
-                 progressFill.classList.remove('complete');
+                progressFill.classList.remove('complete');
             }
         }
-        
+
         function updateAllDayScoresAndToday() {
             let allTimeScore = 0;
             let todayScore = 0;
-
             const today = new Date();
             const todayKeyPrefix = getStorageKeyByOffset(0, (today.getDay() + 6) % 7).split('_').slice(1).join('_');
 
             // Tüm görevleri ve skorları kontrol et
             for (let i = -5; i <= 5; i++) { // Önceki/sonraki 5 haftayı kontrol et
-                for (let j = 0; j < 7; j++) {
-                    const key = getStorageKeyByOffset(i, j);
-                    
-                    // Skorları topla
-                    const score = parseInt(localStorage.getItem(`score_${key}`)) || 0;
-                    allTimeScore += score;
-                    
-                    // Bugünün skorunu topla
-                    const currentKeyPrefix = key.split('_').slice(1).join('_');
-                    if (currentKeyPrefix === todayKeyPrefix) {
+                 for (let j = 0; j < 7; j++) {
+                     const key = getStorageKeyByOffset(i, j);
+                     
+                     // Skorları topla
+                     const score = parseInt(localStorage.getItem(`score_${key}`)) || 0;
+                     allTimeScore += score;
+                     
+                     // Bugünün skorunu topla
+                     const currentKeyPrefix = key.split('_').slice(1).join('_');
+                     if (currentKeyPrefix === todayKeyPrefix) {
                          todayScore = score; // Tekrar atama, çünkü bugün sadece bir key'e sahip
-                    }
-                }
+                     }
+                 }
             }
-
+            
             document.getElementById('all-time-score').textContent = `🏆 Toplam: ${formatMinutesToHoursMinutes(allTimeScore)}`;
             document.getElementById('today-worked-time').textContent = `⏱️ Bugün: ${formatMinutesToHoursMinutes(todayScore)}`;
         }
@@ -2190,98 +2120,91 @@
         // YENİ: SORU SAYISI YÖNETİMİ
         // =======================================
         function loadQuestionScore(dayIndex) {
-            const key = getQuestionKey(dayIndex);
-            return parseInt(localStorage.getItem(key)) || 0;
+             const key = getQuestionKey(dayIndex);
+             return parseInt(localStorage.getItem(key)) || 0;
         }
 
         function saveQuestionScore(dayIndex, count) {
-            const currentCount = loadQuestionScore(dayIndex);
-            localStorage.setItem(getQuestionKey(dayIndex), currentCount + count);
-            updateQuestionStats();
-            updateDayQuestionScoreDisplay(dayIndex); 
+             const currentCount = loadQuestionScore(dayIndex);
+             localStorage.setItem(getQuestionKey(dayIndex), currentCount + count);
+             updateQuestionStats();
+             updateDayQuestionScoreDisplay(dayIndex);
         }
-        
+
         // YENİ EK: Soru sayısını sıfırlama fonksiyonu
         function resetQuestionCount(dayIndex) {
              const dayName = DAY_NAMES[dayIndex];
              // Kullanıcının silme hakkı olması istendiği için onay iste
-             if (confirm(`${dayName} günü için kaydedilmiş tüm soru sayısını (şu an: ${loadQuestionScore(dayIndex)} soru) SIFIRLAMAK istediğinizden emin misiniz?`)) {
-                 const key = getQuestionKey(dayIndex);
-                 localStorage.setItem(key, 0); // Sayıyı 0 olarak kaydet
-                 
-                 // Güncel ekranı yenile
-                 updateQuestionStats();
+             if (confirm(`${dayName} günü için kaydedilen tüm soru sayılarını sıfırlamak istediğinizden emin misiniz?`)) {
+                 localStorage.removeItem(getQuestionKey(dayIndex));
                  updateDayQuestionScoreDisplay(dayIndex);
-                 
-                 showCustomAlert(`${dayName} günü soru sayısı başarıyla SIFIRLANDI.`, '#ef4444');
+                 updateQuestionStats();
+                 showCustomAlert(`${dayName} gününün soru sayısı sıfırlandı.`, '#0ea5e9');
              }
         }
-
-        function updateDayQuestionScoreDisplay(dayIndex) {
-            const scoreElement = document.getElementById(`day-question-score-${dayIndex}`);
-            if (scoreElement) {
-                const score = loadQuestionScore(dayIndex);
-                scoreElement.textContent = `Soru: ${score} adet`;
-            }
-        }
         
-        function getWeekQuestionCount() {
-            let weekTotal = 0;
-            for (let i = 0; i < 7; i++) {
-                weekTotal += loadQuestionScore(i);
+        function updateDayQuestionScoreDisplay(dayIndex) {
+            const display = document.getElementById(`day-question-score-${dayIndex}`);
+            if (display) {
+                const score = loadQuestionScore(dayIndex);
+                display.textContent = `Soru: ${score}`;
             }
-            return weekTotal;
         }
 
         function updateQuestionStats() {
-            let todayQuestions = 0;
-
+            let todayScore = 0;
+            let weekScore = 0;
             const today = new Date();
-            const todayKey = getQuestionKey((today.getDay() + 6) % 7);
-            
-            // Bugünün skorunu al
-            todayQuestions = parseInt(localStorage.getItem(todayKey)) || 0;
-            
-            // Haftalık skoru al
-            const weekQuestions = getWeekQuestionCount();
-            
-            // Header Stat güncelleme
-            document.getElementById('today-question-count').textContent = `🎯 Bugün Çözülen: ${todayQuestions} soru`;
-            document.getElementById('week-question-count').textContent = `📈 Bu Hafta: ${weekQuestions} soru`;
-        }
+            const todayIndex = (today.getDay() + 6) % 7; 
 
-        function handleQuestionEntry(dayIndex) {
-            const inputElement = document.getElementById(`question-count-input-${dayIndex}`);
-            const count = getNumber(inputElement.value);
+            for (let i = 0; i < 7; i++) {
+                 // Sadece mevcut hafta için hesapla
+                 const score = loadQuestionScore(i);
+                 weekScore += score;
+
+                 if (i === todayIndex) {
+                     todayScore = score;
+                 }
+            }
             
-            if (count <= 0) {
+            document.getElementById('today-question-count').textContent = `🎯 Günlük Soru: ${todayScore}`;
+            document.getElementById('week-question-count').textContent = `🎯 Haftalık Soru: ${weekScore}`;
+        }
+        
+        function handleQuestionEntry(dayIndex) {
+             const inputId = `question-input-${dayIndex}`;
+             const inputElement = document.getElementById(inputId);
+             const count = getNumber(inputElement.value);
+
+             if (count <= 0) {
                  showCustomAlert("Lütfen sıfırdan büyük bir soru sayısı giriniz.", '#f97316');
                  return;
-            }
-
-            saveQuestionScore(dayIndex, count);
-            inputElement.value = ''; // Sıfırla
-            
-            const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
-            showCustomAlert(`Tebrikler ${userName}! ${count} yeni soru kaydedildi.`, '#22c55e');
+             }
+             
+             saveQuestionScore(dayIndex, count);
+             inputElement.value = ''; // Sıfırla
+             
+             const userName = currentUser ? currentUser.displayName || fallbackUserName : fallbackUserName;
+             showCustomAlert(`Tebrikler ${userName}! ${count} yeni soru kaydedildi.`, '#22c55e');
         }
-
 
         function getNumber(value) {
             return parseInt(value) || 0;
         }
 
         function showCustomAlert(message, backgroundColor = '#ef4444', duration = 4000) {
-            const alertBox = document.getElementById('custom-alert');
-            if (!alertBox) return;
-            alertBox.style.backgroundColor = backgroundColor;
-            alertBox.textContent = message;
-            alertBox.style.opacity = '1';
-            alertBox.style.top = '30px';
-            setTimeout(() => {
-                alertBox.style.opacity = '0';
-                alertBox.style.top = '-50px';
-            }, duration);
+             const alertBox = document.getElementById('custom-alert');
+             if (!alertBox) return;
+
+             alertBox.style.backgroundColor = backgroundColor;
+             alertBox.textContent = message;
+             alertBox.style.opacity = '1';
+             alertBox.style.top = '30px';
+
+             setTimeout(() => {
+                 alertBox.style.opacity = '0';
+                 alertBox.style.top = '-50px';
+             }, duration);
         }
 
         // =======================================
@@ -2290,123 +2213,235 @@
         function createDayCells() {
             const grid = document.querySelector('.schedule-grid');
             if (!grid) return;
+
             let htmlContent = '';
             for (let i = 0; i < 7; i++) {
                 htmlContent += `
-                    <div class="day-cell" id="day-${i}" data-day-index="${i}">
-                        <h3 class="day-header">${DAY_NAMES[i]} <span id="date-${i}" style="font-size: 0.7em; opacity: 0.8; font-weight: 500;"></span></h3>
-                        <span class="day-score-display" id="day-score-${i}">Çalışma: 0 dk</span>
-                        <span class="day-score-display" id="day-question-score-${i}" style="margin-bottom: 5px; color: var(--countdown-fill); text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);">Soru: 0 adet</span>
-                        
-                        <div class="question-input-box">
-                            <input type="number" id="question-count-input-${i}" placeholder="Soru Sayısı" min="0">
-                            <button onclick="handleQuestionEntry(${i})" style="background-color: #22c55e; color: white; padding: 0; font-size: 1em; width: 36px; height: 36px; min-width: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-check"></i></button>
-                            <button onclick="resetQuestionCount(${i})" title="Bu günün soru sayısını sıfırla" style="background-color: var(--pomodoro-accent); color: white; padding: 0; font-size: 1em; width: 36px; height: 36px; min-width: 36px; border-radius: 4px; display: flex; align-items: center; justify-content: center;"><i class="fas fa-trash-alt"></i></button>
-                        </div>
-                        
-                        <div class="day-progress-area">
-                            <div class="day-progress-container" id="progress-container-${i}" style="display: none;">
-                                <div class="day-progress-fill" id="progress-fill-${i}" style="width: 0%;"></div>
-                                <span class="day-progress-percentage" id="progress-percentage-${i}">0%</span>
-                            </div>
-                        </div>
+                     <div class="day-cell" id="day-${i}" data-day-index="${i}">
+                         <h3 class="day-header">${DAY_NAMES[i]} <span id="date-${i}" style="font-size: 0.7em; opacity: 0.8; font-weight: 500;"></span></h3>
+                         
+                         <span class="day-score-display" id="day-score-${i}">Çalışma: 0 dk</span>
+                         <span class="day-score-display" id="day-question-score-${i}" style="margin-bottom: 10px;">Soru: 0</span>
+                         
+                         <div class="question-input-box">
+                              <input type="number" id="question-input-${i}" placeholder="Soru Sayısı">
+                              <button onclick="handleQuestionEntry(${i})" style="background-color: var(--countdown-fill); padding: 6px; border-radius: 4px; box-shadow: none; min-width: 30px; font-size: 0.8em;">
+                                   <i class="fas fa-save"></i>
+                              </button>
+                              <button onclick="resetQuestionCount(${i})" style="background-color: #ef4444; padding: 6px; border-radius: 4px; box-shadow: none; min-width: 30px; font-size: 0.8em;">
+                                   <i class="fas fa-trash-alt"></i>
+                              </button>
+                         </div>
 
-                        <div class="cell-content-wrapper">
-                            <ul class="task-list" id="task-list-${i}" data-day-index="${i}">
-                                </ul>
-                        </div>
+                         <div class="cell-content-wrapper">
+                             <div class="day-progress-area">
+                                 <div class="day-progress-container">
+                                     <div class="day-progress-fill" id="day-progress-fill-${i}" style="width: 0%;"></div>
+                                     <span class="day-progress-percentage" id="day-progress-percentage-${i}">0%</span>
+                                 </div>
+                             </div>
 
-                        <button class="add-task-btn" onclick="showAddTaskForm(${i})" style="background-color: var(--button-bg);"><i class="fas fa-plus"></i> Görev Ekle</button>
-                    </div>
+                             <ul class="task-list" id="task-list-${i}" data-day-index="${i}">
+                                 </ul>
+                             
+                             <button class="add-task-btn" onclick="showAddTaskForm(${i})" style="background-color: var(--button-bg); color: var(--header-text); width: 100%; margin-top: auto;">
+                                 <i class="fas fa-plus"></i> Görev Ekle
+                             </button>
+                         </div>
+                     </div>
                 `;
             }
             grid.innerHTML = htmlContent;
         }
-
+        
         function renderSchedule() {
+            // Haftalık Navigasyonu güncelle
             const today = new Date();
             const startOfCurrentWeek = getStartOfWeek(today);
             startOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + currentWeekOffset * 7);
 
+            const endOfCurrentWeek = new Date(startOfCurrentWeek);
+            endOfCurrentWeek.setDate(endOfCurrentWeek.getDate() + 6);
+            
             const weekDisplay = document.getElementById('week-display');
-            if (weekDisplay) {
-                if (currentWeekOffset === 0) {
-                    weekDisplay.textContent = 'Mevcut Hafta';
-                } else if (currentWeekOffset === -1) {
-                    weekDisplay.textContent = 'Geçen Hafta';
-                } else if (currentWeekOffset === 1) {
-                    weekDisplay.textContent = 'Gelecek Hafta';
-                } else {
-                    const endOfWeek = new Date(startOfCurrentWeek);
-                    endOfWeek.setDate(endOfWeek.getDate() + 6);
-                    weekDisplay.textContent = `${startOfCurrentWeek.toLocaleDateString('tr-TR')} - ${endOfWeek.toLocaleDateString('tr-TR')}`;
-                }
-            }
+            const weekNumber = getWeekNumber(startOfCurrentWeek);
 
+            let weekRangeText = `${startOfCurrentWeek.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })} - ${endOfCurrentWeek.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+            
+            if (currentWeekOffset === 0) {
+                 weekRangeText = "BU HAFTA (" + weekRangeText + ")";
+            } else if (currentWeekOffset === -1) {
+                 weekRangeText = "GEÇEN HAFTA (" + weekRangeText + ")";
+            } else if (currentWeekOffset === 1) {
+                 weekRangeText = "GELECEK HAFTA (" + weekRangeText + ")";
+            }
+            
+            weekDisplay.innerHTML = `<i class="fas fa-calendar-alt"></i> Hafta ${weekNumber}: ${weekRangeText}`;
+
+            // Günleri render et
             for (let i = 0; i < 7; i++) {
-                const dayDate = new Date(startOfCurrentWeek);
-                dayDate.setDate(dayDate.getDate() + i);
-                const dateElement = document.getElementById(`date-${i}`);
-                if (dateElement) {
-                    dateElement.textContent = `(${dayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })})`;
-                }
+                 const dayDate = new Date(startOfCurrentWeek);
+                 dayDate.setDate(dayDate.getDate() + i);
 
-                renderTasks(i);
+                 document.getElementById(`date-${i}`).textContent = `(${dayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })})`;
+                 renderTasks(i);
 
-                const dayCell = document.getElementById(`day-${i}`);
-                if (dayCell) {
-                    const isToday = currentWeekOffset === 0 && dayDate.toDateString() === today.toDateString();
-                    dayCell.style.border = isToday ? `2px solid var(--pomodoro-accent)` : `var(--day-border)`;
-                    dayCell.style.boxShadow = isToday ? `0 0 10px rgba(248, 113, 113, 0.5)` : 'none';
-                }
+                 const dayCell = document.getElementById(`day-${i}`);
+                 if (dayCell) {
+                      const isToday = currentWeekOffset === 0 && dayDate.toDateString() === today.toDateString();
+                      dayCell.style.border = isToday ? `2px solid var(--pomodoro-accent)` : `var(--day-border)`;
+                      dayCell.style.boxShadow = isToday ? `0 0 10px rgba(248, 113, 113, 0.5)` : 'none';
+                 }
             }
-
-            updateAllDayScoresAndToday();
-            updateQuestionStats(); // YENİ: Soru istatistiklerini güncelle
             setupDragAndDropListeners();
-            updateScheduleView(); // YENİ: Görünüm ayarını uygula
+            updateAllDayScoresAndToday();
+            updateQuestionStats();
         }
 
-        function changeWeek(direction) {
-            currentWeekOffset += direction;
-            updateURL();
+        function changeWeek(offset) {
+            currentWeekOffset += offset;
+            saveWeekToURL();
             renderSchedule();
         }
 
-        function updateURL() {
-            const url = new URL(window.location);
-            url.searchParams.set('week', currentWeekOffset);
-            window.history.pushState({}, '', url);
+        function saveWeekToURL() {
+            if (currentWeekOffset === 0) {
+                 history.pushState(null, '', location.pathname); // Offset 0 ise URL'i temizle
+            } else {
+                 history.pushState(null, '', `?weekOffset=${currentWeekOffset}`);
+            }
         }
 
         function loadWeekFromURL() {
-            const params = new URLSearchParams(window.location.search);
-            currentWeekOffset = parseInt(params.get('week')) || 0;
+            const params = new URLSearchParams(location.search);
+            currentWeekOffset = parseInt(params.get('weekOffset')) || 0;
+        }
+        
+        // =======================================
+        // TARİH VE ZAMAN YÖNETİMİ KORUNDU
+        // =======================================
+        function getStartOfWeek(date) {
+            const day = date.getDay(); // 0 (Pazar) - 6 (Cumartesi)
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1); // Pazartesiyi bul (TR'de hafta Pazartesi başlar)
+            return new Date(date.getFullYear(), date.getMonth(), diff);
         }
 
+        function getStorageKey(dayIndex) {
+            return getStorageKeyByOffset(currentWeekOffset, dayIndex);
+        }
 
+        function getStorageKeyByOffset(weekOffset, dayIndex) {
+            const today = new Date();
+            const startOfCurrentWeek = getStartOfWeek(today);
+            startOfCurrentWeek.setDate(startOfCurrentWeek.getDate() + weekOffset * 7);
+
+            const targetDate = new Date(startOfCurrentWeek);
+            targetDate.setDate(targetDate.getDate() + dayIndex);
+
+            const month = targetDate.getMonth() + 1;
+            const day = targetDate.getDate();
+            const year = targetDate.getFullYear();
+
+            return `tasks_${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+        }
+        
+        function getScoreKey(dayIndex) {
+             return `score_${getStorageKey(dayIndex)}`;
+        }
+
+        // YENİ: Soru Sayısı Key'i KORUNDU
+        function getQuestionKey(dayIndex) {
+             // Soru skorları için benzersiz bir key oluşturur
+             return `questions_${getStorageKey(dayIndex).split('_').slice(1).join('_')}`;
+        }
+        
+        function getWeekNumber(d) {
+             // Klonla ve hafta başlangıcına ayarla (Pazartesi)
+             d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+             d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+             // Yılın başlangıcına dön
+             const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+             // Hafta numarasını hesapla
+             const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+             return weekNo;
+        }
+
+        // =======================================
+        // YKS SAYACI - HAFTA SAYACI EKLENDİ
+        // =======================================
+        function updateCountdown() {
+            const now = new Date().getTime();
+            const distance = TARGET_DATE.getTime() - now;
+
+            if (distance < 0) {
+                 document.getElementById('days-value').textContent = '00';
+                 document.getElementById('weeks-value').textContent = '00'; // HAFTA EKLENDİ
+                 document.getElementById('hours-value').textContent = '00';
+                 document.getElementById('minutes-value').textContent = '00';
+                 document.getElementById('seconds-value').textContent = '00';
+                 document.getElementById('yks-target-date').textContent = "YKS Tamamlandı!";
+                 clearInterval(window.yksInterval);
+                 return;
+            }
+
+            const totalDays = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const totalWeeks = Math.floor(totalDays / 7); // HAFTA HESAPLANDI
+            const daysLeft = totalDays; // Sadece gün olarak gösteriliyor
+            const hoursLeft = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutesLeft = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const secondsLeft = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            document.getElementById('days-value').textContent = daysLeft.toString().padStart(2, '0');
+            document.getElementById('weeks-value').textContent = totalWeeks.toString().padStart(2, '0'); // HAFTA GÜNCELLENDİ
+            document.getElementById('hours-value').textContent = hoursLeft.toString().padStart(2, '0');
+            document.getElementById('minutes-value').textContent = minutesLeft.toString().padStart(2, '0');
+            document.getElementById('seconds-value').textContent = secondsLeft.toString().padStart(2, '0');
+            
+            // Çemberleri Güncelleme (Çemberler için maks değerler: 365 gün, 52 hafta, 24 saat, 60 dakika, 60 saniye)
+            updateCircle('days-circle', totalDays, 365);
+            updateCircle('weeks-circle', totalWeeks, 52); // HAFTA ÇEMBERİ EKLENDİ
+            updateCircle('hours-circle', hoursLeft, 24);
+            updateCircle('minutes-circle', minutesLeft, 60);
+            updateCircle('seconds-circle', secondsLeft, 60);
+        }
+
+        function updateCircle(id, value, max) {
+            const circle = document.getElementById(id);
+            if (!circle) return;
+
+            // Değer max'ı aşarsa bile 0 ile max arasında tut
+            const boundedValue = Math.min(Math.max(0, value), max); 
+            const percentage = (max - boundedValue) / max;
+            const offset = YKS_CIRCUMFERENCE * percentage;
+
+            circle.style.strokeDasharray = `${YKS_CIRCUMFERENCE} ${YKS_CIRCUMFERENCE}`;
+            circle.style.strokeDashoffset = offset;
+        }
+        
+        // =======================================
+        // SAYFA YÜKLEME
+        // =======================================
         document.addEventListener('DOMContentLoaded', () => {
-            createDayCells();
-            audioPlayer = document.getElementById('audio-player');
-            audioPlayer.volume = musicVolume / 100;
-
             loadTheme();
             loadWeekFromURL();
+            createDayCells(); 
             loadPomodoroState();
+            renderSchedule();
             
             initFirebaseAuth();
 
             updateCountdown();
             window.yksInterval = setInterval(updateCountdown, 1000);
             
-            document.querySelectorAll('input[type="text"]').forEach(input => {
-                input.addEventListener('focus', closeOpenForm);
+            document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]').forEach(input => {
+                 input.addEventListener('focus', closeOpenForm);
             });
             
             document.getElementById('study-hours').addEventListener('input', updateTimerFromInputsAndReset);
             document.getElementById('study-minutes').addEventListener('input', updateTimerFromInputsAndReset);
             document.getElementById('study-seconds').addEventListener('input', updateTimerFromInputsAndReset);
             
+            // Soru inputları için enter tuşu ve reset mantığı
             document.querySelectorAll('.question-input-box input').forEach(input => {
                  input.addEventListener('input', updateTimerFromInputsAndReset);
                  input.addEventListener('keydown', (e) => {
