@@ -1175,7 +1175,7 @@
 
     <div id="pomodoro-modal" class="modal-overlay">
         <div class="pomodoro-content">
-            <button onclick="document.getElementById('pomodoro-modal').style.display = 'none'; resetTimer(true, false);" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; padding: 5px 10px; box-shadow: none;">
+            <button onclick="document.getElementById('pomodoro-modal').style.display = 'none';" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; padding: 5px 10px; box-shadow: none;">
                 <i class="fas fa-times"></i>
             </button>
             <h2 style="color: var(--pomodoro-accent); margin-bottom: 25px; font-size: 2em; text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);">ODAK ZAMANI</h2>
@@ -1226,6 +1226,7 @@
         currentWeekStart.setDate(currentWeekStart.getDate() - (currentWeekStart.getDay() === 0 ? 6 : currentWeekStart.getDay() - 1));
         currentWeekStart.setHours(0, 0, 0, 0);
 
+        // POMODORO GÜNCELLEME - DEĞİŞKENLER
         let timerInterval = null;
         let timeRemaining = 1500;
         let isRunning = false;
@@ -1557,10 +1558,14 @@
             btnText.innerText = grid.classList.contains('scrolling-mode') ? "Tablo Moduna Geç" : "Yatay Kaydırma Modu";
         }
 
-        // POMODORO (DOKUNULMAZ MANTIK)
-        function showPomodoroModal() { document.getElementById('pomodoro-modal').style.display = 'flex'; }
+        // POMODORO GÜNCELLEME (ARKA PLAN DESTEKLİ)
+        function showPomodoroModal() { 
+            document.getElementById('pomodoro-modal').style.display = 'flex'; 
+            checkActiveTimer();
+        }
         
         function updateTimerFromInputsAndReset() {
+            if (isRunning) return; 
             const h = parseInt(document.getElementById('study-hours').value) || 0;
             const m = parseInt(document.getElementById('study-minutes').value) || 0;
             const s = parseInt(document.getElementById('study-seconds').value) || 0;
@@ -1570,22 +1575,62 @@
 
         function toggleTimer() {
             if (isRunning) {
+                // Durdurma
                 clearInterval(timerInterval);
+                localStorage.removeItem('pomodoroDeadline');
+                localStorage.removeItem('pomodoroInitialTotal');
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+                isRunning = false;
             } else {
-                timerInterval = setInterval(() => {
-                    if (timeRemaining > 0) {
-                        timeRemaining--;
-                        updateTimerDisplay();
-                    } else {
-                        clearInterval(timerInterval);
-                        new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
-                        showAlert("Süre Doldu! Harika iş Ömer.");
-                    }
-                }, 1000);
+                // Başlatma
+                if (timeRemaining <= 0) return;
+                const deadline = Date.now() + (timeRemaining * 1000);
+                localStorage.setItem('pomodoroDeadline', deadline);
+                localStorage.setItem('pomodoroInitialTotal', timeRemaining);
+                startInterval(deadline);
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+                isRunning = true;
             }
-            isRunning = !isRunning;
+        }
+
+        function startInterval(deadline) {
+            clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                const now = Date.now();
+                const diff = Math.ceil((deadline - now) / 1000);
+                
+                if (diff <= 0) {
+                    clearInterval(timerInterval);
+                    timeRemaining = 0;
+                    isRunning = false;
+                    localStorage.removeItem('pomodoroDeadline');
+                    updateTimerDisplay();
+                    new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
+                    showAlert("Süre Doldu! Harika iş Ömer.");
+                    document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+                } else {
+                    timeRemaining = diff;
+                    updateTimerDisplay();
+                }
+            }, 1000);
+        }
+
+        function checkActiveTimer() {
+            const deadline = localStorage.getItem('pomodoroDeadline');
+            if (deadline) {
+                const now = Date.now();
+                const diff = Math.ceil((deadline - now) / 1000);
+                if (diff > 0) {
+                    timeRemaining = diff;
+                    isRunning = true;
+                    startInterval(parseInt(deadline));
+                    document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+                } else {
+                    localStorage.removeItem('pomodoroDeadline');
+                    localStorage.removeItem('pomodoroInitialTotal');
+                }
+            }
+            updateTimerDisplay();
         }
 
         function updateTimerDisplay() {
@@ -1597,11 +1642,12 @@
         }
 
         function saveWorkSession() {
-            const h = parseInt(document.getElementById('study-hours').value) || 0;
-            const m = parseInt(document.getElementById('study-minutes').value) || 0;
-            const s = parseInt(document.getElementById('study-seconds').value) || 0;
-            const totalSession = (h * 3600) + (m * 60) + s;
-            const worked = totalSession - timeRemaining;
+            const initialTotal = parseInt(localStorage.getItem('pomodoroInitialTotal')) || 
+                               (parseInt(document.getElementById('study-hours').value) * 3600 + 
+                                parseInt(document.getElementById('study-minutes').value) * 60 + 
+                                parseInt(document.getElementById('study-seconds').value));
+            
+            const worked = initialTotal - timeRemaining;
 
             if (worked > 0) {
                 const weekKey = getWeekKey(new Date());
@@ -1615,6 +1661,8 @@
                 renderSchedule();
                 showAlert(`${formatSeconds(worked)} çalışma kaydedildi.`);
             }
+            localStorage.removeItem('pomodoroDeadline');
+            localStorage.removeItem('pomodoroInitialTotal');
             document.getElementById('pomodoro-modal').style.display = 'none';
             resetTimer(true, false);
         }
@@ -1622,6 +1670,8 @@
         function resetTimer(stop, resetInputs) {
             clearInterval(timerInterval);
             isRunning = false;
+            localStorage.removeItem('pomodoroDeadline');
+            localStorage.removeItem('pomodoroInitialTotal');
             document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
             if (resetInputs) {
                 document.getElementById('study-hours').value = 0;
@@ -1652,8 +1702,8 @@
         window.onload = () => {
             updateYKSCountdown();
             setInterval(updateYKSCountdown, 1000);
+            checkActiveTimer(); // Açılışta aktif pomodoro var mı bak
         };
     </script>
 </body>
 </html>
-
