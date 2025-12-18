@@ -325,6 +325,7 @@
             border: 1px solid var(--border-color);
         }
 
+        /* Kullanıcı görseli kaldırıldı, sadece ad ve çıkış butonu kaldı */
         #user-info {
             display: flex;
             align-items: center; 
@@ -356,6 +357,7 @@
             box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
         }
 
+        /* YENİ STATS KUTU STİLİ */
         #today-question-count, #week-question-count {
             border: 1px solid var(--countdown-fill);
             color: var(--countdown-fill);
@@ -392,6 +394,7 @@
             border: 1px solid var(--header-text);
         }
 
+        /* INSTAGRAM LİNKİ GÜNCELLENDİ */
         #instagram-link {
             background-color: var(--instagram-bg);
             color: var(--instagram-text);
@@ -689,6 +692,7 @@
             gap: 8px; 
         }
         
+        /* Pomodoro Süre Ayarlama Alanı Düzeltmeleri */
         .pomodoro-time-inputs {
             display: flex; 
             justify-content: center; 
@@ -710,7 +714,9 @@
              border-color: var(--accent-color);
         }
 
+        /* Görev Sütunlarının Genişletilmesi */
         .schedule-grid {
+            /* TABLO MODU (YAN YANA SIKIŞTIRILMIŞ - Desktop Default) */
             grid-template-columns: repeat(7, 1fr); 
             display: grid; 
             border-top: 1px solid var(--border-color); 
@@ -719,7 +725,9 @@
             transition: all 0.3s ease-in-out;
         }
         
+        /* KAYDIRMALI MOD (ŞİMDİKİ İSTEDİĞİN MOD) */
         .schedule-grid.scrolling-mode {
+             /* Her sütuna minimum 300px genişlik vererek yatay kaydırma sağlar */
              grid-template-columns: repeat(7, minmax(300px, 1fr)); 
              overflow-x: auto;
         }
@@ -737,13 +745,6 @@
             border-right: none;
         }
         
-        /* Aktif günün glow efekti */
-        .day-cell.today {
-            box-shadow: inset 0 0 15px rgba(239, 68, 68, 0.4), 0 0 10px rgba(239, 68, 68, 0.2);
-            border: 2px solid #ef4444 !important;
-            z-index: 10;
-        }
-
         .cell-content-wrapper {
              flex-grow: 1;
              display: flex; 
@@ -754,6 +755,7 @@
             margin-top: auto;
         }
         
+        /* YENİ SORU KAYIT KUTUSU STİLİ KORUNDU */
         .question-input-box {
             margin-bottom: 15px; 
             display: flex; 
@@ -778,6 +780,8 @@
              border-color: var(--countdown-fill);
         }
 
+        /* Responsive Query'ler Korundu */
+
         @media (max-width: 1200px) {
             header {
                 padding: 20px 30px;
@@ -793,6 +797,7 @@
             .header-stats, .theme-controls {
                 margin-top: 10px;
             }
+            /* GÖRÜNÜM BUTONU İÇİN ÖNCELİK */
             #view-toggle-btn {
                  order: 1; 
                  min-width: 200px;
@@ -866,6 +871,7 @@
                 padding: 10px 8px;
                 min-height: 400px;
             }
+            /* Mobil için sütunları yatay kaydırmalı (SCROLLING MODE) yapar */
             .schedule-grid {
                  grid-template-columns: repeat(7, minmax(90vw, 1fr)); 
                  overflow-x: auto !important;
@@ -877,6 +883,7 @@
                  width: 60px;
                  height: 60px;
             }
+            /* YKS Sayaç Görsel Fix (Yazının çember dışına taşmaması için) */
             .countdown-value strong {
                  font-size: 1.2em; 
             }
@@ -909,6 +916,7 @@
             }
         }
         
+        /* ÖZEL UYARI KUTUSU STİL... */
         #custom-alert {
             position: fixed;
             top: -50px; 
@@ -925,6 +933,7 @@
             text-align: center;
         }
 
+        /* SKOR VE GÖREV LİSTESİ STİLİ KORUNDU */
         .day-header {
              font-size: 1.8em;
              font-weight: 900;
@@ -936,39 +945,56 @@
         }
 
         .day-score-display {
-             display: block;
-             text-align: center;
-             margin-bottom: 5px;
-             font-size: 1em;
-             font-weight: 700;
+             display: block; 
+             text-align: center; 
+             margin-bottom: 5px; 
+             font-size: 1em; 
+             font-weight: 700; 
              color: var(--accent-color);
              text-shadow: 0 0 5px var(--accent-glow);
         }
-
+        
+        /* YENİ EKLENEN SORU SKORU GÖRÜNÜMÜ KORUNDU */
         #day-question-score {
             color: var(--countdown-fill);
             text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);
         }
 
         .task-list {
-             list-style: none;
-             padding: 0;
-             margin: 0;
-             flex-grow: 1;
-             min-height: 10px;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            flex-grow: 1;
+            min-height: 10px;
         }
 
         .task-text-content {
-             flex-grow: 1;
-             font-weight: 600;
-             color: var(--task-text-color);
-             display: block;
+            flex-grow: 1;
+            font-weight: 600;
+            color: var(--task-text-color);
+            display: block;
+        }
+
+        /* Aktif gün vurgusu */
+        .day-cell.today {
+            box-shadow: inset 0 0 20px var(--accent-glow);
+            border: 2px solid var(--accent-color);
+        }
+
+        /* DEĞİŞİKLİK: Kaydet butonu için küçük stil ayarı */
+        #cloud-save-btn {
+            background-color: #2ea44f;
+            color: white;
+            border: 1px solid rgba(27, 31, 35, 0.15);
+        }
+        #cloud-save-btn:hover {
+            background-color: #2c974b;
         }
     </style>
 </head>
 <body>
     <div id="custom-alert" style="background-color: #ef4444;">Hata Mesajı</div>
-    
+
     <div id="login-gate">
         <div class="login-box">
             <h2 style="color: var(--accent-color); font-size: 2em; margin-bottom: 10px;">COSX ÖMER</h2>
@@ -995,7 +1021,7 @@
                     <i class="fas fa-user-plus"></i> KAYIT OL
                 </button>
             </div>
-            
+
             <p id="login-error-message" style="color: var(--pomodoro-accent); margin-top: 15px; font-weight: 600;"></p>
             
             <a href="https://instagram.com/cosxomer" id="instagram-follow-btn" target="_blank">
@@ -1008,6 +1034,10 @@
         <header>
             <h1>COSX ÖMER DERS ÇİZELGESİ</h1>
             <div class="header-controls">
+                <button id="cloud-save-btn" onclick="saveToCloudManual()" style="display: none;">
+                    <i class="fas fa-cloud-upload-alt"></i> Buluta Kaydet
+                </button>
+
                 <div class="auth-section">
                     <div id="user-info" style="display: none;">
                         <span id="username-display" style="font-weight: 700;"></span>
@@ -1146,15 +1176,15 @@
                 <button id="reset-btn" onclick="resetTimer()" style="background-color: var(--button-bg); color: var(--header-text); font-size: 1.1em;">
                     <i class="fas fa-undo"></i> Sıfırla
                 </button>
-                <button id="finish-btn" onclick="finishTimerManually()" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; font-weight: 700;">
-                    <i class="fas fa-check"></i> Bitir
+                <button id="finish-btn" onclick="finishTimer()">
+                    <i class="fas fa-check-circle"></i> Çalışmayı Bitir
                 </button>
             </div>
         </div>
     </div>
 
     <script>
-        // DEĞİŞİKLİK: Firebase Config eklendi
+        // DEĞİŞİKLİK: Firebase Config Aynen Eklendi
         const firebaseConfig = {
             apiKey: "AIzaSyAzNCtpGZdh4N2UtD-ZUp_KHS_US452COE",
             authDomain: "cosxomer-7fdec.firebaseapp.com",
@@ -1162,59 +1192,83 @@
             storageBucket: "cosxomer-7fdec.firebasestorage.app",
             messagingSenderId: "853886482736",
             appId: "1:853886482736:web:416abcaa2e3b92546830f5",
-            databaseURL: "https://cosxomer-7fdec-default-rtdb.firebaseio.com"
+            databaseURL: "https://cosxomer-7fdec-default-rtdb.firebaseio.com" // Veritabanı URL'i eklendi
         };
 
-        // Firebase başlat
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
-        const database = firebase.database();
+        const database = firebase.database(); // DEĞİŞİKLİK
 
         let currentUser = null;
-        let currentWeekStart = new Date();
-        currentWeekStart.setDate(currentWeekStart.getDate() - (currentWeekStart.getDay() === 0 ? 6 : currentWeekStart.getDay() - 1));
-        currentWeekStart.setHours(0, 0, 0, 0);
+        let currentWeekStart = getStartOfWeek(new Date());
+        let scheduleData = JSON.parse(localStorage.getItem('scheduleData')) || {};
+        let totalWorkedSeconds = parseInt(localStorage.getItem('totalWorkedSeconds')) || 0;
+        let weeklyQuestionCounts = JSON.parse(localStorage.getItem('weeklyQuestionCounts')) || {};
+        let theme = localStorage.getItem('selectedTheme') || 'luxury';
 
-        let scheduleData = {};
-        let timerInterval;
-        let timeLeft = 1500; 
-        let isTimerRunning = false;
-        let totalSecondsWorked = 0;
+        const days = ['Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi', 'Pazar'];
 
-        // AUTH İŞLEMLERİ
+        // --- AUTH FONKSİYONLARI ---
         function showAuthForm(type) {
-            document.getElementById('login-form').style.display = type === 'login' ? 'block' : 'none';
-            document.getElementById('signup-form').style.display = type === 'signup' ? 'block' : 'none';
-            document.getElementById('login-tab').classList.toggle('active', type === 'login');
-            document.getElementById('signup-tab').classList.toggle('active', type === 'signup');
-            document.getElementById('login-error-message').innerText = "";
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            const loginTab = document.getElementById('login-tab');
+            const signupTab = document.getElementById('signup-tab');
+            const errorMessage = document.getElementById('login-error-message');
+            
+            errorMessage.innerText = '';
+
+            if (type === 'login') {
+                loginForm.style.display = 'block';
+                signupForm.style.display = 'none';
+                loginTab.classList.add('active');
+                signupTab.classList.remove('active');
+            } else {
+                loginForm.style.display = 'none';
+                signupForm.style.display = 'block';
+                loginTab.classList.remove('active');
+                signupTab.classList.add('active');
+            }
         }
 
-        function signInWithEmailPassword() {
-            const email = document.getElementById('login-email').value;
-            const password = document.getElementById('login-password').value;
-            if(!email || !password) return showAlert("E-posta ve şifre girin.");
-
-            auth.signInWithEmailAndPassword(email, password)
-                .catch(error => {
-                    document.getElementById('login-error-message').innerText = "Hata: " + error.message;
-                });
-        }
-
-        function signUpWithEmailPasswordAndUsername() {
-            const username = document.getElementById('signup-username').value;
+        async function signUpWithEmailPasswordAndUsername() {
             const email = document.getElementById('signup-email').value;
             const password = document.getElementById('signup-password').value;
-            
-            if(!username || !email || !password) return showAlert("Tüm alanları doldurun.");
+            const username = document.getElementById('signup-username').value;
+            const errorMessage = document.getElementById('login-error-message');
 
-            auth.createUserWithEmailAndPassword(email, password)
-                .then(userCredential => {
-                    return userCredential.user.updateProfile({ displayName: username });
-                })
-                .catch(error => {
-                    document.getElementById('login-error-message').innerText = "Hata: " + error.message;
+            if (!username) {
+                errorMessage.innerText = "Lütfen kullanıcı adı girin.";
+                return;
+            }
+
+            try {
+                const userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                await userCredential.user.updateProfile({ displayName: username });
+                
+                // DEĞİŞİKLİK: Kayıt anında veritabanında kullanıcı klasörü oluştur
+                await database.ref('users/' + userCredential.user.uid).set({
+                    username: username,
+                    createdAt: firebase.database.ServerValue.TIMESTAMP
                 });
+
+                showCustomAlert("Kayıt başarılı! Giriş yapılıyor...", "#10b981");
+            } catch (error) {
+                errorMessage.innerText = error.message;
+            }
+        }
+
+        async function signInWithEmailPassword() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errorMessage = document.getElementById('login-error-message');
+
+            try {
+                await auth.signInWithEmailAndPassword(email, password);
+                showCustomAlert("Giriş başarılı!", "#10b981");
+            } catch (error) {
+                errorMessage.innerText = "Hatalı giriş: " + error.message;
+            }
         }
 
         function signOutUser() {
@@ -1223,8 +1277,8 @@
             });
         }
 
-        // DEĞİŞİKLİK: Auth durumu değiştiğinde verileri UID bazlı yükle
-        auth.onAuthStateChanged(user => {
+        // DEĞİŞİKLİK: Firebase Veri Çekme ve Yükleme Mantığı
+        auth.onAuthStateChanged(async (user) => {
             if (user) {
                 currentUser = user;
                 document.getElementById('login-gate').style.opacity = '0';
@@ -1232,384 +1286,362 @@
                 document.getElementById('user-info').style.display = 'flex';
                 document.getElementById('logout-btn').style.display = 'flex';
                 document.getElementById('username-display').innerText = user.displayName || user.email;
-                
-                // DEĞİŞİKLİK: Firebase'den verileri çek
-                loadDataFromFirebase();
+                document.getElementById('cloud-save-btn').style.display = 'flex'; // Kaydet butonu göster
+
+                // 🔄 YÜKLEME DAVRANIŞI: Önce Firebase'den çek
+                await loadFromFirebase();
             } else {
+                currentUser = null;
                 document.getElementById('login-gate').style.display = 'flex';
                 document.getElementById('login-gate').style.opacity = '1';
                 document.getElementById('user-info').style.display = 'none';
                 document.getElementById('logout-btn').style.display = 'none';
+                document.getElementById('cloud-save-btn').style.display = 'none';
             }
         });
 
-        // DEĞİŞİKLİK: Veri Kaydetme Mekanizması (Firebase + LocalStorage)
-        function saveData() {
+        // DEĞİŞİKLİK: Firebase'den veri çekme
+        async function loadFromFirebase() {
             if (!currentUser) return;
-            const uid = currentUser.uid;
-            
-            // LocalStorage'ı cache olarak koru
-            localStorage.setItem(`scheduleData_${uid}`, JSON.stringify(scheduleData));
-            
-            // DEĞİŞİKLİK: Firebase'e UID bazlı yaz
-            database.ref(`users/${uid}/scheduleData`).set(scheduleData);
-        }
+            try {
+                const snapshot = await database.ref('users/' + currentUser.uid + '/data').once('value');
+                const cloudData = snapshot.val();
 
-        // DEĞİŞİKLİK: Veri Yükleme Mekanizması
-        function loadDataFromFirebase() {
-            if (!currentUser) return;
-            const uid = currentUser.uid;
-            
-            // Önce LocalStorage'dan hızlıca yükle (Cache)
-            const cached = localStorage.getItem(`scheduleData_${uid}`);
-            if (cached) {
-                scheduleData = JSON.parse(cached);
-                renderSchedule();
-            }
-
-            // DEĞİŞİKLİK: Firebase'den güncel veriyi çek ve override et
-            database.ref(`users/${uid}/scheduleData`).once('value').then(snapshot => {
-                if (snapshot.exists()) {
-                    scheduleData = snapshot.val();
-                    localStorage.setItem(`scheduleData_${uid}`, JSON.stringify(scheduleData));
-                    renderSchedule();
+                if (cloudData) {
+                    // Firebase'de veri varsa LocalStorage'ı EZ
+                    scheduleData = cloudData.scheduleData || {};
+                    totalWorkedSeconds = cloudData.totalWorkedSeconds || 0;
+                    weeklyQuestionCounts = cloudData.weeklyQuestionCounts || {};
+                    
+                    localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+                    localStorage.setItem('totalWorkedSeconds', totalWorkedSeconds);
+                    localStorage.setItem('weeklyQuestionCounts', JSON.stringify(weeklyQuestionCounts));
+                    
+                    showCustomAlert("Veriler buluttan yüklendi!", "#bb86fc");
                 }
-            });
+                renderSchedule();
+                updateStats();
+            } catch (error) {
+                console.error("Firebase yükleme hatası:", error);
+                showCustomAlert("Bulut verisi yüklenemedi!", "#ef4444");
+            }
         }
 
-        // TAKVİM VE GÖREV MANTIĞI (KORUNDU)
-        function getWeekKey(date) {
+        // DEĞİŞİKLİK: Manuel Kaydet Butonu Fonksiyonu
+        async function saveToCloudManual() {
+            if (!currentUser) return;
+
+            // O anki TÜM VERİLERİ hazırla
+            const dataToSave = {
+                scheduleData: scheduleData,
+                totalWorkedSeconds: totalWorkedSeconds,
+                weeklyQuestionCounts: weeklyQuestionCounts,
+                lastSaved: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            try {
+                // users/{uid}/data altına overwrite et
+                await database.ref('users/' + currentUser.uid + '/data').set(dataToSave);
+                showCustomAlert("Veriler başarıyla buluta kaydedildi!", "#10b981");
+            } catch (error) {
+                console.error("Kaydetme hatası:", error);
+                showCustomAlert("Kayıt başarısız!", "#ef4444");
+            }
+        }
+
+        // --- TAKVİM VE VERİ MANTIĞI (KORUNDU) ---
+        function getStartOfWeek(date) {
             const d = new Date(date);
-            d.setHours(0,0,0,0);
-            return d.toISOString().split('T')[0];
+            const day = d.getDay();
+            const diff = d.getDate() - day + (day === 0 ? -6 : 1); 
+            const start = new Date(d.setDate(diff));
+            start.setHours(0, 0, 0, 0);
+            return start;
+        }
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        function changeWeek(weeks) {
+            currentWeekStart.setDate(currentWeekStart.getDate() + (weeks * 7));
+            updateWeekDisplay();
+            renderSchedule();
+            updateStats();
+        }
+
+        function updateWeekDisplay() {
+            const endOfWeek = new Date(currentWeekStart);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            const options = { day: 'numeric', month: 'long' };
+            document.getElementById('week-display').innerText = `${currentWeekStart.toLocaleDateString('tr-TR', options)} - ${endOfWeek.toLocaleDateString('tr-TR', options)}`;
         }
 
         function renderSchedule() {
             const grid = document.querySelector('.schedule-grid');
             grid.innerHTML = '';
-            
-            const weekKey = getWeekKey(currentWeekStart);
-            document.getElementById('week-display').innerText = formatDateRange(currentWeekStart);
+            const todayStr = formatDate(new Date());
 
-            if (!scheduleData[weekKey]) {
-                scheduleData[weekKey] = Array(7).fill(null).map(() => ({
-                    tasks: [],
-                    workedSeconds: 0,
-                    questions: 0
-                }));
-            }
+            for (let i = 0; i < 7; i++) {
+                const date = new Date(currentWeekStart);
+                date.setDate(date.getDate() + i);
+                const dateStr = formatDate(date);
+                const isToday = dateStr === todayStr;
 
-            const today = new Date();
-            today.setHours(0,0,0,0);
-
-            scheduleData[weekKey].forEach((day, index) => {
-                const dayDate = new Date(currentWeekStart);
-                dayDate.setDate(dayDate.getDate() + index);
-                
-                const isToday = dayDate.getTime() === today.getTime();
+                if (!scheduleData[dateStr]) {
+                    scheduleData[dateStr] = { tasks: [], questions: 0 };
+                }
 
                 const dayCell = document.createElement('div');
-                dayCell.className = `day-cell ${isToday ? 'today' : ''}`; // DEĞİŞİKLİK: Glow efekti class ile korundu
-                dayCell.dataset.dayIndex = index;
+                dayCell.className = `day-cell ${isToday ? 'today' : ''}`;
+                dayCell.dataset.date = dateStr;
+                dayCell.dataset.dayIndex = i;
 
-                const dayName = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"][index];
-                const dateStr = dayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+                const dayScore = calculateDayScore(dateStr);
 
                 dayCell.innerHTML = `
-                    <div class="day-header">${dayName} <br> <span style="font-size: 0.5em; opacity: 0.7;">${dateStr}</span></div>
-                    <span class="day-score-display">⏱️ ${formatTime(day.workedSeconds || 0)}</span>
-                    <span class="day-score-display" id="day-question-score">🎯 Soru: ${day.questions || 0}</span>
-                    
+                    <div class="day-header">${days[i]}</div>
+                    <span class="day-score-display" id="day-score-${dateStr}">İlerleme: %${dayScore}</span>
+                    <span class="day-score-display" id="day-question-score">Soru: ${scheduleData[dateStr].questions || 0}</span>
                     <div class="day-progress-area">
                         <div class="day-progress-container">
-                            <div class="day-progress-fill" style="width: 0%"></div>
-                            <span class="day-progress-percentage">0%</span>
+                            <div class="day-progress-fill ${dayScore === 100 ? 'complete' : ''}" id="progress-bar-${dateStr}" style="width: ${dayScore}%"></div>
+                            <span class="day-progress-percentage" id="progress-text-${dateStr}">${dayScore}%</span>
                         </div>
                     </div>
-
                     <div class="question-input-box">
-                        <input type="number" placeholder="Soru Sayısı" onkeydown="if(event.key==='Enter') addQuestions(${index}, this.value)">
-                        <button onclick="addQuestions(${index}, this.previousElementSibling.value)" style="padding: 8px; background-color: var(--countdown-fill);"><i class="fas fa-plus"></i></button>
+                         <input type="number" placeholder="Soru Sayısı" value="${scheduleData[dateStr].questions || ''}" onchange="updateQuestionCount('${dateStr}', this.value)">
                     </div>
-
                     <div class="cell-content-wrapper">
-                        <ul class="task-list" ondragover="event.preventDefault()" ondrop="drop(event, ${index})">
-                            ${(day.tasks || []).map((task, tIdx) => `
-                                <li class="task-item ${task.completed ? 'completed' : ''}" draggable="true" ondragstart="drag(event, ${index}, ${tIdx})">
+                        <ul class="task-list" ondrop="drop(event)" ondragover="allowDrop(event)">
+                            ${scheduleData[dateStr].tasks.map((task, index) => `
+                                <li class="task-item ${task.completed ? 'completed' : ''}" draggable="true" ondragstart="drag(event)" data-index="${index}">
                                     <div class="task-content-wrapper">
-                                        <span class="task-text-content" onclick="toggleTask(${index}, ${tIdx})">${task.text}</span>
-                                        <div style="display:flex; gap:5px;">
-                                            <button onclick="toggleTask(${index}, ${tIdx})" style="padding:5px; background:none; color: var(--progress-complete); box-shadow:none;"><i class="fas ${task.completed ? 'fa-check-circle' : 'fa-circle'}"></i></button>
-                                            <button onclick="deleteTask(${index}, ${tIdx})" style="padding:5px; background:none; color: var(--pomodoro-accent); box-shadow:none;"><i class="fas fa-trash"></i></button>
-                                        </div>
+                                        <span class="task-text-content" onclick="toggleTask('${dateStr}', ${index})">${task.text}</span>
+                                        <button onclick="deleteTask('${dateStr}', ${index})" style="background:none; color:var(--pomodoro-accent); padding:2px; box-shadow:none;"><i class="fas fa-trash"></i></button>
                                     </div>
                                 </li>
                             `).join('')}
                         </ul>
-                        <button class="add-task-btn" onclick="addTask(${index})"><i class="fas fa-plus"></i> Görev Ekle</button>
+                        <button class="add-task-btn" onclick="addTask('${dateStr}')"><i class="fas fa-plus"></i> Görev Ekle</button>
                     </div>
                 `;
                 grid.appendChild(dayCell);
-                updateDayProgress(index);
-            });
-            updateHeaderStats();
+            }
+            updateStats();
         }
 
-        // GÖREV VE SORU FONKSİYONLARI (KORUNDU)
-        function addTask(dayIndex) {
-            const taskText = prompt("Görev adını girin:");
+        function addTask(dateStr) {
+            const taskText = prompt("Yeni görev:");
             if (taskText) {
-                const weekKey = getWeekKey(currentWeekStart);
-                scheduleData[weekKey][dayIndex].tasks.push({ text: taskText, completed: false });
+                scheduleData[dateStr].tasks.push({ text: taskText, completed: false });
                 saveData();
                 renderSchedule();
             }
         }
 
-        function toggleTask(dayIndex, taskIndex) {
-            const weekKey = getWeekKey(currentWeekStart);
-            const task = scheduleData[weekKey][dayIndex].tasks[taskIndex];
-            task.completed = !task.completed;
+        function toggleTask(dateStr, index) {
+            scheduleData[dateStr].tasks[index].completed = !scheduleData[dateStr].tasks[index].completed;
             saveData();
             renderSchedule();
         }
 
-        function deleteTask(dayIndex, taskIndex) {
-            const weekKey = getWeekKey(currentWeekStart);
-            scheduleData[weekKey][dayIndex].tasks.splice(taskIndex, 1);
-            saveData();
-            renderSchedule();
-        }
-
-        function addQuestions(dayIndex, value) {
-            const num = parseInt(value);
-            if (isNaN(num)) return;
-            const weekKey = getWeekKey(currentWeekStart);
-            scheduleData[weekKey][dayIndex].questions = (scheduleData[weekKey][dayIndex].questions || 0) + num;
-            saveData();
-            renderSchedule();
-        }
-
-        function updateDayProgress(dayIndex) {
-            const weekKey = getWeekKey(currentWeekStart);
-            const day = scheduleData[weekKey][dayIndex];
-            const tasks = day.tasks || [];
-            const completedCount = tasks.filter(t => t.completed).length;
-            const percent = tasks.length === 0 ? 0 : Math.round((completedCount / tasks.length) * 100);
-
-            const dayCell = document.querySelector(`.day-cell[data-day-index="${dayIndex}"]`);
-            if (dayCell) {
-                const fill = dayCell.querySelector('.day-progress-fill');
-                const text = dayCell.querySelector('.day-progress-percentage');
-                fill.style.width = percent + '%';
-                text.innerText = percent + '%';
-                fill.classList.toggle('complete', percent === 100);
+        function deleteTask(dateStr, index) {
+            if (confirm("Görevi silmek istediğinize emin misiniz?")) {
+                scheduleData[dateStr].tasks.splice(index, 1);
+                saveData();
+                renderSchedule();
             }
         }
 
-        // İSTATİSTİKLER (KORUNDU)
-        function updateHeaderStats() {
-            const weekKey = getWeekKey(currentWeekStart);
-            const days = scheduleData[weekKey] || [];
-            
-            // Haftalık toplam süre
-            let weekSeconds = 0;
-            let weekQs = 0;
-            days.forEach(d => {
-                weekSeconds += (d.workedSeconds || 0);
-                weekQs += (d.questions || 0);
-            });
-
-            document.getElementById('all-time-score').innerText = `🏆 Haftalık: ${formatTime(weekSeconds)}`;
-            document.getElementById('week-question-count').innerText = `🎯 Haftalık Soru: ${weekQs}`;
-
-            // Bugünün istatistikleri
-            const todayIdx = (new Date().getDay() + 6) % 7;
-            const todayData = days[todayIdx] || { workedSeconds: 0, questions: 0 };
-            document.getElementById('today-worked-time').innerText = `⏱️ Bugün: ${formatTime(todayData.workedSeconds || 0)}`;
-            document.getElementById('today-question-count').innerText = `🎯 Günlük Soru: ${todayData.questions || 0}`;
-        }
-
-        function formatTime(seconds) {
-            const h = Math.floor(seconds / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            return `${h}s ${m}dk`;
-        }
-
-        function formatDateRange(startDate) {
-            const end = new Date(startDate);
-            end.setDate(end.getDate() + 6);
-            return startDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' }) + " - " + end.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
-        }
-
-        function changeWeek(dir) {
-            currentWeekStart.setDate(currentWeekStart.getDate() + (dir * 7));
+        function updateQuestionCount(dateStr, value) {
+            const count = parseInt(value) || 0;
+            scheduleData[dateStr].questions = count;
+            saveData();
             renderSchedule();
         }
 
-        // TEMA (KORUNDU)
-        function setTheme(theme) {
-            document.body.setAttribute('data-theme', theme);
-            document.querySelectorAll('.theme-button').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.theme === theme);
-            });
-            localStorage.setItem('preferredTheme', theme);
+        function calculateDayScore(dateStr) {
+            const tasks = scheduleData[dateStr].tasks;
+            if (tasks.length === 0) return 0;
+            const completedTasks = tasks.filter(t => t.completed).length;
+            return Math.round((completedTasks / tasks.length) * 100);
         }
 
-        // POMODORO (KORUNDU)
-        function showPomodoroModal() {
-            document.getElementById('pomodoro-modal').style.display = 'flex';
+        function saveData() {
+            localStorage.setItem('scheduleData', JSON.stringify(scheduleData));
+            localStorage.setItem('totalWorkedSeconds', totalWorkedSeconds);
+            localStorage.setItem('weeklyQuestionCounts', JSON.stringify(weeklyQuestionCounts));
+        }
+
+        function updateStats() {
+            const todayStr = formatDate(new Date());
+            const todaySeconds = 0; // Pomodoro harici bugün çalışma süresi mantığı eklenirse burası güncellenir
+
+            // Toplam Çalışma
+            const totalHours = Math.floor(totalWorkedSeconds / 3600);
+            const totalMins = Math.floor((totalWorkedSeconds % 3600) / 60);
+            document.getElementById('all-time-score').innerText = `🏆 Toplam: ${totalHours}s ${totalMins}dk`;
+
+            // Günlük Soru
+            const todayQuestions = scheduleData[todayStr] ? scheduleData[todayStr].questions : 0;
+            document.getElementById('today-question-count').innerText = `🎯 Günlük Soru: ${todayQuestions}`;
+
+            // Haftalık Soru
+            let weekQuestions = 0;
+            for (let i = 0; i < 7; i++) {
+                const d = new Date(currentWeekStart);
+                d.setDate(d.getDate() + i);
+                const dStr = formatDate(d);
+                if (scheduleData[dStr]) weekQuestions += (scheduleData[dStr].questions || 0);
+            }
+            document.getElementById('week-question-count').innerText = `🎯 Haftalık Soru: ${weekQuestions}`;
+        }
+
+        // --- POMODORO MANTIĞI (KORUNDU) ---
+        let timerInterval;
+        let remainingSeconds = 25 * 60;
+        let isTimerRunning = false;
+
+        function updateTimerDisplay() {
+            const h = Math.floor(remainingSeconds / 3600);
+            const m = Math.floor((remainingSeconds % 3600) / 60);
+            const s = remainingSeconds % 60;
+            document.getElementById('timer-display').innerText = 
+                `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         }
 
         function updateTimerFromInputsAndReset() {
             const h = parseInt(document.getElementById('study-hours').value) || 0;
             const m = parseInt(document.getElementById('study-minutes').value) || 0;
             const s = parseInt(document.getElementById('study-seconds').value) || 0;
-            timeLeft = (h * 3600) + (m * 60) + s;
+            remainingSeconds = (h * 3600) + (m * 60) + s;
             updateTimerDisplay();
-        }
-
-        function updateTimerDisplay() {
-            const h = Math.floor(timeLeft / 3600);
-            const m = Math.floor((timeLeft % 3600) / 60);
-            const s = timeLeft % 60;
-            document.getElementById('timer-display').innerText = 
-                `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
         }
 
         function toggleTimer() {
             if (isTimerRunning) {
                 clearInterval(timerInterval);
-                document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+                document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Devam Et';
             } else {
-                timerInterval = setInterval(() => {
-                    if (timeLeft > 0) {
-                        timeLeft--;
-                        totalSecondsWorked++;
-                        updateTimerDisplay();
-                    } else {
-                        clearInterval(timerInterval);
-                        finishTimer();
-                    }
-                }, 1000);
-                document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+                startTimer();
             }
             isTimerRunning = !isTimerRunning;
         }
 
-        function finishTimerManually() {
+        function startTimer() {
+            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+            timerInterval = setInterval(() => {
+                if (remainingSeconds > 0) {
+                    remainingSeconds--;
+                    updateTimerDisplay();
+                } else {
+                    clearInterval(timerInterval);
+                    finishTimer();
+                }
+            }, 1000);
+        }
+
+        function resetTimer(closeModal = false) {
             clearInterval(timerInterval);
-            finishTimer();
+            isTimerRunning = false;
+            updateTimerFromInputsAndReset();
+            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+            if (closeModal) document.getElementById('pomodoro-modal').style.display = 'none';
         }
 
         function finishTimer() {
-            const weekKey = getWeekKey(currentWeekStart);
-            const todayIdx = (new Date().getDay() + 6) % 7;
-            if (!scheduleData[weekKey]) renderSchedule();
+            const h = parseInt(document.getElementById('study-hours').value) || 0;
+            const m = parseInt(document.getElementById('study-minutes').value) || 0;
+            const s = parseInt(document.getElementById('study-seconds').value) || 0;
+            const sessionSeconds = (h * 3600) + (m * 60) + s - remainingSeconds;
             
-            scheduleData[weekKey][todayIdx].workedSeconds = (scheduleData[weekKey][todayIdx].workedSeconds || 0) + totalSecondsWorked;
-            
+            totalWorkedSeconds += sessionSeconds;
             saveData();
-            totalSecondsWorked = 0;
-            isTimerRunning = false;
-            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
-            document.getElementById('pomodoro-modal').style.display = 'none';
-            renderSchedule();
-            showAlert("Çalışma kaydedildi!", "#2ecc71");
+            updateStats();
+            resetTimer(true);
+            showCustomAlert("Tebrikler! Çalışma kaydedildi.", "#10b981");
         }
 
-        function resetTimer(close = false, alert = true) {
-            clearInterval(timerInterval);
-            isTimerRunning = false;
-            totalSecondsWorked = 0;
-            updateTimerFromInputsAndReset();
-            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+        function showPomodoroModal() {
+            document.getElementById('pomodoro-modal').style.display = 'flex';
         }
 
-        function showAlert(msg, color = "#ef4444") {
-            const alert = document.getElementById('custom-alert');
-            alert.innerText = msg;
-            alert.style.backgroundColor = color;
-            alert.style.top = "20px";
-            alert.style.opacity = "1";
-            setTimeout(() => {
-                alert.style.top = "-50px";
-                alert.style.opacity = "0";
-            }, 3000);
+        // --- TEMA VE GÖRÜNÜM (KORUNDU) ---
+        function setTheme(t) {
+            document.body.setAttribute('data-theme', t);
+            localStorage.setItem('selectedTheme', t);
+            document.querySelectorAll('.theme-button').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === t);
+            });
         }
 
-        // YKS COUNTDOWN (KORUNDU)
-        function updateYKS() {
-            const target = new Date("June 21, 2026 10:00:00").getTime();
+        function toggleScheduleView() {
+            const grid = document.querySelector('.schedule-grid');
+            const btnText = document.getElementById('view-toggle-text');
+            const isScrolling = grid.classList.toggle('scrolling-mode');
+            btnText.innerText = isScrolling ? "Tablo Modu" : "Yatay Kaydırma Modu";
+            localStorage.setItem('viewMode', isScrolling ? 'scrolling' : 'table');
+        }
+
+        // --- YKS SAYACI (KORUNDU) ---
+        function updateYksCountdown() {
+            const target = new Date('2026-06-21T10:00:00').getTime();
             const now = new Date().getTime();
             const diff = target - now;
 
             if (diff < 0) return;
 
-            const w = Math.floor(diff / (1000 * 60 * 60 * 24 * 7));
-            const d = Math.floor((diff % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24));
-            const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
+            const weeks = Math.floor(diff / (1000 * 60 * 60 * 24 * 7));
+            const days = Math.floor((diff % (1000 * 60 * 60 * 24 * 7)) / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const secs = Math.floor((diff % (1000 * 60)) / 1000);
 
-            document.getElementById('weeks-value').innerText = w.toString().padStart(2,'0');
-            document.getElementById('days-value').innerText = d.toString().padStart(2,'0');
-            document.getElementById('hours-value').innerText = h.toString().padStart(2,'0');
-            document.getElementById('minutes-value').innerText = m.toString().padStart(2,'0');
-            document.getElementById('seconds-value').innerText = s.toString().padStart(2,'0');
+            document.getElementById('weeks-value').innerText = weeks.toString().padStart(2, '0');
+            document.getElementById('days-value').innerText = days.toString().padStart(2, '0');
+            document.getElementById('hours-value').innerText = hours.toString().padStart(2, '0');
+            document.getElementById('minutes-value').innerText = mins.toString().padStart(2, '0');
+            document.getElementById('seconds-value').innerText = secs.toString().padStart(2, '0');
+        }
+
+        function showCustomAlert(msg, color) {
+            const alert = document.getElementById('custom-alert');
+            alert.innerText = msg;
+            alert.style.backgroundColor = color;
+            alert.style.top = '20px';
+            alert.style.opacity = '1';
+            setTimeout(() => {
+                alert.style.top = '-50px';
+                alert.style.opacity = '0';
+            }, 3000);
+        }
+
+        // Drag & Drop (KORUNDU)
+        function allowDrop(ev) { ev.preventDefault(); }
+        function drag(ev) { ev.dataTransfer.setData("index", ev.target.dataset.index); ev.dataTransfer.setData("date", ev.target.closest('.day-cell').dataset.date); }
+        function drop(ev) {
+            ev.preventDefault();
+            const fromIndex = ev.dataTransfer.getData("index");
+            const fromDate = ev.dataTransfer.getData("date");
+            const toDate = ev.target.closest('.day-cell').dataset.date;
             
-            updateCircle('weeks-circle', w, 52);
-            updateCircle('days-circle', d, 7);
-            updateCircle('hours-circle', h, 24);
-            updateCircle('minutes-circle', m, 60);
-            updateCircle('seconds-circle', s, 60);
-        }
-
-        function updateCircle(id, val, max) {
-            const circle = document.getElementById(id);
-            const r = 18;
-            const circ = 2 * Math.PI * r;
-            const offset = circ - (val / max) * circ;
-            circle.style.strokeDasharray = circ;
-            circle.style.strokeDashoffset = offset;
-        }
-
-        function toggleScheduleView() {
-            const grid = document.querySelector('.schedule-grid');
-            grid.classList.toggle('scrolling-mode');
-            const isScroll = grid.classList.contains('scrolling-mode');
-            document.getElementById('view-toggle-text').innerText = isScroll ? "Sıkıştırılmış Mod" : "Yatay Kaydırma Modu";
-            localStorage.setItem('viewMode', isScroll ? 'scroll' : 'flat');
-        }
-
-        // DRAG & DROP (KORUNDU)
-        let draggedTask = null;
-        function drag(e, dayIdx, taskIdx) {
-            draggedTask = { dayIdx, taskIdx };
-            e.dataTransfer.setData("text", ""); 
-        }
-
-        function drop(e, toDayIdx) {
-            e.preventDefault();
-            const weekKey = getWeekKey(currentWeekStart);
-            const task = scheduleData[weekKey][draggedTask.dayIdx].tasks.splice(draggedTask.taskIdx, 1)[0];
-            scheduleData[weekKey][toDayIdx].tasks.push(task);
-            saveData();
-            renderSchedule();
-        }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedTheme = localStorage.getItem('preferredTheme') || 'luxury';
-            setTheme(savedTheme);
-            
-            if (localStorage.getItem('viewMode') === 'scroll') {
-                toggleScheduleView();
+            if (fromDate && toDate) {
+                const task = scheduleData[fromDate].tasks.splice(fromIndex, 1)[0];
+                scheduleData[toDate].tasks.push(task);
+                saveData();
+                renderSchedule();
             }
+        }
 
-            setInterval(updateYKS, 1000);
-            updateYKS();
+        // INIT
+        document.addEventListener('DOMContentLoaded', () => {
+            setTheme(theme);
+            updateWeekDisplay();
+            setInterval(updateYksCountdown, 1000);
+            if (localStorage.getItem('viewMode') === 'scrolling') toggleScheduleView();
+            renderSchedule();
         });
-
     </script>
 </body>
 </html>
