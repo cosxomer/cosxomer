@@ -355,6 +355,34 @@
             gap: 10px;
         }
 
+        .profile-chip {
+            background-color: var(--task-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: none;
+            padding: 4px 10px 4px 4px;
+            gap: 10px;
+        }
+
+        .profile-chip:hover {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        .profile-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent-color);
+            background-color: var(--header-bg);
+            flex-shrink: 0;
+        }
+
+        .profile-avatar-large {
+            width: 96px;
+            height: 96px;
+        }
+
         .header-stats {
              display: flex;
              gap: 15px;
@@ -676,6 +704,122 @@
             align-items: center;
             z-index: 1000;
             backdrop-filter: blur(5px);
+        }
+
+        .profile-modal-content {
+            background-color: var(--container-bg);
+            padding: 35px;
+            border-radius: 24px;
+            box-shadow: 0 0 40px rgba(0, 0, 0, 0.6);
+            max-width: 760px;
+            width: 92%;
+            border: 2px solid var(--accent-color);
+            position: relative;
+        }
+
+        .profile-modal-header h2 {
+            color: var(--accent-color);
+            font-size: 2em;
+            margin-bottom: 6px;
+        }
+
+        .profile-member-since {
+            color: var(--text-color);
+            opacity: 0.8;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+
+        .profile-modal-body {
+            display: flex;
+            gap: 28px;
+            align-items: flex-start;
+        }
+
+        .profile-avatar-section {
+            width: 180px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .profile-upload-input {
+            display: none;
+        }
+
+        .profile-fields {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .profile-field-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .profile-field-group label {
+            color: var(--accent-color);
+            font-weight: 700;
+        }
+
+        .profile-field-group input,
+        .profile-field-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            background-color: var(--task-bg);
+            color: var(--text-color);
+            box-shadow: none;
+            resize: vertical;
+        }
+
+        .profile-field-group input:focus,
+        .profile-field-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-color);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        .profile-field-group input[readonly],
+        .profile-field-group textarea[readonly] {
+            opacity: 0.88;
+        }
+
+        .profile-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .profile-stat-card {
+            background-color: var(--task-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .profile-stat-card span {
+            opacity: 0.75;
+            font-size: 0.9em;
+        }
+
+        .profile-stat-card strong {
+            color: var(--countdown-fill);
+            font-size: 1.2em;
+        }
+
+        .profile-modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
         }
 
         .pomodoro-content {
@@ -1019,6 +1163,7 @@
             border: 1px solid var(--border-color);
             gap: 8px;
             transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
         }
         .leaderboard-item:hover {
             transform: scale(1.01);
@@ -1068,12 +1213,12 @@
         
         /* ÇALIŞIYOR ROZETİ */
         .working-badge {
-            font-size: 0.6em;
+            font-size: 0.7em;
             background-color: #2ecc71;
             color: #ffffff;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-top: 3px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-top: 4px;
             font-weight: 800;
             animation: pulse 1.5s infinite;
             display: inline-block;
@@ -1178,6 +1323,11 @@
             .timer-controls button { width: 100%; margin-bottom: 10px; }
             .quote-container { padding: 15px 20px; }
             .quote-text { font-size: 1em; }
+            .profile-modal-content { padding: 24px 18px; }
+            .profile-modal-body { flex-direction: column; gap: 18px; }
+            .profile-avatar-section { width: 100%; }
+            .profile-stats-grid { grid-template-columns: 1fr; }
+            .profile-chip { width: 100%; justify-content: center; }
         }
         @media (max-width: 480px) {
             .header-stats { flex-direction: column; align-items: stretch; }
@@ -1227,7 +1377,10 @@
                 </button>
                 <div class="auth-section">
                     <div id="user-info" style="display: none;">
-                        <span id="username-display" style="font-weight: 700;"></span>
+                        <button id="profile-toggle-btn" class="profile-chip" onclick="openProfileModal()">
+                            <img id="header-profile-image" class="profile-avatar" alt="Profil Resmi">
+                            <span id="username-display" style="font-weight: 700;"></span>
+                        </button>
                     </div>
                     <button id="logout-btn" onclick="signOutUser()" style="display: none; background-color: var(--pomodoro-accent); color: var(--header-text);">
                         <i class="fas fa-sign-out-alt"></i> Çıkış Yap
@@ -1369,6 +1522,52 @@
         </div>
     </div>
 
+    <div id="profile-modal" class="modal-overlay">
+        <div class="profile-modal-content">
+            <button onclick="closeProfileModal()" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; padding: 5px 10px; box-shadow: none;">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="profile-modal-header">
+                <h2 id="profile-modal-title">Profilim</h2>
+                <p id="profile-member-since" class="profile-member-since">Üyelik Başlangıcı: -</p>
+            </div>
+            <div class="profile-modal-body">
+                <div class="profile-avatar-section">
+                    <img id="profile-preview-image" class="profile-avatar profile-avatar-large" alt="Profil Resmi">
+                    <input type="file" id="profile-image-input" class="profile-upload-input" accept="image/*" onchange="handleProfileImageUpload(event)">
+                    <button id="profile-image-trigger" onclick="document.getElementById('profile-image-input').click()" style="background-color: var(--accent-color); color: var(--header-text);">
+                        <i class="fas fa-image"></i> Profil Resmi Ekle
+                    </button>
+                </div>
+                <div class="profile-fields">
+                    <div class="profile-field-group">
+                        <label for="profile-username-input">Kullanıcı Adı</label>
+                        <input type="text" id="profile-username-input" placeholder="Kullanıcı Adı">
+                    </div>
+                    <div class="profile-field-group">
+                        <label for="profile-about-input">Hakkında</label>
+                        <textarea id="profile-about-input" rows="5" placeholder="Kendin hakkında kısa bilgiler yaz..."></textarea>
+                    </div>
+                    <div class="profile-stats-grid">
+                        <div class="profile-stat-card">
+                            <span>Toplam Çalışma</span>
+                            <strong id="profile-total-work">0s 0dk</strong>
+                        </div>
+                        <div class="profile-stat-card">
+                            <span>Toplam Soru</span>
+                            <strong id="profile-total-questions">0</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-modal-actions">
+                <button id="profile-save-btn" onclick="saveProfileChanges()" style="background-color: var(--countdown-fill); color: var(--header-text);">
+                    <i class="fas fa-save"></i> Profili Kaydet
+                </button>
+            </div>
+        </div>
+    </div>
+
     <button id="leaderboard-toggle-btn" onclick="toggleLeaderboard()">
         <i class="fas fa-trophy"></i> Sıralama Tablosu
     </button>
@@ -1413,7 +1612,13 @@
         let timeRemaining = 1500;
         let isRunning = false;
         let totalWorkedSecondsAllTime = 0;
+        let totalQuestionsAllTime = 0;
         let currentLeaderboardTab = 'daily'; // Sekme durumu
+        let currentUsername = "Ömer";
+        let currentProfileAbout = "";
+        let currentProfileImage = "";
+        let currentAccountCreatedAt = "";
+        let leaderboardUserProfiles = {};
 
         /* YENİ: MOTİVASYON SÖZLERİ DİZİSİ */
         const quotes = [
@@ -1529,6 +1734,139 @@
             }
         }
 
+        function calculateTotalQuestionsFromSchedule(schedule) {
+            let total = 0;
+            Object.values(schedule || {}).forEach(week => {
+                Object.values(week || {}).forEach(day => {
+                    total += parseInt(day.questions, 10) || 0;
+                });
+            });
+            return total;
+        }
+
+        function calculateTotalWorkedSecondsFromSchedule(schedule) {
+            let total = 0;
+            Object.values(schedule || {}).forEach(week => {
+                Object.values(week || {}).forEach(day => {
+                    total += parseInt(day.workedSeconds, 10) || 0;
+                });
+            });
+            return total;
+        }
+
+        function refreshCurrentTotals() {
+            totalWorkedSecondsAllTime = calculateTotalWorkedSecondsFromSchedule(scheduleData);
+            totalQuestionsAllTime = calculateTotalQuestionsFromSchedule(scheduleData);
+        }
+
+        function getDefaultProfileImage(name) {
+            const safeName = (name || "Kullanıcı").trim();
+            const initials = safeName.split(/\s+/).slice(0, 2).map(part => part.charAt(0).toUpperCase()).join('') || "K";
+            const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="120"><rect width="100%" height="100%" fill="#30363d"/><circle cx="60" cy="60" r="56" fill="#14161c" stroke="#bb86fc" stroke-width="4"/><text x="50%" y="54%" dominant-baseline="middle" text-anchor="middle" font-family="Inter, sans-serif" font-size="38" font-weight="800" fill="#ffffff">${initials}</text></svg>`;
+            return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+        }
+
+        function getProfileImageSrc(image, name) {
+            return image || getDefaultProfileImage(name);
+        }
+
+        function formatProfileDate(value) {
+            if (!value) return "-";
+            const date = new Date(value);
+            if (Number.isNaN(date.getTime())) return "-";
+            return date.toLocaleDateString('tr-TR');
+        }
+
+        function buildUserPayload() {
+            return {
+                username: currentUsername,
+                about: currentProfileAbout,
+                profileImage: currentProfileImage,
+                accountCreatedAt: currentAccountCreatedAt || new Date().toISOString(),
+                schedule: scheduleData,
+                totalWorkedSeconds: totalWorkedSecondsAllTime,
+                totalQuestionsAllTime: totalQuestionsAllTime
+            };
+        }
+
+        function updateProfileButton() {
+            document.getElementById('username-display').innerText = currentUsername || "Ömer";
+            document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
+        }
+
+        function closeProfileModal() {
+            document.getElementById('profile-modal').style.display = 'none';
+            document.getElementById('profile-image-input').value = '';
+        }
+
+        function showProfileModal(profileData, editable) {
+            document.getElementById('profile-modal-title').innerText = editable ? "Profilim" : `${profileData.username} Profili`;
+            document.getElementById('profile-member-since').innerText = `Üyelik Başlangıcı: ${formatProfileDate(profileData.accountCreatedAt)}`;
+            document.getElementById('profile-username-input').value = profileData.username || "";
+            document.getElementById('profile-about-input').value = profileData.about || "";
+            document.getElementById('profile-total-work').innerText = formatSeconds(profileData.totalWorkedSeconds || 0);
+            document.getElementById('profile-total-questions').innerText = profileData.totalQuestionsAllTime || 0;
+            document.getElementById('profile-preview-image').src = getProfileImageSrc(profileData.profileImage, profileData.username);
+            document.getElementById('profile-username-input').readOnly = !editable;
+            document.getElementById('profile-about-input').readOnly = !editable;
+            document.getElementById('profile-image-trigger').style.display = editable ? 'flex' : 'none';
+            document.getElementById('profile-save-btn').style.display = editable ? 'flex' : 'none';
+            document.getElementById('profile-modal').style.display = 'flex';
+        }
+
+        function openProfileModal() {
+            refreshCurrentTotals();
+            showProfileModal({
+                username: currentUsername,
+                about: currentProfileAbout,
+                profileImage: currentProfileImage,
+                totalWorkedSeconds: totalWorkedSecondsAllTime,
+                totalQuestionsAllTime: totalQuestionsAllTime,
+                accountCreatedAt: currentAccountCreatedAt
+            }, true);
+        }
+
+        function openLeaderboardProfile(uid) {
+            if (currentUser && currentUser.uid === uid) {
+                openProfileModal();
+                return;
+            }
+            const profileData = leaderboardUserProfiles[uid];
+            if (!profileData) return;
+            showProfileModal(profileData, false);
+        }
+
+        function handleProfileImageUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            if (!file.type.startsWith('image/')) return showAlert("Lütfen geçerli bir görsel seç.");
+            if (file.size > 350 * 1024) return showAlert("Profil resmi çok büyük. Daha küçük bir görsel seç.");
+            const reader = new FileReader();
+            reader.onload = () => {
+                currentProfileImage = reader.result;
+                document.getElementById('profile-preview-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
+                document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function saveProfileChanges() {
+            if (!currentUser) return;
+            const newUsername = document.getElementById('profile-username-input').value.trim();
+            const newAbout = document.getElementById('profile-about-input').value.trim();
+            if (newUsername.length < 2) return showAlert("Kullanıcı adı en az 2 karakter olmalı.");
+            currentUsername = newUsername;
+            currentProfileAbout = newAbout;
+            refreshCurrentTotals();
+            saveData();
+            updateProfileButton();
+            closeProfileModal();
+            if (document.getElementById('leaderboard-panel').classList.contains('open')) {
+                fetchAndRenderLeaderboard();
+            }
+            showAlert("Profil güncellendi.", "success");
+        }
+
         function updateYKSCountdown() {
             const targetDate = new Date('June 21, 2026 10:00:00').getTime();
             const now = new Date().getTime();
@@ -1585,9 +1923,14 @@
                 db.collection('users').doc(user.uid).get().then(doc => {
                     if (doc.exists) {
                         const data = doc.data();
-                        document.getElementById('username-display').innerText = data.username || "Ömer";
                         scheduleData = data.schedule || {};
-                        totalWorkedSecondsAllTime = data.totalWorkedSeconds || 0;
+                        currentUsername = data.username || "Ömer";
+                        currentProfileAbout = data.about || "";
+                        currentProfileImage = data.profileImage || "";
+                        currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
+                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                        totalQuestionsAllTime = data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(scheduleData);
+                        updateProfileButton();
                         renderSchedule();
                     } else {
                         saveToFirestore();
@@ -1600,6 +1943,13 @@
                 document.getElementById('user-info').style.display = 'none';
                 document.getElementById('logout-btn').style.display = 'none';
                 document.getElementById('cloud-sync-btn').style.display = 'none';
+                currentUsername = "Ömer";
+                currentProfileAbout = "";
+                currentProfileImage = "";
+                currentAccountCreatedAt = "";
+                totalWorkedSecondsAllTime = 0;
+                totalQuestionsAllTime = 0;
+                closeProfileModal();
             }
         });
 
@@ -1623,8 +1973,9 @@
             const email = document.getElementById('signup-email').value;
             const pass = document.getElementById('signup-password').value;
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
+            const accountCreatedAt = new Date().toISOString();
             auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                return db.collection('users').doc(cred.user.uid).set({ username: username, schedule: {}, totalWorkedSeconds: 0, isWorking: false });
+                return db.collection('users').doc(cred.user.uid).set({ username: username, about: "", profileImage: "", accountCreatedAt: accountCreatedAt, schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
@@ -1632,20 +1983,20 @@
 
         function signOutUser() { 
             updateWorkingStatus(false);
+            closeProfileModal();
             auth.signOut(); 
         }
 
         function saveToFirestore() {
             if (!currentUser) return;
-            db.collection('users').doc(currentUser.uid).update({
-                schedule: scheduleData,
-                totalWorkedSeconds: totalWorkedSecondsAllTime
-            }).then(() => showAlert("Veriler Buluta Kaydedildi ✅", "success"));
+            refreshCurrentTotals();
+            db.collection('users').doc(currentUser.uid).update(buildUserPayload()).then(() => showAlert("Veriler Buluta Kaydedildi ✅", "success"));
         }
 
         function saveData() {
             if (currentUser) {
-                db.collection('users').doc(currentUser.uid).update({ schedule: scheduleData, totalWorkedSeconds: totalWorkedSecondsAllTime });
+                refreshCurrentTotals();
+                db.collection('users').doc(currentUser.uid).update(buildUserPayload());
             }
         }
 
@@ -1659,6 +2010,7 @@
             grid.innerHTML = '';
             const weekKey = getWeekKey(currentWeekStart);
             if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
+            refreshCurrentTotals();
 
             const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
             const today = new Date();
@@ -2026,6 +2378,7 @@
         async function fetchAndRenderLeaderboard() {
             const listContainer = document.getElementById('leaderboard-list');
             listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Veriler çekiliyor...</p>';
+            leaderboardUserProfiles = {};
 
             try {
                 const today = new Date();
@@ -2061,8 +2414,14 @@
                     // Gösterim şartı
                     if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({ 
+                            uid: doc.id,
                             username: data.username, 
+                            about: data.about || "",
+                            profileImage: data.profileImage || "",
+                            accountCreatedAt: data.accountCreatedAt || "",
                             seconds: targetSeconds,
+                            totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
+                            totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
                             questions: targetQuestions,
                             isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
                         });
@@ -2082,6 +2441,8 @@
                 leaderboardData.forEach((user, index) => {
                     const item = document.createElement('div');
                     item.className = 'leaderboard-item';
+                    item.onclick = () => openLeaderboardProfile(user.uid);
+                    leaderboardUserProfiles[user.uid] = user;
                     
                     // Efekt sınıflarını ekle (İlk 3 için)
                     if (index === 0) item.classList.add('rank-1');
