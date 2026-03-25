@@ -325,7 +325,6 @@
             border: 1px solid var(--border-color);
         }
 
-        /* Kullanıcı görseli kaldırıldı, sadece ad ve çıkış butonu kaldı */
         #user-info {
             display: flex;
             align-items: center; 
@@ -357,7 +356,6 @@
             box-shadow: 0 0 8px rgba(248, 113, 113, 0.5);
         }
 
-        /* YENİ STATS KUTU STİLİ */
         #today-question-count, #week-question-count {
             border: 1px solid var(--countdown-fill);
             color: var(--countdown-fill);
@@ -394,7 +392,6 @@
             border: 1px solid var(--header-text);
         }
 
-        /* INSTAGRAM LİNKİ GÜNCELLENDİ */
         #instagram-link {
             background-color: var(--instagram-bg);
             color: var(--instagram-text);
@@ -428,7 +425,6 @@
             min-width: 100%; 
         }
         
-        /* DEĞİŞİKLİK - YKS Sayaç Mobil Fix */
         #yks-countdown-container {
             width: 100%;
             padding: 10px 40px; 
@@ -438,7 +434,7 @@
             justify-content: center; 
             align-items: center;
             gap: 30px;
-            flex-wrap: wrap; /* Taşmayı önlemek için */
+            flex-wrap: wrap;
         }
         
         #yks-countdown-container h2 {
@@ -459,7 +455,7 @@
              align-items: center;
              flex-grow: 1; 
              justify-content: center;
-             flex-wrap: wrap; /* Mobil fix */
+             flex-wrap: wrap; 
         }
 
         .countdown-item {
@@ -529,7 +525,6 @@
             color: var(--text-color);
         }
 
-        /* DEĞİŞİKLİK - Görev Checkbox */
         .task-checkbox {
             appearance: none;
             width: 20px;
@@ -560,7 +555,7 @@
         .task-item {
              position: relative;
              display: flex;
-             flex-direction: row; /* Checkbox için yan yana */
+             flex-direction: row; 
              align-items: center; 
              cursor: move; 
              padding: 10px 15px; 
@@ -723,7 +718,6 @@
             gap: 8px; 
         }
         
-        /* Pomodoro Süre Ayarlama Alanı Düzeltmeleri */
         .pomodoro-time-inputs {
             display: flex; 
             justify-content: center; 
@@ -745,9 +739,7 @@
              border-color: var(--accent-color);
         }
 
-        /* Görev Sütunlarının Genişletilmesi */
         .schedule-grid {
-            /* TABLO MODU (YAN YANA SIKIŞTIRILMIŞ - Desktop Default) */
             grid-template-columns: repeat(7, 1fr); 
             display: grid; 
             border-top: 1px solid var(--border-color); 
@@ -756,9 +748,7 @@
             transition: all 0.3s ease-in-out;
         }
         
-        /* KAYDIRMALI MOD (ŞİMDİKİ İSTEDİĞİN MOD) */
         .schedule-grid.scrolling-mode {
-             /* Her sütuna minimum 300px genişlik vererek yatay kaydırma sağlar */
              grid-template-columns: repeat(7, minmax(300px, 1fr)); 
              overflow-x: auto;
         }
@@ -772,7 +762,6 @@
              flex-direction: column;
         }
 
-        /* DEĞİŞİKLİK - Aktif Gün Glow Efekti */
         .day-cell.active-today {
             box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.4);
             border: 2px solid #f87171 !important;
@@ -793,11 +782,10 @@
             margin-top: auto;
         }
         
-        /* YENİ SORU KAYIT KUTUSU STİLİ KORUNDU */
         .question-input-box {
             margin-bottom: 15px; 
             display: flex; 
-            flex-direction: column; /* Butonlar için sütun */
+            flex-direction: column; 
             gap: 5px;
         }
         
@@ -823,7 +811,6 @@
              border-color: var(--countdown-fill);
         }
 
-        /* DEĞİŞİKLİK - Soru Butonları */
         .question-btn-group {
             display: flex;
             gap: 4px;
@@ -833,8 +820,6 @@
             font-size: 0.8em;
             flex: 1;
         }
-
-        /* Responsive Query'ler Korundu */
 
         @media (max-width: 1200px) {
             header {
@@ -851,7 +836,6 @@
             .header-stats, .theme-controls {
                 margin-top: 10px;
             }
-            /* GÖRÜNÜM BUTONU İÇİN ÖNCELİK */
             #view-toggle-btn {
                  order: 1; 
                  min-width: 200px;
@@ -925,7 +909,6 @@
                 padding: 10px 8px;
                 min-height: 400px;
             }
-            /* Mobil için sütunları yatay kaydırmalı (SCROLLING MODE) yapar */
             .schedule-grid {
                  grid-template-columns: repeat(7, minmax(90vw, 1fr)); 
                  overflow-x: auto !important;
@@ -937,7 +920,6 @@
                  width: 60px;
                  height: 60px;
             }
-            /* YKS Sayaç Görsel Fix (Yazının çember dışına taşmaması için) */
             .countdown-value strong {
                  font-size: 1.2em; 
             }
@@ -970,7 +952,6 @@
             }
         }
         
-        /* ÖZEL UYARI KUTUSU STİL... */
         #custom-alert {
             position: fixed;
             top: -50px; 
@@ -987,7 +968,6 @@
             text-align: center;
         }
 
-        /* SKOR VE GÖREV LİSTESİ STİLİ KORUNDU */
         .day-header {
             font-size: 1.8em;
             font-weight: 900;
@@ -1006,7 +986,6 @@
             color: var(--accent-color);
             text-shadow: 0 0 5px var(--accent-glow);
         }
-        /* YENİ EKLENEN SORU SKORU GÖRÜNÜMÜ KORUNDU */
         #day-question-score {
             color: var(--countdown-fill);
             text-shadow: 0 0 5px rgba(0, 188, 212, 0.3);
@@ -1023,6 +1002,145 @@
             font-weight: 600;
             color: var(--task-text-color);
             display: block;
+        }
+
+        /* ======================================= */
+        /* YENİ EKLENEN LİDERLİK TABLOSU STİLLERİ */
+        /* ======================================= */
+        #leaderboard-toggle-btn {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%) rotate(-90deg);
+            transform-origin: right bottom;
+            background-color: var(--pomodoro-accent);
+            color: var(--header-text);
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            z-index: 999;
+            font-weight: 800;
+            box-shadow: 0 0 15px rgba(248, 113, 113, 0.6);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+        #leaderboard-toggle-btn:hover {
+            background-color: #ef4444;
+            transform: translateY(-50%) rotate(-90deg) scale(1.05);
+        }
+
+        .leaderboard-panel {
+            position: fixed;
+            top: 0;
+            right: -350px;
+            width: 350px;
+            max-width: 90vw;
+            height: 100vh;
+            background-color: var(--container-bg);
+            border-left: 2px solid var(--accent-color);
+            box-shadow: -5px 0 30px rgba(0,0,0,0.8);
+            z-index: 1000;
+            transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        .leaderboard-panel.open {
+            right: 0;
+        }
+        .leaderboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--accent-color);
+        }
+        .leaderboard-header h3 {
+            font-size: 1.4em;
+            text-shadow: 0 0 8px var(--accent-glow);
+        }
+        .close-leaderboard {
+            background: none;
+            color: var(--text-color);
+            box-shadow: none;
+            font-size: 1.5em;
+            padding: 5px 10px;
+        }
+        .close-leaderboard:hover {
+            color: var(--pomodoro-accent);
+        }
+        .leaderboard-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding-right: 5px; /* Scrollbar payı */
+        }
+        .leaderboard-list::-webkit-scrollbar {
+            width: 6px;
+        }
+        .leaderboard-list::-webkit-scrollbar-thumb {
+            background-color: var(--border-color);
+            border-radius: 4px;
+        }
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            background-color: var(--task-bg);
+            padding: 12px 15px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            gap: 12px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .leaderboard-item:hover {
+            transform: scale(1.03);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .leaderboard-rank {
+            font-size: 1.4em;
+            font-weight: 900;
+            width: 35px;
+            text-align: center;
+            color: var(--countdown-fill);
+        }
+        .leaderboard-name {
+            flex-grow: 1;
+            font-weight: 700;
+            color: var(--task-text-color);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .leaderboard-score {
+            font-weight: 800;
+            color: var(--accent-color);
+            font-size: 0.95em;
+            white-space: nowrap;
+        }
+        
+        /* ÇALIŞIYOR ROZETİ */
+        .working-badge {
+            font-size: 0.7em;
+            background-color: #2ecc71;
+            color: #ffffff;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-left: 8px;
+            font-weight: 800;
+            animation: pulse 1.5s infinite;
+            vertical-align: middle;
+            box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
@@ -1074,7 +1192,7 @@
                     </button>
                 </div>
                 <div class="header-stats">
-                    <span id="all-time-score">🏆 Toplam: 0s 0dk</span>
+                    <span id="all-time-score">🏆 Haftalık Süre: 0s 0dk</span>
                     <span id="today-worked-time">⏱️ Bugün: 0s 0dk</span>
                     <span id="today-question-count">🎯 Günlük Soru: 0</span>
                     <span id="week-question-count">🎯 Haftalık Soru: 0</span>
@@ -1204,6 +1322,20 @@
         </div>
     </div>
 
+    <button id="leaderboard-toggle-btn" onclick="toggleLeaderboard()">
+        <i class="fas fa-trophy"></i> Bugün Kim Ne Yaptı?
+    </button>
+
+    <div id="leaderboard-panel" class="leaderboard-panel">
+        <div class="leaderboard-header">
+            <h3>🏆 Günlük Sıralama</h3>
+            <button onclick="toggleLeaderboard()" class="close-leaderboard"><i class="fas fa-times"></i></button>
+        </div>
+        <div id="leaderboard-list" class="leaderboard-list">
+            <p style="text-align:center; opacity:0.7;">Yükleniyor...</p>
+        </div>
+    </div>
+
     <script>
         /* ======================================= */
         /* FIREBASE CONFIG - DOKUNULMAZ */
@@ -1226,13 +1358,11 @@
         currentWeekStart.setDate(currentWeekStart.getDate() - (currentWeekStart.getDay() === 0 ? 6 : currentWeekStart.getDay() - 1));
         currentWeekStart.setHours(0, 0, 0, 0);
 
-        // POMODORO GÜNCELLEME - DEĞİŞKENLER
         let timerInterval = null;
         let timeRemaining = 1500;
         let isRunning = false;
         let totalWorkedSecondsAllTime = 0;
 
-        // DEĞİŞİKLİK - YKS Sayaç Fonksiyonu (Toplam Gün Hesaplamalı)
         function updateYKSCountdown() {
             const targetDate = new Date('June 21, 2026 10:00:00').getTime();
             const now = new Date().getTime();
@@ -1244,7 +1374,7 @@
             }
 
             const weeks = Math.floor(diff / (1000 * 60 * 60 * 24 * 7));
-            const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24)); // DEĞİŞİKLİK: Sadece haftadan kalan değil, TOPLAM GÜN
+            const totalDays = Math.floor(diff / (1000 * 60 * 60 * 24)); 
             const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             const seconds = Math.floor((diff % (1000 * 60)) / 1000);
@@ -1270,8 +1400,14 @@
             circle.style.strokeDasharray = `${circumference} ${circumference}`;
             circle.style.strokeDashoffset = offset;
         }
+        
+        // YENİ EKLENEN: Veritabanında "çalışıyor" durumunu güncelleme fonksiyonu
+        function updateWorkingStatus(status) {
+            if (currentUser) {
+                db.collection('users').doc(currentUser.uid).update({ isWorking: status }).catch(e => console.log(e));
+            }
+        }
 
-        // AUTH & DATABASE (DOKUNULMAZ)
         auth.onAuthStateChanged(user => {
             if (user) {
                 currentUser = user;
@@ -1323,15 +1459,17 @@
             const pass = document.getElementById('signup-password').value;
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
             auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                return db.collection('users').doc(cred.user.uid).set({ username: username, schedule: {}, totalWorkedSeconds: 0 });
+                return db.collection('users').doc(cred.user.uid).set({ username: username, schedule: {}, totalWorkedSeconds: 0, isWorking: false });
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
         }
 
-        function signOutUser() { auth.signOut(); }
+        function signOutUser() { 
+            updateWorkingStatus(false);
+            auth.signOut(); 
+        }
 
-        // DATA SAVING
         function saveToFirestore() {
             if (!currentUser) return;
             db.collection('users').doc(currentUser.uid).update({
@@ -1346,7 +1484,6 @@
             }
         }
 
-        // SCHEDULING
         function getWeekKey(date) {
             const d = new Date(date);
             return `${d.getFullYear()}-W${Math.ceil((((d - new Date(d.getFullYear(), 0, 1)) / 86400000) + new Date(d.getFullYear(), 0, 1).getDay() + 1) / 7)}`;
@@ -1362,6 +1499,7 @@
             const today = new Date();
             
             let totalWeeklyQuestions = 0;
+            let totalWeeklySeconds = 0; // Haftalık süre için eklendi
 
             for (let i = 0; i < 7; i++) {
                 const dayDate = new Date(currentWeekStart);
@@ -1370,13 +1508,14 @@
 
                 if (!scheduleData[weekKey][i]) scheduleData[weekKey][i] = { tasks: [], workedSeconds: 0, questions: 0 };
                 const dayObj = scheduleData[weekKey][i];
+                
                 totalWeeklyQuestions += (dayObj.questions || 0);
+                totalWeeklySeconds += (dayObj.workedSeconds || 0); // O haftanın saniyeleri toplanıyor
 
                 const completedTasks = dayObj.tasks.filter(t => t.completed).length;
                 const progress = dayObj.tasks.length > 0 ? (completedTasks / dayObj.tasks.length) * 100 : 0;
 
                 const dayCell = document.createElement('div');
-                // DEĞİŞİKLİK - Aktif Gün Glowu
                 dayCell.className = `day-cell ${isToday ? 'active-today' : ''}`;
                 dayCell.setAttribute('ondragover', 'handleDragOver(event)');
                 dayCell.setAttribute('ondrop', `handleDrop(event, ${i})`);
@@ -1418,7 +1557,6 @@
                     li.draggable = true;
                     li.setAttribute('ondragstart', `handleDragStart(event, ${i}, ${tIdx})`);
                     
-                    // DEĞİŞİKLİK - Görev Checkbox ve Render
                     li.innerHTML = `
                         <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''} 
                                onchange="toggleTask(${i}, ${tIdx})">
@@ -1437,11 +1575,10 @@
             }
 
             document.getElementById('week-display').innerText = `${currentWeekStart.toLocaleDateString('tr-TR')} Haftası`;
-            document.getElementById('all-time-score').innerText = `🏆 Toplam: ${formatSeconds(totalWorkedSecondsAllTime)}`;
+            document.getElementById('all-time-score').innerText = `🏆 Haftalık Süre: ${formatSeconds(totalWeeklySeconds)}`; // DEĞİŞTİRİLDİ
             document.getElementById('week-question-count').innerText = `🎯 Haftalık Soru: ${totalWeeklyQuestions}`;
         }
 
-        // DEĞİŞİKLİK - Soru Kontrolleri
         function updateQuestions(dayIdx) {
             const input = document.getElementById(`q-input-${dayIdx}`);
             const val = parseInt(input.value) || 0;
@@ -1478,15 +1615,12 @@
             if (!scheduleData[nextWeekKey][nextDayIdx]) scheduleData[nextWeekKey][nextDayIdx] = { tasks: [], workedSeconds: 0, questions: 0 };
             
             scheduleData[nextWeekKey][nextDayIdx].tasks.push(...tasksToMove.map(t => ({ ...t })));
-            // İsteğe bağlı: Eski gündekileri silme:
-            // scheduleData[weekKey][dayIdx].tasks = scheduleData[weekKey][dayIdx].tasks.filter(t => t.completed);
             
             saveData();
             renderSchedule();
             showAlert("Görevler ertesi güne aktarıldı.");
         }
 
-        // GÖREV FONKSİYONLARI
         function addTask(dayIdx) {
             const text = prompt("Yeni Görev:");
             if (text) {
@@ -1523,7 +1657,6 @@
             }
         }
 
-        // YARDIMCI FONKSİYONLAR
         function changeWeek(dir) {
             currentWeekStart.setDate(currentWeekStart.getDate() + (dir * 7));
             renderSchedule();
@@ -1558,7 +1691,6 @@
             btnText.innerText = grid.classList.contains('scrolling-mode') ? "Tablo Moduna Geç" : "Yatay Kaydırma Modu";
         }
 
-        // POMODORO GÜNCELLEME (ARKA PLAN DESTEKLİ)
         function showPomodoroModal() { 
             document.getElementById('pomodoro-modal').style.display = 'flex'; 
             checkActiveTimer();
@@ -1570,26 +1702,33 @@
             const m = parseInt(document.getElementById('study-minutes').value) || 0;
             const s = parseInt(document.getElementById('study-seconds').value) || 0;
             timeRemaining = (h * 3600) + (m * 60) + s;
+            localStorage.removeItem('pomodoroInitialTotal'); // Ekstra koruma: süre elle değişirse resetlensin
             updateTimerDisplay();
         }
 
+        // DEĞİŞTİRİLDİ: Duraklatıldığında toplam sürenin silinmemesi için düzeltildi
         function toggleTimer() {
             if (isRunning) {
-                // Durdurma
                 clearInterval(timerInterval);
                 localStorage.removeItem('pomodoroDeadline');
-                localStorage.removeItem('pomodoroInitialTotal');
+                // localStorage.removeItem('pomodoroInitialTotal'); // HATANIN KAYNAĞI BUYDU, SİLİNDİ!
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
                 isRunning = false;
+                updateWorkingStatus(false); // Çalışıyor durumunu kapat
             } else {
-                // Başlatma
                 if (timeRemaining <= 0) return;
                 const deadline = Date.now() + (timeRemaining * 1000);
                 localStorage.setItem('pomodoroDeadline', deadline);
-                localStorage.setItem('pomodoroInitialTotal', timeRemaining);
+                
+                // Eğer daha önce başlatılmamışsa, o anki süreyi başlangıç süresi olarak kaydet
+                if (!localStorage.getItem('pomodoroInitialTotal')) {
+                    localStorage.setItem('pomodoroInitialTotal', timeRemaining);
+                }
+                
                 startInterval(deadline);
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
                 isRunning = true;
+                updateWorkingStatus(true); // Çalışıyor durumunu aç
             }
         }
 
@@ -1608,6 +1747,7 @@
                     new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
                     showAlert("Süre Doldu! Harika iş Ömer.");
                     document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+                    updateWorkingStatus(false); // Çalışıyor durumunu kapat
                 } else {
                     timeRemaining = diff;
                     updateTimerDisplay();
@@ -1679,9 +1819,9 @@
                 document.getElementById('study-seconds').value = 0;
             }
             updateTimerFromInputsAndReset();
+            updateWorkingStatus(false); // Çalışıyor durumunu kapat
         }
 
-        // DRAG AND DROP
         let draggedTask = null;
         function handleDragStart(e, dayIdx, taskIdx) {
             draggedTask = { dayIdx, taskIdx };
@@ -1699,10 +1839,90 @@
             renderSchedule();
         }
 
+        /* ======================================= */
+        /* YENİ EKLENEN LİDERLİK TABLOSU İŞLEVLERİ */
+        /* ======================================= */
+        function toggleLeaderboard() {
+            const panel = document.getElementById('leaderboard-panel');
+            const isOpen = panel.classList.contains('open');
+            
+            if (!isOpen) {
+                panel.classList.add('open');
+                fetchAndRenderLeaderboard(); 
+            } else {
+                panel.classList.remove('open');
+            }
+        }
+
+        async function fetchAndRenderLeaderboard() {
+            const listContainer = document.getElementById('leaderboard-list');
+            listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Veriler çekiliyor...</p>';
+
+            try {
+                const today = new Date();
+                const todayWeekKey = getWeekKey(today);
+                const todayDayIdx = (today.getDay() + 6) % 7; 
+
+                const usersSnapshot = await db.collection('users').get();
+                let leaderboardData = [];
+
+                usersSnapshot.forEach(doc => {
+                    const data = doc.data();
+                    let todaySeconds = 0;
+                    
+                    if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
+                        todaySeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
+                    }
+
+                    // Kullanıcı bugün çalışmışsa VEYA şu an sayacı açıksa listeye eklenecek
+                    if (data.username && (todaySeconds > 0 || data.isWorking)) {
+                        leaderboardData.push({ 
+                            username: data.username, 
+                            seconds: todaySeconds,
+                            isWorking: data.isWorking || false // Aktif çalışma durumu eklendi
+                        });
+                    }
+                });
+
+                leaderboardData.sort((a, b) => b.seconds - a.seconds);
+
+                listContainer.innerHTML = '';
+
+                if (leaderboardData.length === 0) {
+                    listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Bugün henüz çalışma kaydeden olmadı.</p>';
+                    return;
+                }
+
+                leaderboardData.forEach((user, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'leaderboard-item';
+                    
+                    let rankIcon = `#${index + 1}`;
+                    if(index === 0) rankIcon = '🥇';
+                    if(index === 1) rankIcon = '🥈';
+                    if(index === 2) rankIcon = '🥉';
+
+                    // Kullanıcı aktif olarak çalışıyorsa rozeti oluştur
+                    let workingBadge = user.isWorking ? '<span class="working-badge">🟢 Çalışıyor</span>' : '';
+
+                    item.innerHTML = `
+                        <div class="leaderboard-rank">${rankIcon}</div>
+                        <div class="leaderboard-name">${user.username} ${workingBadge}</div>
+                        <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
+                    `;
+                    listContainer.appendChild(item);
+                });
+
+            } catch (error) {
+                console.error("Sıralama yüklenirken hata:", error);
+                listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Veriler yüklenemedi. Bağlantınızı kontrol edin.</p>';
+            }
+        }
+
         window.onload = () => {
             updateYKSCountdown();
             setInterval(updateYKSCountdown, 1000);
-            checkActiveTimer(); // Açılışta aktif pomodoro var mı bak
+            checkActiveTimer(); 
         };
     </script>
 </body>
