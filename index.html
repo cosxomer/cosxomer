@@ -222,13 +222,12 @@
             text-shadow: 0 0 5px var(--accent-glow);
         }
 
-        /* Instagram Butonu Stili - Login Box İçi */
         .login-box #instagram-follow-btn {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            background-color: #c13584; /* Instagram Rengi */
+            background-color: #c13584; 
             color: white;
             padding: 12px;
             margin-top: 25px;
@@ -239,6 +238,31 @@
         }
         .login-box #instagram-follow-btn:hover {
             opacity: 0.9;
+        }
+
+        /* ======================================= */
+        /* ALINTI STİLLERİ (YENİ EKLENDİ) */
+        /* ======================================= */
+        .quote-container {
+            text-align: center;
+            padding: 20px 40px;
+            background-color: var(--header-bg);
+            border-bottom: 2px solid var(--border-color);
+            color: var(--text-color);
+            font-style: italic;
+        }
+        .quote-text {
+            font-size: 1.2em;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .quote-author {
+            font-size: 0.95em;
+            color: var(--countdown-fill);
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
 
@@ -264,7 +288,7 @@
             align-items: center;
             flex-wrap: wrap; 
             gap: 20px;
-            border-bottom: 2px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
         }
         
         header h1 {
@@ -412,7 +436,6 @@
             border-color: var(--accent-color);
             box-shadow: 0 0 10px var(--accent-glow);
         }
-
 
         .main-content {
             display: flex;
@@ -821,137 +844,6 @@
             flex: 1;
         }
 
-        @media (max-width: 1200px) {
-            header {
-                padding: 20px 30px;
-                justify-content: center;
-                text-align: center;
-            }
-            .header-controls {
-                 justify-content: center;
-                 gap: 10px;
-                 width: 100%; 
-                 margin-top: 15px;
-            }
-            .header-stats, .theme-controls {
-                margin-top: 10px;
-            }
-            #view-toggle-btn {
-                 order: 1; 
-                 min-width: 200px;
-                 flex-grow: 1;
-            }
-            .pomodoro-btn {
-                order: 2;
-                min-width: 200px;
-                flex-grow: 1;
-            }
-            .auth-section {
-                 order: -2;
-                 width: 100%;
-                 justify-content: center;
-            }
-            #yks-countdown-container {
-                 flex-direction: column;
-                 padding: 20px 30px;
-            }
-            #yks-countdown-container h2 {
-                 text-align: center;
-                 border-right: none;
-                 padding-right: 0;
-                 margin-bottom: 15px;
-                 min-width: auto;
-            }
-            #yks-target-date {
-                 border-left: none;
-                 padding-left: 0;
-            }
-            .countdown-group {
-                gap: 15px;
-                max-width: 300px;
-            }
-        }
-        
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            .container {
-                border-radius: 8px;
-            }
-            header {
-                padding: 15px 20px;
-            }
-            .main-content {
-                padding: 0 10px 10px 10px;
-            }
-            header h1 {
-                font-size: 1.8em;
-                min-width: 100%;
-            }
-            header h1::before {
-                 font-size: 1.5em;
-            }
-            header h1::after {
-                 font-size: 0.5em;
-            }
-            .header-stats > span {
-                font-size: 0.9em;
-                padding: 6px 12px;
-            }
-            .week-nav {
-                padding: 10px 15px;
-            }
-            .week-nav h3 {
-                font-size: 1.2em;
-            }
-            .day-cell {
-                padding: 10px 8px;
-                min-height: 400px;
-            }
-            .schedule-grid {
-                 grid-template-columns: repeat(7, minmax(90vw, 1fr)); 
-                 overflow-x: auto !important;
-            }
-            #yks-countdown-container {
-                 padding: 15px 20px;
-            }
-            .countdown-item {
-                 width: 60px;
-                 height: 60px;
-            }
-            .countdown-value strong {
-                 font-size: 1.2em; 
-            }
-            .countdown-value span {
-                 font-size: 0.5em;
-            }
-            .pomodoro-content {
-                 padding: 30px;
-            }
-            .timer-display {
-                 font-size: 4em;
-            }
-            .timer-controls {
-                 flex-direction: column;
-            }
-            .timer-controls button {
-                 width: 100%;
-                 margin-bottom: 10px;
-            }
-        }
-        
-        @media (max-width: 480px) {
-            .header-stats {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .header-stats > span {
-                width: 100%;
-                text-align: center;
-            }
-        }
-        
         #custom-alert {
             position: fixed;
             top: -50px; 
@@ -1005,7 +897,7 @@
         }
 
         /* ======================================= */
-        /* YENİ EKLENEN LİDERLİK TABLOSU STİLLERİ */
+        /* GELİŞTİRİLMİŞ LİDERLİK TABLOSU STİLLERİ */
         /* ======================================= */
         #leaderboard-toggle-btn {
             position: fixed;
@@ -1033,9 +925,9 @@
         .leaderboard-panel {
             position: fixed;
             top: 0;
-            right: -350px;
-            width: 350px;
-            max-width: 90vw;
+            right: -300px;
+            width: 300px;
+            max-width: 86vw;
             height: 100vh;
             background-color: var(--container-bg);
             border-left: 2px solid var(--accent-color);
@@ -1044,7 +936,8 @@
             transition: right 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
             display: flex;
             flex-direction: column;
-            padding: 20px;
+            padding: 12px 10px 10px 10px;
+            overflow: hidden;
         }
         .leaderboard-panel.open {
             right: 0;
@@ -1053,32 +946,61 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 8px;
+            padding-bottom: 8px;
             border-bottom: 1px solid var(--border-color);
             color: var(--accent-color);
         }
         .leaderboard-header h3 {
-            font-size: 1.4em;
+            font-size: 1.15em;
             text-shadow: 0 0 8px var(--accent-glow);
         }
         .close-leaderboard {
             background: none;
             color: var(--text-color);
             box-shadow: none;
-            font-size: 1.5em;
-            padding: 5px 10px;
+            font-size: 1.2em;
+            padding: 4px 8px;
         }
         .close-leaderboard:hover {
             color: var(--pomodoro-accent);
         }
+
+        /* Sekmeler (Günlük / Haftalık) */
+        .leaderboard-tabs {
+            display: flex;
+            margin-bottom: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .leaderboard-tab {
+            flex-grow: 1;
+            text-align: center;
+            padding: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            color: var(--text-color);
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+            font-size: 0.95em;
+        }
+        .leaderboard-tab:hover {
+            background-color: rgba(255,255,255,0.05);
+        }
+        .leaderboard-tab.active {
+            color: var(--accent-color);
+            border-bottom-color: var(--accent-color);
+            text-shadow: 0 0 8px var(--accent-glow);
+        }
+
         .leaderboard-list {
             flex-grow: 1;
-            overflow-y: auto;
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            padding-right: 5px; /* Scrollbar payı */
+            gap: 5px;
+            padding-right: 0; 
+            padding-bottom: 0;
+            min-height: 0;
         }
         .leaderboard-list::-webkit-scrollbar {
             width: 6px;
@@ -1087,60 +1009,180 @@
             background-color: var(--border-color);
             border-radius: 4px;
         }
+
         .leaderboard-item {
             display: flex;
             align-items: center;
             background-color: var(--task-bg);
-            padding: 12px 15px;
+            padding: 7px 8px;
             border-radius: 8px;
             border: 1px solid var(--border-color);
-            gap: 12px;
+            gap: 8px;
             transition: transform 0.2s, box-shadow 0.2s;
         }
         .leaderboard-item:hover {
-            transform: scale(1.03);
+            transform: scale(1.01);
             border-color: var(--accent-color);
             box-shadow: 0 0 10px var(--accent-glow);
         }
+        
         .leaderboard-rank {
-            font-size: 1.4em;
+            font-size: 1.1em;
             font-weight: 900;
-            width: 35px;
+            width: 28px;
             text-align: center;
             color: var(--countdown-fill);
         }
-        .leaderboard-name {
+        .leaderboard-name-wrapper {
             flex-grow: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .leaderboard-name {
             font-weight: 700;
             color: var(--task-text-color);
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+            font-size: 0.88em;
+        }
+        .leaderboard-stats {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            min-width: 72px;
         }
         .leaderboard-score {
             font-weight: 800;
             color: var(--accent-color);
-            font-size: 0.95em;
+            font-size: 0.82em;
             white-space: nowrap;
+        }
+        .leaderboard-questions {
+            font-size: 0.68em;
+            color: var(--countdown-fill);
+            font-weight: 700;
+            margin-top: 2px;
         }
         
         /* ÇALIŞIYOR ROZETİ */
         .working-badge {
-            font-size: 0.7em;
+            font-size: 0.6em;
             background-color: #2ecc71;
             color: #ffffff;
-            padding: 3px 8px;
-            border-radius: 12px;
-            margin-left: 8px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-top: 3px;
             font-weight: 800;
             animation: pulse 1.5s infinite;
-            vertical-align: middle;
+            display: inline-block;
+            width: max-content;
             box-shadow: 0 0 8px rgba(46, 204, 113, 0.6);
         }
+
+        /* --------------------------------- */
+        /* TOP 3 EFEKTLERİ */
+        /* --------------------------------- */
+        @keyframes fireGlow {
+            0% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
+            50% { box-shadow: 0 0 20px #ffeb3b, 0 0 35px #ff9800, inset 0 0 15px #ffeb3b; }
+            100% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
+        }
+        @keyframes silverGlow {
+            0% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
+            50% { box-shadow: 0 0 15px #ffffff, inset 0 0 10px #ffffff; }
+            100% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
+        }
+
+        /* 1. Sıra (KRAL - ALEVLİ) */
+        .leaderboard-item.rank-1 {
+            background: linear-gradient(45deg, #3d2c00, #5c4300);
+            border: 2px solid #ffd700;
+            animation: fireGlow 2s infinite alternate;
+            transform: scale(1.02);
+            margin: 2px 0;
+            position: relative;
+        }
+        .leaderboard-item.rank-1:hover { transform: scale(1.03); }
+        .leaderboard-item.rank-1 .leaderboard-rank { font-size: 1.35em; text-shadow: 0 0 10px #ffd700; }
+        .leaderboard-item.rank-1::before {
+            content: '👑';
+            position: absolute;
+            top: -10px;
+            left: -6px;
+            font-size: 1.2em;
+            transform: rotate(-20deg);
+            filter: drop-shadow(0 0 5px #ffd700);
+            z-index: 10;
+        }
+
+        /* 2. Sıra (GÜMÜŞ - PARILTILI) */
+        .leaderboard-item.rank-2 {
+            background: linear-gradient(45deg, #1c1c24, #2a2a35);
+            border: 2px solid #c0c0c0;
+            animation: silverGlow 3s infinite alternate;
+            transform: scale(1.01);
+            margin: 1px 0;
+        }
+        .leaderboard-item.rank-2:hover { transform: scale(1.02); }
+
+        /* 3. Sıra (BRONZ) */
+        .leaderboard-item.rank-3 {
+            background: linear-gradient(45deg, #2e1e14, #4a3020);
+            border: 2px solid #cd7f32;
+            box-shadow: 0 0 12px rgba(205, 127, 50, 0.5);
+            transform: scale(1);
+        }
+        .leaderboard-item.rank-3:hover { transform: scale(1.01); }
+
         @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.6; }
             100% { opacity: 1; }
+        }
+
+        /* MEDYA SORGULARI */
+        @media (max-width: 1200px) {
+            header { padding: 20px 30px; justify-content: center; text-align: center; }
+            .header-controls { justify-content: center; gap: 10px; width: 100%; margin-top: 15px; }
+            .header-stats, .theme-controls { margin-top: 10px; }
+            #view-toggle-btn { order: 1; min-width: 200px; flex-grow: 1; }
+            .pomodoro-btn { order: 2; min-width: 200px; flex-grow: 1; }
+            .auth-section { order: -2; width: 100%; justify-content: center; }
+            #yks-countdown-container { flex-direction: column; padding: 20px 30px; }
+            #yks-countdown-container h2 { text-align: center; border-right: none; padding-right: 0; margin-bottom: 15px; min-width: auto; }
+            #yks-target-date { border-left: none; padding-left: 0; }
+            .countdown-group { gap: 15px; max-width: 300px; }
+        }
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { border-radius: 8px; }
+            header { padding: 15px 20px; }
+            .main-content { padding: 0 10px 10px 10px; }
+            header h1 { font-size: 1.8em; min-width: 100%; }
+            header h1::before { font-size: 1.5em; }
+            header h1::after { font-size: 0.5em; }
+            .header-stats > span { font-size: 0.9em; padding: 6px 12px; }
+            .week-nav { padding: 10px 15px; }
+            .week-nav h3 { font-size: 1.2em; }
+            .day-cell { padding: 10px 8px; min-height: 400px; }
+            .schedule-grid { grid-template-columns: repeat(7, minmax(90vw, 1fr)); overflow-x: auto !important; }
+            #yks-countdown-container { padding: 15px 20px; }
+            .countdown-item { width: 60px; height: 60px; }
+            .countdown-value strong { font-size: 1.2em; }
+            .countdown-value span { font-size: 0.5em; }
+            .pomodoro-content { padding: 30px; }
+            .timer-display { font-size: 4em; }
+            .timer-controls { flex-direction: column; }
+            .timer-controls button { width: 100%; margin-bottom: 10px; }
+            .quote-container { padding: 15px 20px; }
+            .quote-text { font-size: 1em; }
+        }
+        @media (max-width: 480px) {
+            .header-stats { flex-direction: column; align-items: stretch; }
+            .header-stats > span { width: 100%; text-align: center; }
+            .leaderboard-panel { width: 100%; right: -100%; }
         }
     </style>
 </head>
@@ -1219,6 +1261,11 @@
                 </a>
             </div>
         </header>
+
+        <div class="quote-container">
+            <div class="quote-text" id="daily-quote-text">Yükleniyor...</div>
+            <div class="quote-author" id="daily-quote-author"></div>
+        </div>
 
         <div id="yks-countdown-container">
             <h2> YKS 2026'ya Kalan Süre </h2>
@@ -1323,13 +1370,17 @@
     </div>
 
     <button id="leaderboard-toggle-btn" onclick="toggleLeaderboard()">
-        <i class="fas fa-trophy"></i> Bugün Kim Ne Yaptı?
+        <i class="fas fa-trophy"></i> Sıralama Tablosu
     </button>
 
     <div id="leaderboard-panel" class="leaderboard-panel">
         <div class="leaderboard-header">
-            <h3>🏆 Günlük Sıralama</h3>
+            <h3>🏆 Rekabet Tablosu</h3>
             <button onclick="toggleLeaderboard()" class="close-leaderboard"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="leaderboard-tabs">
+            <div class="leaderboard-tab active" id="tab-daily" onclick="switchLeaderboardTab('daily')">Günlük</div>
+            <div class="leaderboard-tab" id="tab-weekly" onclick="switchLeaderboardTab('weekly')">Haftalık</div>
         </div>
         <div id="leaderboard-list" class="leaderboard-list">
             <p style="text-align:center; opacity:0.7;">Yükleniyor...</p>
@@ -1362,6 +1413,121 @@
         let timeRemaining = 1500;
         let isRunning = false;
         let totalWorkedSecondsAllTime = 0;
+        let currentLeaderboardTab = 'daily'; // Sekme durumu
+
+        /* YENİ: MOTİVASYON SÖZLERİ DİZİSİ */
+        const quotes = [
+            { text: "Başarının sırrı, vazgeçmeden çalışmaktır.", author: "Aziz Sancar" },
+            { text: "Hayal gücü bilgiden daha önemlidir.", author: "Albert Einstein" },
+            { text: "Bilim, şüphe etmekle başlar.", author: "Cahit Arf" },
+            { text: "Hayatta korkulacak değil, anlaşılacak şeyler vardır.", author: "Marie Curie" },
+            { text: "Bilim üreten toplumlar geleceği de üretir.", author: "Oktay Sinanoğlu" },
+            { text: "Sabırlı düşünce, büyük keşiflerin kapısını açar.", author: "Isaac Newton" },
+            { text: "Hayal kurmak yetmez, o hayal için ter dökmek gerekir.", author: "Canan Dağdeviren" },
+            { text: "Gelecek, bugün onun için çalışanlarındır.", author: "Nikola Tesla" },
+            { text: "Mükemmellik, tekrar ve sabrın sonucudur.", author: "Gazi Yaşargil" },
+            { text: "Ölçebildiğini ölç, ölçemediğini ölçülebilir kıl.", author: "Galileo Galilei" },
+            { text: "Geçmişi öğrenen, geleceği daha sağlam kurar.", author: "Fuat Sezgin" },
+            { text: "Zeka, değişime uyum sağlama yeteneğidir.", author: "Stephen Hawking" },
+            { text: "Gökyüzüne bakan insan, sınırlarını küçültmez.", author: "Dilhan Eryurt" },
+            { text: "Şans, hazırlıklı zihinleri sever.", author: "Louis Pasteur" },
+            { text: "Sadelik, derin düşüncenin işaretidir.", author: "Feza Gürsey" },
+            { text: "Deha, yüzde bir ilham ve yüzde doksan dokuz emektir.", author: "Thomas Edison" },
+            { text: "İlerleme, inatçı merakın ödülüdür.", author: "Uğur Şahin" },
+            { text: "Öğrenmenin yolu, yapmaktan geçer.", author: "Richard Feynman" },
+            { text: "Büyük başarılar, sakin ve sürekli emekle gelir.", author: "Özlem Türeci" },
+            { text: "Bir yerde inanılmaz bir şey keşfedilmeyi bekliyor.", author: "Carl Sagan" },
+            { text: "Bilim sabır ister, sabır da karakter.", author: "Aziz Sancar" },
+            { text: "Önemli olan soru sormayı bırakmamaktır.", author: "Albert Einstein" },
+            { text: "Anlamadığın şeyi ezberleme, anlamaya çalış.", author: "Cahit Arf" },
+            { text: "İlerleme yolu ne hızlıdır ne kolay.", author: "Marie Curie" },
+            { text: "Kendi aklına güvenmeyen, başkasının izinden çıkar.", author: "Oktay Sinanoğlu" },
+            { text: "Daha uzağı gördüysem, sürekli bakmayı sürdürdüğüm içindir.", author: "Isaac Newton" },
+            { text: "Pes etmeyi düşünmediğin gün, başarıya yaklaşmışsındır.", author: "Canan Dağdeviren" },
+            { text: "Büyük fikirler, yalnız kalmaktan korkmayan zihinlerde doğar.", author: "Nikola Tesla" },
+            { text: "El becerisi kadar zihin disiplini de gerekir.", author: "Gazi Yaşargil" },
+            { text: "Doğa, sabırlı bakana sırlarını açar.", author: "Galileo Galilei" },
+            { text: "Emek verilmemiş bilgi kalıcı olmaz.", author: "Fuat Sezgin" },
+            { text: "Yıldızlara bakın, ayaklarınıza değil.", author: "Stephen Hawking" },
+            { text: "Merak, genç kalmanın en bilimsel yoludur.", author: "Dilhan Eryurt" },
+            { text: "İrade, bilgiyi sonuca dönüştürür.", author: "Louis Pasteur" },
+            { text: "Matematik, evrenin sessiz dilidir.", author: "Feza Gürsey" },
+            { text: "Birçok yenilgi, vazgeçenlerin başarıya ne kadar yakın olduğunu bilmemesidir.", author: "Thomas Edison" },
+            { text: "Doğru ekip ve doğru amaç, imkansızı küçültür.", author: "Uğur Şahin" },
+            { text: "Anlamadığın şeyi gerçekten bilemezsin.", author: "Richard Feynman" },
+            { text: "Bir çözüm arıyorsan, önce problemi iyi dinle.", author: "Özlem Türeci" },
+            { text: "Bilim, yalnızca bilgi değil, düşünme biçimidir.", author: "Carl Sagan" },
+            { text: "Hedef büyükse, emek de büyük olmalıdır.", author: "Aziz Sancar" },
+            { text: "Zorlukların ortasında fırsatlar yatar.", author: "Albert Einstein" },
+            { text: "Gerçek ilerleme, soru sormaktan korkmamaktır.", author: "Cahit Arf" },
+            { text: "İnsanlığa yararlı olmak için sebat gerekir.", author: "Marie Curie" },
+            { text: "Çalışmak, bağımsız düşüncenin temelidir.", author: "Oktay Sinanoğlu" },
+            { text: "Gerçek, sadelikte saklıdır.", author: "Isaac Newton" },
+            { text: "İmkansız denilen şey, henüz yeterince denenmemiş olandır.", author: "Canan Dağdeviren" },
+            { text: "Azim, enerjiyi başarıya dönüştürür.", author: "Nikola Tesla" },
+            { text: "Ayrıntılara saygı duyan, başarıya yaklaşır.", author: "Gazi Yaşargil" },
+            { text: "Gerçeği arayan, otoriteden değil kanıttan güç alır.", author: "Galileo Galilei" },
+            { text: "Bilim tarihi, insan azminin aynasıdır.", author: "Fuat Sezgin" },
+            { text: "Çalışma varsa, umut da vardır.", author: "Stephen Hawking" },
+            { text: "Evreni anlamak için önce vazgeçmemeyi öğrenmelisin.", author: "Dilhan Eryurt" },
+            { text: "Küçük çabalar biriktiğinde büyük sonuçlar doğar.", author: "Louis Pasteur" },
+            { text: "Güçlü fikirler, açık bir zihinde büyür.", author: "Feza Gürsey" },
+            { text: "Daha iyi bir yol varsa, onu bulacağım.", author: "Thomas Edison" },
+            { text: "Bilim hızını veriyle, gücünü sabırla kazanır.", author: "Uğur Şahin" },
+            { text: "Keşfetmenin keyfi, zorluğa değerdir.", author: "Richard Feynman" },
+            { text: "Dayanıklılık, bilim insanının görünmeyen kasıdır.", author: "Özlem Türeci" },
+            { text: "Evren çok büyük; bu yüzden çaban küçük değildir.", author: "Carl Sagan" },
+            { text: "İnsan inandığı iş için sonuna kadar mücadele etmelidir.", author: "Aziz Sancar" },
+            { text: "Merakın peşini bırakan, öğrenmenin de peşini bırakır.", author: "Albert Einstein" },
+            { text: "Bir problemi seversen, o sana yolunu açar.", author: "Cahit Arf" },
+            { text: "Daha az merak değil, daha çok çalışma gerekir.", author: "Marie Curie" },
+            { text: "Büyük hedefler büyük bir dil ve bilinç ister.", author: "Oktay Sinanoğlu" },
+            { text: "Başarı, dikkatle çalışan zihni sever.", author: "Isaac Newton" },
+            { text: "Cesaret, bilimin yolunu açan ilk adımdır.", author: "Canan Dağdeviren" },
+            { text: "Düşünce güçlüyse, engeller küçülür.", author: "Nikola Tesla" },
+            { text: "Her gün biraz daha iyi olmak, büyük ustalıktır.", author: "Gazi Yaşargil" },
+            { text: "Bilim, görmek ve yeniden bakmak işidir.", author: "Galileo Galilei" },
+            { text: "Üretmek isteyen önce öğrenmeye gönüllü olmalıdır.", author: "Fuat Sezgin" },
+            { text: "Sessizce vazgeçmek yerine, yeniden denemek gerekir.", author: "Stephen Hawking" },
+            { text: "Büyük keşifler, sessizce çalışan zihinlerden doğar.", author: "Dilhan Eryurt" },
+            { text: "Bilim ve barış, cehaletten daha güçlüdür.", author: "Louis Pasteur" },
+            { text: "Zor sorular, en verimli öğretmenlerdir.", author: "Feza Gürsey" },
+            { text: "Başarısız olmadım, işe yaramayan yolları öğrendim.", author: "Thomas Edison" },
+            { text: "Her kriz, çözüm üretenler için bir çağrıdır.", author: "Uğur Şahin" },
+            { text: "Bilimde ilk kural, kendini kandırmamaktır.", author: "Richard Feynman" },
+            { text: "Her ayrıntı, doğru sonuca giden bir ipucudur.", author: "Özlem Türeci" },
+            { text: "Şüphe etmek, gerçeğe saygının bir parçasıdır.", author: "Carl Sagan" },
+            { text: "Disiplin, hayali gerçeğe dönüştüren köprüdür.", author: "Aziz Sancar" },
+            { text: "Basit anlatamıyorsan, yeterince anlamamışsındır.", author: "Albert Einstein" },
+            { text: "Düşünmek, en büyük çalışma biçimidir.", author: "Cahit Arf" },
+            { text: "Bir hayatın değeri, başkalarına kattığı faydayla büyür.", author: "Marie Curie" },
+            { text: "Zor olan, imkansız değildir; sadece daha çok emek ister.", author: "Oktay Sinanoğlu" },
+            { text: "Her cevap, doğru sorunun gölgesinde büyür.", author: "Isaac Newton" },
+            { text: "Küçük bir fikir, doğru emekle dünyayı değiştirebilir.", author: "Canan Dağdeviren" },
+            { text: "Yapabileceğini düşünen insan, yarıyı geçmiş demektir.", author: "Nikola Tesla" },
+            { text: "Zor ameliyatlar, kararlı zihnin eseridir.", author: "Gazi Yaşargil" },
+            { text: "Merak eden zihin, asla yaşlanmaz.", author: "Galileo Galilei" },
+            { text: "Bir milletin gücü, bilgiye verdiği değerle ölçülür.", author: "Fuat Sezgin" },
+            { text: "Hayat zor olabilir ama yapabileceğiniz bir şey mutlaka vardır.", author: "Stephen Hawking" },
+            { text: "Bilimde sabır, yıldızlara uzanan merdivendir.", author: "Dilhan Eryurt" },
+            { text: "İnanç değil deney, ilerlemenin pusulasıdır.", author: "Louis Pasteur" },
+            { text: "Bilim, düzenin içindeki güzelliği görmektir.", author: "Feza Gürsey" },
+            { text: "Çalışma, hayalin elektrikle buluşmuş halidir.", author: "Thomas Edison" },
+            { text: "İnsana fayda sağlayan fikir, en değerli fikirdir.", author: "Uğur Şahin" },
+            { text: "Merak, en dürüst öğretmendir.", author: "Richard Feynman" },
+            { text: "İyi bilim, insan hayatına dokunduğunda anlam kazanır.", author: "Özlem Türeci" },
+            { text: "Gelecek, merak etmeyi sürdürenlerindir.", author: "Carl Sagan" }
+        ];
+        let currentQuoteIndex = 0;
+
+        function loadRandomQuote() {
+            document.getElementById('daily-quote-text').innerText = `"${quotes[currentQuoteIndex].text}"`;
+            document.getElementById('daily-quote-author').innerText = `- ${quotes[currentQuoteIndex].author}`;
+            currentQuoteIndex++;
+            if (currentQuoteIndex >= quotes.length) {
+                currentQuoteIndex = 0;
+            }
+        }
 
         function updateYKSCountdown() {
             const targetDate = new Date('June 21, 2026 10:00:00').getTime();
@@ -1401,7 +1567,6 @@
             circle.style.strokeDashoffset = offset;
         }
         
-        // YENİ EKLENEN: Veritabanında "çalışıyor" durumunu güncelleme fonksiyonu
         function updateWorkingStatus(status) {
             if (currentUser) {
                 db.collection('users').doc(currentUser.uid).update({ isWorking: status }).catch(e => console.log(e));
@@ -1499,7 +1664,7 @@
             const today = new Date();
             
             let totalWeeklyQuestions = 0;
-            let totalWeeklySeconds = 0; // Haftalık süre için eklendi
+            let totalWeeklySeconds = 0; 
 
             for (let i = 0; i < 7; i++) {
                 const dayDate = new Date(currentWeekStart);
@@ -1510,7 +1675,7 @@
                 const dayObj = scheduleData[weekKey][i];
                 
                 totalWeeklyQuestions += (dayObj.questions || 0);
-                totalWeeklySeconds += (dayObj.workedSeconds || 0); // O haftanın saniyeleri toplanıyor
+                totalWeeklySeconds += (dayObj.workedSeconds || 0); 
 
                 const completedTasks = dayObj.tasks.filter(t => t.completed).length;
                 const progress = dayObj.tasks.length > 0 ? (completedTasks / dayObj.tasks.length) * 100 : 0;
@@ -1575,7 +1740,7 @@
             }
 
             document.getElementById('week-display').innerText = `${currentWeekStart.toLocaleDateString('tr-TR')} Haftası`;
-            document.getElementById('all-time-score').innerText = `🏆 Haftalık Süre: ${formatSeconds(totalWeeklySeconds)}`; // DEĞİŞTİRİLDİ
+            document.getElementById('all-time-score').innerText = `🏆 Haftalık Süre: ${formatSeconds(totalWeeklySeconds)}`; 
             document.getElementById('week-question-count').innerText = `🎯 Haftalık Soru: ${totalWeeklyQuestions}`;
         }
 
@@ -1702,25 +1867,22 @@
             const m = parseInt(document.getElementById('study-minutes').value) || 0;
             const s = parseInt(document.getElementById('study-seconds').value) || 0;
             timeRemaining = (h * 3600) + (m * 60) + s;
-            localStorage.removeItem('pomodoroInitialTotal'); // Ekstra koruma: süre elle değişirse resetlensin
+            localStorage.removeItem('pomodoroInitialTotal'); 
             updateTimerDisplay();
         }
 
-        // DEĞİŞTİRİLDİ: Duraklatıldığında toplam sürenin silinmemesi için düzeltildi
         function toggleTimer() {
             if (isRunning) {
                 clearInterval(timerInterval);
                 localStorage.removeItem('pomodoroDeadline');
-                // localStorage.removeItem('pomodoroInitialTotal'); // HATANIN KAYNAĞI BUYDU, SİLİNDİ!
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
                 isRunning = false;
-                updateWorkingStatus(false); // Çalışıyor durumunu kapat
+                updateWorkingStatus(false);
             } else {
                 if (timeRemaining <= 0) return;
                 const deadline = Date.now() + (timeRemaining * 1000);
                 localStorage.setItem('pomodoroDeadline', deadline);
                 
-                // Eğer daha önce başlatılmamışsa, o anki süreyi başlangıç süresi olarak kaydet
                 if (!localStorage.getItem('pomodoroInitialTotal')) {
                     localStorage.setItem('pomodoroInitialTotal', timeRemaining);
                 }
@@ -1728,7 +1890,7 @@
                 startInterval(deadline);
                 document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
                 isRunning = true;
-                updateWorkingStatus(true); // Çalışıyor durumunu aç
+                updateWorkingStatus(true);
             }
         }
 
@@ -1747,7 +1909,7 @@
                     new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
                     showAlert("Süre Doldu! Harika iş Ömer.");
                     document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
-                    updateWorkingStatus(false); // Çalışıyor durumunu kapat
+                    updateWorkingStatus(false);
                 } else {
                     timeRemaining = diff;
                     updateTimerDisplay();
@@ -1819,7 +1981,7 @@
                 document.getElementById('study-seconds').value = 0;
             }
             updateTimerFromInputsAndReset();
-            updateWorkingStatus(false); // Çalışıyor durumunu kapat
+            updateWorkingStatus(false);
         }
 
         let draggedTask = null;
@@ -1840,7 +2002,7 @@
         }
 
         /* ======================================= */
-        /* YENİ EKLENEN LİDERLİK TABLOSU İŞLEVLERİ */
+        /* GELİŞTİRİLMİŞ LİDERLİK TABLOSU İŞLEVLERİ*/
         /* ======================================= */
         function toggleLeaderboard() {
             const panel = document.getElementById('leaderboard-panel');
@@ -1852,6 +2014,13 @@
             } else {
                 panel.classList.remove('open');
             }
+        }
+
+        function switchLeaderboardTab(tab) {
+            currentLeaderboardTab = tab;
+            document.getElementById('tab-daily').classList.toggle('active', tab === 'daily');
+            document.getElementById('tab-weekly').classList.toggle('active', tab === 'weekly');
+            fetchAndRenderLeaderboard();
         }
 
         async function fetchAndRenderLeaderboard() {
@@ -1868,28 +2037,45 @@
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
-                    let todaySeconds = 0;
+                    let targetSeconds = 0;
+                    let targetQuestions = 0;
                     
-                    if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                        todaySeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
+                    if (currentLeaderboardTab === 'daily') {
+                        // Günlük verileri hesapla
+                        if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
+                            targetSeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
+                            targetQuestions = data.schedule[todayWeekKey][todayDayIdx].questions || 0;
+                        }
+                    } else {
+                        // Haftalık verileri hesapla
+                        if (data.schedule && data.schedule[todayWeekKey]) {
+                            for (let i = 0; i < 7; i++) {
+                                if (data.schedule[todayWeekKey][i]) {
+                                    targetSeconds += (data.schedule[todayWeekKey][i].workedSeconds || 0);
+                                    targetQuestions += (data.schedule[todayWeekKey][i].questions || 0);
+                                }
+                            }
+                        }
                     }
 
-                    // Kullanıcı bugün çalışmışsa VEYA şu an sayacı açıksa listeye eklenecek
-                    if (data.username && (todaySeconds > 0 || data.isWorking)) {
+                    // Gösterim şartı
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({ 
                             username: data.username, 
-                            seconds: todaySeconds,
-                            isWorking: data.isWorking || false // Aktif çalışma durumu eklendi
+                            seconds: targetSeconds,
+                            questions: targetQuestions,
+                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
                         });
                     }
                 });
 
+                // Büyükten küçüğe sırala
                 leaderboardData.sort((a, b) => b.seconds - a.seconds);
 
                 listContainer.innerHTML = '';
 
                 if (leaderboardData.length === 0) {
-                    listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Bugün henüz çalışma kaydeden olmadı.</p>';
+                    listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
                     return;
                 }
 
@@ -1897,18 +2083,28 @@
                     const item = document.createElement('div');
                     item.className = 'leaderboard-item';
                     
+                    // Efekt sınıflarını ekle (İlk 3 için)
+                    if (index === 0) item.classList.add('rank-1');
+                    else if (index === 1) item.classList.add('rank-2');
+                    else if (index === 2) item.classList.add('rank-3');
+                    
                     let rankIcon = `#${index + 1}`;
                     if(index === 0) rankIcon = '🥇';
                     if(index === 1) rankIcon = '🥈';
                     if(index === 2) rankIcon = '🥉';
 
-                    // Kullanıcı aktif olarak çalışıyorsa rozeti oluştur
                     let workingBadge = user.isWorking ? '<span class="working-badge">🟢 Çalışıyor</span>' : '';
 
                     item.innerHTML = `
                         <div class="leaderboard-rank">${rankIcon}</div>
-                        <div class="leaderboard-name">${user.username} ${workingBadge}</div>
-                        <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
+                        <div class="leaderboard-name-wrapper">
+                            <span class="leaderboard-name">${user.username}</span>
+                            ${workingBadge}
+                        </div>
+                        <div class="leaderboard-stats">
+                            <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
+                            <div class="leaderboard-questions">🎯 ${user.questions} Soru</div>
+                        </div>
                     `;
                     listContainer.appendChild(item);
                 });
@@ -1920,6 +2116,8 @@
         }
 
         window.onload = () => {
+            loadRandomQuote(); // Sayfa yüklendiğinde rastgele söz getir
+            setInterval(loadRandomQuote, 15000);
             updateYKSCountdown();
             setInterval(updateYKSCountdown, 1000);
             checkActiveTimer(); 
