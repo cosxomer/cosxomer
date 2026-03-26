@@ -50,6 +50,10 @@
             --countdown-shadow: rgba(0, 188, 212, 0.8);
         }
 
+        body.modal-lock {
+            overflow: hidden;
+        }
+
         /* HELLO KITTY TEMASI */
         body[data-theme="kitty"] {
             --bg-color: #f4e8ee;
@@ -900,6 +904,15 @@
             z-index: 1200;
             padding: 28px;
             backdrop-filter: blur(8px);
+            overscroll-behavior: contain;
+        }
+
+        #profile-modal,
+        #support-modal,
+        #titles-modal,
+        #my-notes-modal {
+            overflow-y: auto;
+            align-items: flex-start;
         }
 
         .profile-modal-content {
@@ -911,6 +924,38 @@
             width: 92%;
             border: 2px solid var(--accent-color);
             position: relative;
+            margin: auto 0;
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-width: thin;
+            padding-top: 74px;
+        }
+
+        .profile-modal-content::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .profile-modal-content::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.16);
+            border-radius: 999px;
+        }
+
+        .profile-modal-close-btn {
+            position: sticky;
+            top: 0;
+            margin-left: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 46px;
+            height: 46px;
+            padding: 0;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-color);
+            box-shadow: none;
+            z-index: 4;
         }
 
         .profile-modal-header h2 {
@@ -938,6 +983,17 @@
             flex-direction: column;
             align-items: center;
             gap: 12px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .profile-avatar-badges {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
         }
 
         .profile-upload-input {
@@ -1122,7 +1178,7 @@
             background:
                 linear-gradient(145deg, rgba(18, 22, 31, 0.95), rgba(30, 35, 47, 0.94));
             box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.03);
-            overflow: hidden;
+            overflow: auto;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
         }
@@ -1467,6 +1523,55 @@
             font-size: 0.95em;
         }
 
+        .profile-titles-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 4px;
+            transition: max-height 0.26s ease, opacity 0.24s ease, margin-top 0.24s ease;
+        }
+
+        .profile-titles-list.is-collapsed {
+            max-height: 0;
+            opacity: 0;
+            overflow: hidden;
+            margin-top: -4px;
+            pointer-events: none;
+        }
+
+        .profile-title-card {
+            border-radius: 18px;
+            padding: 14px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.025));
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+        }
+
+        .profile-title-card.current {
+            border-color: rgba(255, 215, 0, 0.24);
+            box-shadow: 0 16px 28px rgba(0, 0, 0, 0.16), 0 0 18px rgba(255, 215, 0, 0.12);
+        }
+
+        .profile-title-card p {
+            margin-top: 10px;
+            color: var(--text-color);
+            line-height: 1.5;
+        }
+
+        .support-private-note {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 14px;
+            border-radius: 16px;
+            background: rgba(248, 113, 113, 0.08);
+            border: 1px solid rgba(248, 113, 113, 0.16);
+            color: var(--text-color);
+            font-weight: 700;
+        }
+
         .support-modal-content {
             position: relative;
             width: min(1120px, 96vw);
@@ -1477,7 +1582,7 @@
             background:
                 linear-gradient(145deg, rgba(20, 24, 34, 0.95), rgba(31, 36, 50, 0.94));
             box-shadow: 0 30px 70px rgba(0, 0, 0, 0.42), 0 0 0 1px rgba(255, 255, 255, 0.04);
-            overflow: hidden;
+            overflow: auto;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
         }
@@ -2475,11 +2580,14 @@
             letter-spacing: 0.3px;
             border: 1px solid transparent;
             white-space: nowrap;
+            line-height: 1.1;
+            min-height: 30px;
         }
 
         .title-badge.small {
             padding: 3px 8px;
             font-size: 0.68em;
+            min-height: 24px;
         }
 
         .title-caylak { background-color: rgba(110, 231, 183, 0.14); color: #6ee7b7; border-color: rgba(110, 231, 183, 0.38); }
@@ -2496,6 +2604,7 @@
             align-items: center;
             gap: 6px;
             min-width: 0;
+            flex-wrap: wrap;
         }
 
         .profile-title-wrapper {
@@ -2519,6 +2628,8 @@
             border: 2px solid var(--accent-color);
             width: min(92vw, 760px);
             box-shadow: 0 0 40px rgba(0, 0, 0, 0.65);
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
         }
 
         .titles-grid {
@@ -2657,7 +2768,7 @@
         .pomodoro-content {
             background-color: var(--pomodoro-bg);
             padding: 50px; 
-            border-radius: 166px; 
+            border-radius: min(166px, 24vw); 
             box-shadow: 0 0 50px var(--accent-glow); 
             max-width: 600px; 
             width: 90%; 
@@ -2668,6 +2779,9 @@
             overflow: visible;
             isolation: isolate;
             z-index: 1;
+            max-height: calc(100vh - 56px);
+            overflow-y: auto;
+            overscroll-behavior: contain;
         }
 
         .pomodoro-content h2 {
@@ -2726,12 +2840,14 @@
         }
         
         .timer-display {
-            font-size: 6em;
+            font-size: clamp(3rem, 11vw, 6rem);
             font-weight: 900; 
             color: var(--pomodoro-accent); 
-            letter-spacing: 2px; 
+            letter-spacing: 1px; 
             margin: 10px 0;
             text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
+            line-height: 1;
+            word-break: keep-all;
         }
         
         .timer-controls {
@@ -2967,8 +3083,8 @@
         .leaderboard-panel {
             position: fixed;
             top: 0;
-            right: -360px;
-            width: 360px;
+            right: -420px;
+            width: 420px;
             max-width: 92vw;
             height: 100vh;
             background-color: var(--container-bg);
@@ -3056,10 +3172,10 @@
             display: flex;
             align-items: center;
             background-color: var(--task-bg);
-            padding: 7px 8px;
-            border-radius: 8px;
+            padding: 11px 12px;
+            border-radius: 14px;
             border: 1px solid var(--border-color);
-            gap: 8px;
+            gap: 10px;
             transition: transform 0.2s, box-shadow 0.2s;
             cursor: pointer;
         }
@@ -3079,9 +3195,10 @@
         .leaderboard-name-wrapper {
             flex-grow: 1;
             min-width: 0;
-            overflow: hidden;
+            overflow: visible;
             display: flex;
             flex-direction: column;
+            gap: 4px;
         }
         .leaderboard-name {
             font-weight: 700;
@@ -3089,13 +3206,14 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
-            font-size: 0.88em;
+            font-size: 0.94em;
+            max-width: 180px;
         }
         .leaderboard-stats {
             display: flex;
             flex-direction: column;
             align-items: flex-end;
-            min-width: 84px;
+            min-width: 92px;
         }
         .leaderboard-score {
             font-weight: 800;
@@ -3104,7 +3222,7 @@
             white-space: nowrap;
         }
         .leaderboard-questions {
-            font-size: 0.68em;
+            font-size: 0.72em;
             color: var(--countdown-fill);
             font-weight: 700;
             margin-top: 2px;
@@ -3212,24 +3330,26 @@
             header h1::before { font-size: 1.5em; }
             header h1::after { font-size: 0.5em; }
             .header-stats > span { font-size: 0.9em; padding: 6px 12px; }
-            .week-nav { padding: 10px 15px; }
-            .week-nav h3 { font-size: 1.2em; }
+            .week-nav { padding: 12px 15px !important; flex-wrap: wrap; gap: 10px; justify-content: center !important; }
+            .week-nav h3 { font-size: 1.05em; width: 100%; text-align: center; order: -1; }
+            .week-nav button { flex: 1 1 140px; max-width: 180px; }
             .day-cell { padding: 10px 8px; min-height: 400px; }
             .schedule-grid { grid-template-columns: repeat(7, minmax(90vw, 1fr)); overflow-x: auto !important; }
             #yks-countdown-container { padding: 15px 20px; }
             .countdown-item { width: 60px; height: 60px; }
             .countdown-value strong { font-size: 1.2em; }
             .countdown-value span { font-size: 0.5em; }
-            .pomodoro-content { padding: 30px; }
+            .pomodoro-content { padding: 46px 18px 28px; border-radius: 34px; width: min(94vw, 520px); }
             .pomodoro-content h2 { padding: 0 42px; }
-            .timer-display { font-size: 4em; }
+            .timer-display { font-size: clamp(2.6rem, 13vw, 4rem); letter-spacing: 0; }
             .timer-controls { flex-direction: column; }
             .timer-controls button { width: 100%; margin-bottom: 10px; }
             .quote-container { padding: 15px 20px; }
             .quote-text { font-size: 1em; }
-            .profile-modal-content { padding: 24px 18px; }
+            .profile-modal-content { padding: 70px 18px 24px; width: min(96vw, 760px); max-height: calc(100vh - 20px); }
             .profile-modal-body { flex-direction: column; gap: 18px; }
             .profile-avatar-section { width: 100%; }
+            .profile-avatar-badges { align-items: center; }
             .profile-stats-grid { grid-template-columns: 1fr; }
             .profile-chip { width: 100%; justify-content: center; }
             .subject-checkbox-grid { grid-template-columns: 1fr; }
@@ -3247,6 +3367,7 @@
             .support-messages-list { max-height: 44vh; }
             .support-admin-stats { grid-template-columns: 1fr; }
             .profile-notes-list { max-height: 220px; }
+            .profile-titles-list { max-height: 220px; }
             .study-insight-card { width: auto; margin: 0 10px 10px 10px; padding: 16px; grid-template-columns: 1fr; }
             .study-insight-filter-group,
             .study-insight-content,
@@ -3263,13 +3384,20 @@
             .header-stats > span { width: 100%; text-align: center; }
             .leaderboard-panel { width: 100%; right: -100%; }
             .notes-visibility-toggle { grid-template-columns: 1fr; }
-            .support-visibility-toggle { grid-template-columns: 1fr; }
             .note-card-footer { align-items: flex-start; }
             .note-card-actions { width: 100%; }
             .note-card-actions button { flex: 1 1 calc(50% - 4px); }
             .support-card-top { flex-direction: column; }
             .support-card-actions { width: 100%; }
             .support-card-actions button { flex: 1 1 calc(50% - 4px); }
+            .profile-modal-content { padding: 68px 14px 18px; }
+            .profile-modal-close-btn { width: 42px; height: 42px; }
+            .pomodoro-content { padding: 44px 14px 24px; border-radius: 28px; }
+            .pomodoro-content h2 { padding: 0 32px; font-size: 1.3em; }
+            .timer-display { font-size: clamp(2.2rem, 14vw, 3.2rem); }
+            .leaderboard-name { max-width: 128px; }
+            .leaderboard-avatar { width: 34px; height: 34px; }
+            .title-badge.small { font-size: 0.62em; padding: 2px 7px; }
         }
     </style>
 </head>
@@ -3521,7 +3649,7 @@
 
     <div id="profile-modal" class="modal-overlay">
         <div class="profile-modal-content">
-            <button onclick="closeProfileModal()" style="position: absolute; top: 15px; right: 15px; background: none; color: var(--text-color); font-size: 1.5em; padding: 5px 10px; box-shadow: none;">
+            <button class="profile-modal-close-btn" onclick="closeProfileModal()" type="button">
                 <i class="fas fa-times"></i>
             </button>
             <div class="profile-modal-header">
@@ -3531,6 +3659,7 @@
             </div>
             <div class="profile-modal-body">
                 <div class="profile-avatar-section">
+                    <div id="profile-avatar-badges" class="profile-avatar-badges"></div>
                     <img id="profile-preview-image" class="profile-avatar profile-avatar-large" alt="Profil Resmi">
                     <input type="file" id="profile-image-input" class="profile-upload-input" accept="image/*" onchange="handleProfileImageUpload(event)">
                     <button id="profile-image-trigger" onclick="document.getElementById('profile-image-input').click()" style="background-color: var(--accent-color); color: var(--header-text);">
@@ -3563,6 +3692,16 @@
                             <span>Toplam Soru</span>
                             <strong id="profile-total-questions">0</strong>
                         </div>
+                    </div>
+                    <div class="profile-field-group profile-titles-group">
+                        <div class="profile-notes-head">
+                            <label id="profile-titles-label">Unvanlar</label>
+                            <p id="profile-titles-hint">Bu kullanicinin actigi unvanlar burada gorunecek.</p>
+                            <button id="profile-titles-toggle-btn" class="profile-notes-toggle-btn" type="button" onclick="toggleProfileTitlesPanel()">
+                                <i class="fas fa-chevron-up"></i> Unvanlari Gizle
+                            </button>
+                        </div>
+                        <div id="profile-titles-list" class="profile-titles-list"></div>
                     </div>
                     <div class="profile-field-group profile-notes-group">
                         <div class="profile-notes-head">
@@ -3713,19 +3852,12 @@
                         <div class="notes-panel-header">
                             <div>
                                 <h3>Yeni Destek Mesaji</h3>
-                                <p>Admin hesabina dogrudan iletilir. Public secersen uygun gorulen cevaplar diger kullanicilara da acilir.</p>
+                                <p>Mesajin sadece sen ve admin hesabi arasinda kalir.</p>
                             </div>
                         </div>
                         <div class="support-compose-fields">
                             <textarea id="support-message-input" rows="8" maxlength="2200" placeholder="Sorunu, istegini veya fark ettigin hatayi yaz..."></textarea>
-                            <div class="support-visibility-toggle">
-                                <button id="support-visibility-private" class="support-visibility-option" type="button" onclick="setSupportVisibility('private')">
-                                    <i class="fas fa-lock"></i> Private
-                                </button>
-                                <button id="support-visibility-public" class="support-visibility-option" type="button" onclick="setSupportVisibility('public')">
-                                    <i class="fas fa-earth-europe"></i> Public
-                                </button>
-                            </div>
+                            <div class="support-private-note"><i class="fas fa-lock"></i> Mesaj sadece admin ve gonderen kullanici tarafinda gorulur.</div>
                             <button id="support-submit-btn" type="button" onclick="submitSupportMessage()" style="background-color: var(--countdown-fill); color: var(--header-text);">
                                 <i class="fas fa-paper-plane"></i> Mesaji Gonder
                             </button>
@@ -3735,7 +3867,7 @@
                         <div class="notes-panel-header">
                             <div>
                                 <h3>Admin Inbox</h3>
-                                <p>Tum destek mesajlari burada toplanir. Cevap yaz, public/private sec ve okundu durumunu yonet.</p>
+                                <p>Tum destek mesajlari burada toplanir. Cevap yaz ve okundu durumunu yonet.</p>
                             </div>
                         </div>
                         <div class="support-admin-stats">
@@ -3748,7 +3880,7 @@
                                 <strong id="support-admin-unread">0</strong>
                             </div>
                             <div class="support-admin-stat">
-                                <span>Public</span>
+                                <span>Yanitli</span>
                                 <strong id="support-admin-public">0</strong>
                             </div>
                         </div>
@@ -5637,7 +5769,7 @@
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
             const accountCreatedAt = new Date().toISOString();
             auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
+                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
@@ -8097,6 +8229,404 @@
             }
         });
 
+        let isProfileTitlesExpanded = true;
+
+        function syncBodyModalLock() {
+            const hasOpenModal = Array.from(document.querySelectorAll('.modal-overlay')).some(modal => modal.style.display === 'flex');
+            document.body.classList.toggle('modal-lock', hasOpenModal);
+        }
+
+        function toggleProfileTitlesPanel(forceState) {
+            const titlesList = document.getElementById('profile-titles-list');
+            const toggleBtn = document.getElementById('profile-titles-toggle-btn');
+            if (!titlesList || !toggleBtn) return;
+            isProfileTitlesExpanded = typeof forceState === 'boolean' ? forceState : !isProfileTitlesExpanded;
+            titlesList.classList.toggle('is-collapsed', !isProfileTitlesExpanded);
+            toggleBtn.innerHTML = isProfileTitlesExpanded
+                ? '<i class="fas fa-chevron-up"></i> Unvanlari Gizle'
+                : '<i class="fas fa-chevron-down"></i> Unvanlari Goster';
+        }
+
+        function createSupportMessageId() {
+            return `support-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        }
+
+        function normalizeOwnerSupportMessages(rawMessages, ownerDocId, defaultUsername) {
+            return Array.isArray(rawMessages)
+                ? rawMessages.map(item => ({
+                    ...normalizeSupportMessage(item, item?.id || createSupportMessageId()),
+                    ownerDocId,
+                    senderId: item?.senderId || ownerDocId,
+                    senderUsername: item?.senderUsername || defaultUsername || "Kullanici",
+                    visibility: 'private'
+                }))
+                : [];
+        }
+
+        function renderProfileTitles(profileData) {
+            const list = document.getElementById('profile-titles-list');
+            const hint = document.getElementById('profile-titles-hint');
+            const label = document.getElementById('profile-titles-label');
+            if (!list || !hint || !label) return;
+
+            const titleInfo = profileData.titleInfo || getCurrentTitleInfoFromSeconds(profileData.currentWeekSeconds || 0);
+            const unlockedTitles = titleInfo.unlockedTitles || [];
+            label.innerText = 'Unvanlar';
+            hint.innerText = unlockedTitles.length
+                ? `${profileData.username || 'Bu kullanici'} icin acilan ${unlockedTitles.length} unvan listeleniyor.`
+                : `${profileData.username || 'Bu kullanici'} henuz unvan acmadi.`;
+
+            if (!unlockedTitles.length) {
+                list.innerHTML = '<div class="profile-notes-empty">Henuz acilan unvan bulunmuyor.</div>';
+                return;
+            }
+
+            const currentTitleId = titleInfo.currentTitle?.id || "";
+            list.innerHTML = unlockedTitles.map(level => `
+                <article class="profile-title-card ${level.id === currentTitleId ? 'current' : ''}">
+                    <div class="title-inline-row">
+                        <span class="title-badge ${level.className}"><span>${level.icon}</span><span>${level.label}</span></span>
+                        ${level.id === currentTitleId ? '<span class="admin-badge">En Yuksek</span>' : ''}
+                    </div>
+                    <p><strong>${level.requirement}</strong><br>${level.description}</p>
+                </article>
+            `).join('');
+        }
+
+        function renderProfileAvatarBadges(profileData, titleInfo) {
+            const container = document.getElementById('profile-avatar-badges');
+            if (!container) return;
+            const adminBadge = profileData.isAdmin ? getAdminBadgeHtml('admin-profile-pill') : '';
+            const topTitle = getTitleBadgeHtml(titleInfo);
+            container.innerHTML = `${topTitle}${adminBadge}`;
+        }
+
+        setSupportVisibility = function() {
+            activeSupportVisibility = 'private';
+        };
+
+        updateAdminUI = function() {
+            const isAdmin = isCurrentAdmin();
+            const button = document.getElementById('support-btn');
+            const label = document.getElementById('support-btn-text');
+            const userComposer = document.getElementById('support-user-composer');
+            const adminSummary = document.getElementById('support-admin-summary');
+            const modalTitle = document.getElementById('support-modal-title');
+            const modalSubtitle = document.getElementById('support-modal-subtitle');
+            const listTitle = document.getElementById('support-list-title');
+            const listHint = document.getElementById('support-list-hint');
+            const secondaryMeta = document.getElementById('support-meta-secondary');
+
+            button?.classList.toggle('admin-mode', isAdmin);
+            if (label) {
+                label.innerText = isAdmin ? 'Admin Destek' : 'Destek';
+            }
+            if (userComposer) userComposer.style.display = isAdmin ? 'none' : 'block';
+            if (adminSummary) adminSummary.style.display = isAdmin ? 'block' : 'none';
+            if (modalTitle) modalTitle.innerText = isAdmin ? 'Admin Destek Paneli' : 'Yardim ve Destek';
+            if (modalSubtitle) modalSubtitle.innerText = isAdmin
+                ? 'Tum mesajlar sadece admin ve ilgili kullanici arasinda saklanir.'
+                : 'Mesajlarin sadece sen ve admin hesabi tarafinda gorulur.';
+            if (listTitle) listTitle.innerText = isAdmin ? 'Tum Gelen Mesajlar' : 'Destek Gecmisi';
+            if (listHint) listHint.innerText = isAdmin
+                ? 'Private destek mesajlari ve admin yanitlari burada yonetilir.'
+                : 'Yolladigin destek mesajlari ve admin yanitlari burada gorunur.';
+            if (secondaryMeta) secondaryMeta.innerText = 'Mesajlar sadece admin ve gonderende gorunur';
+            updateSupportButton();
+        };
+
+        getVisibleSupportMessagesForCurrentUser = function() {
+            const normalizedMessages = supportMessagesCache
+                .map(item => normalizeSupportMessage(item, item.id))
+                .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+            if (isCurrentAdmin()) {
+                return normalizedMessages;
+            }
+
+            return normalizedMessages.filter(item => item.senderId === currentUser?.uid);
+        };
+
+        loadSupportMessages = async function() {
+            if (!currentUser) {
+                supportMessagesCache = [];
+                updateSupportButton();
+                renderSupportModal();
+                return;
+            }
+
+            try {
+                if (isCurrentAdmin()) {
+                    const usersSnapshot = await db.collection('users').get();
+                    supportMessagesCache = usersSnapshot.docs.flatMap(doc => {
+                        const data = doc.data() || {};
+                        return normalizeOwnerSupportMessages(data.supportMessages || [], doc.id, data.username || "Kullanici");
+                    }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                } else {
+                    const userDoc = await db.collection('users').doc(currentUser.uid).get();
+                    const data = userDoc.exists ? userDoc.data() : {};
+                    supportMessagesCache = normalizeOwnerSupportMessages(data.supportMessages || [], currentUser.uid, data.username || currentUsername || "Kullanici")
+                        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+                }
+            } catch (error) {
+                console.error("Destek mesajlari yuklenirken hata:", error);
+                supportMessagesCache = [];
+            }
+
+            updateSupportButton();
+            renderSupportModal();
+        };
+
+        renderSupportModal = function() {
+            const list = document.getElementById('support-messages-list');
+            const primaryMeta = document.getElementById('support-meta-primary');
+            const totalStat = document.getElementById('support-admin-total');
+            const unreadStat = document.getElementById('support-admin-unread');
+            const repliedStat = document.getElementById('support-admin-public');
+            if (!list || !primaryMeta || !totalStat || !unreadStat || !repliedStat) return;
+
+            const visibleMessages = getVisibleSupportMessagesForCurrentUser();
+            const unreadCount = supportMessagesCache.filter(item => !item.read).length;
+            const repliedCount = supportMessagesCache.filter(item => item.adminReply).length;
+
+            primaryMeta.innerText = isCurrentAdmin()
+                ? `${supportMessagesCache.length} mesaj`
+                : `${visibleMessages.length} kayit`;
+            totalStat.innerText = supportMessagesCache.length;
+            unreadStat.innerText = unreadCount;
+            repliedStat.innerText = repliedCount;
+
+            if (!visibleMessages.length) {
+                list.innerHTML = `<div class="support-empty">${isCurrentAdmin() ? 'Henuz yardim mesaji gelmedi.' : 'Henuz destek mesaji yok. Ilk mesaji gonderebilirsin.'}</div>`;
+                updateSupportButton();
+                return;
+            }
+
+            list.innerHTML = visibleMessages.map(item => {
+                const senderLabel = isCurrentAdmin() ? escapeUserNoteHtml(item.senderUsername || "Kullanici") : 'Sen';
+                const replyBlock = item.adminReply
+                    ? `
+                        <div class="support-reply-block">
+                            <div class="support-reply-label"><i class="fas fa-reply"></i> Admin Yaniti</div>
+                            <div class="support-reply-text">${formatUserNoteHtml(item.adminReply)}</div>
+                            <div class="support-card-meta" style="margin-top: 8px;">
+                                ${item.repliedAt ? `Yanit: ${formatUserNoteDate(item.repliedAt)}` : ''}
+                            </div>
+                        </div>
+                    `
+                    : '';
+                const adminControls = isCurrentAdmin()
+                    ? `
+                        <div class="support-card-actions">
+                            <button type="button" onclick="toggleSupportMessageRead('${item.id}')" style="background-color: var(--button-bg); color: var(--header-text);">
+                                <i class="fas ${item.read ? 'fa-envelope-open-text' : 'fa-envelope'}"></i> ${item.read ? 'Okunmamis Yap' : 'Okundu Yap'}
+                            </button>
+                            <button type="button" onclick="saveSupportReply('${item.id}')" style="background-color: var(--accent-color); color: var(--header-text);">
+                                <i class="fas fa-paper-plane"></i> Yaniti Kaydet
+                            </button>
+                        </div>
+                        <div class="support-reply-box">
+                            <textarea id="support-reply-${item.id}" rows="4" placeholder="Bu mesaja admin yaniti yaz...">${escapeUserNoteHtml(item.adminReply || "")}</textarea>
+                        </div>
+                    `
+                    : '';
+
+                return `
+                    <article class="support-message-card private ${item.read ? '' : 'unread'}">
+                        <div class="support-card-top">
+                            <div>
+                                <div class="support-card-title">
+                                    <span>${senderLabel}</span>
+                                </div>
+                                <div class="support-card-meta">${formatUserNoteDate(item.timestamp)}</div>
+                            </div>
+                            <div class="support-pill-row">
+                                <span class="support-pill private"><i class="fas fa-lock"></i> Gizli</span>
+                                ${isCurrentAdmin() ? `<span class="support-pill ${item.read ? '' : 'unread'}"><i class="fas ${item.read ? 'fa-check' : 'fa-bell'}"></i> ${item.read ? 'Okundu' : 'Yeni'}</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="support-message-body">${formatUserNoteHtml(item.message)}</div>
+                        ${replyBlock}
+                        ${adminControls}
+                    </article>
+                `;
+            }).join('');
+
+            updateSupportButton();
+        };
+
+        submitSupportMessage = async function() {
+            if (!currentUser) {
+                showAlert("Mesaj gondermek icin giris yapmalisin.");
+                return;
+            }
+
+            const messageInput = document.getElementById('support-message-input');
+            const message = messageInput?.value.trim() || "";
+            if (message.length < 5) {
+                showAlert("Destek mesaji en az 5 karakter olmali.");
+                return;
+            }
+
+            try {
+                const adminId = await resolveAdminUserUid();
+                const userRef = db.collection('users').doc(currentUser.uid);
+                const userDoc = await userRef.get();
+                const data = userDoc.exists ? userDoc.data() : {};
+                const existingMessages = normalizeOwnerSupportMessages(data.supportMessages || [], currentUser.uid, currentUsername || "Kullanici");
+                const nextMessages = [
+                    {
+                        id: createSupportMessageId(),
+                        senderId: currentUser.uid,
+                        senderUsername: currentUsername || "Kullanici",
+                        message,
+                        timestamp: new Date().toISOString(),
+                        read: false,
+                        adminId: adminId || adminUserUid || "",
+                        visibility: 'private',
+                        adminReply: "",
+                        repliedAt: "",
+                        repliedBy: ""
+                    },
+                    ...existingMessages
+                ].map(({ ownerDocId, ...rest }) => rest);
+
+                await userRef.update({ supportMessages: nextMessages });
+                messageInput.value = "";
+                await loadSupportMessages();
+                showAlert("Mesajin admin hesaba gonderildi.", "success");
+            } catch (error) {
+                console.error("Destek mesaji gonderilirken hata:", error);
+                showAlert("Mesaj gonderilemedi.");
+            }
+        };
+
+        toggleSupportMessageVisibility = function() {};
+
+        toggleSupportMessageRead = async function(messageId) {
+            const message = supportMessagesCache.find(item => item.id === messageId);
+            if (!message?.ownerDocId) return;
+
+            try {
+                const ownerRef = db.collection('users').doc(message.ownerDocId);
+                const ownerDoc = await ownerRef.get();
+                const data = ownerDoc.exists ? ownerDoc.data() : {};
+                const updatedMessages = normalizeOwnerSupportMessages(data.supportMessages || [], message.ownerDocId, data.username || message.senderUsername)
+                    .map(item => item.id === messageId ? { ...item, read: !item.read } : item)
+                    .map(({ ownerDocId, ...rest }) => rest);
+                await ownerRef.update({ supportMessages: updatedMessages });
+                await loadSupportMessages();
+            } catch (error) {
+                console.error("Mesaj durumu guncellenemedi:", error);
+                showAlert("Okunma durumu guncellenemedi.");
+            }
+        };
+
+        saveSupportReply = async function(messageId) {
+            if (!isCurrentAdmin()) return;
+            const message = supportMessagesCache.find(item => item.id === messageId);
+            const replyValue = document.getElementById(`support-reply-${messageId}`)?.value.trim() || "";
+            if (!message?.ownerDocId) return;
+            if (replyValue.length < 2) {
+                showAlert("Admin yaniti en az 2 karakter olmali.");
+                return;
+            }
+
+            try {
+                const ownerRef = db.collection('users').doc(message.ownerDocId);
+                const ownerDoc = await ownerRef.get();
+                const data = ownerDoc.exists ? ownerDoc.data() : {};
+                const updatedMessages = normalizeOwnerSupportMessages(data.supportMessages || [], message.ownerDocId, data.username || message.senderUsername)
+                    .map(item => item.id === messageId
+                        ? {
+                            ...item,
+                            adminReply: replyValue,
+                            repliedAt: new Date().toISOString(),
+                            repliedBy: currentUsername || ADMIN_USERNAME,
+                            read: true,
+                            adminId: currentUser?.uid || adminUserUid || ""
+                        }
+                        : item
+                    )
+                    .map(({ ownerDocId, ...rest }) => rest);
+                await ownerRef.update({ supportMessages: updatedMessages });
+                await loadSupportMessages();
+                showAlert("Yanit kaydedildi.", "success");
+            } catch (error) {
+                console.error("Admin yaniti kaydedilemedi:", error);
+                showAlert("Yanit kaydedilemedi.");
+            }
+        };
+
+        const originalProfileModalClose = closeProfileModal;
+        closeProfileModal = function() {
+            originalProfileModalClose();
+            syncBodyModalLock();
+        };
+
+        const originalProfileModalShow = showProfileModal;
+        showProfileModal = function(profileData, editable) {
+            originalProfileModalShow(profileData, editable);
+            const titleInfo = profileData.titleInfo || getCurrentTitleInfoFromSeconds(profileData.currentWeekSeconds || getCurrentWeekTotalsFromSchedule(scheduleData).seconds);
+            renderProfileTitles({ ...profileData, titleInfo });
+            renderProfileAvatarBadges(profileData, titleInfo);
+            toggleProfileTitlesPanel(false);
+            toggleProfileNotesPanel(false);
+            syncBodyModalLock();
+        };
+
+        const originalSupportModalOpen = openSupportModal;
+        openSupportModal = async function() {
+            await originalSupportModalOpen();
+            syncBodyModalLock();
+        };
+
+        const originalSupportModalClose = closeSupportModal;
+        closeSupportModal = function() {
+            originalSupportModalClose();
+            syncBodyModalLock();
+        };
+
+        const originalMyNotesModalOpen = openMyNotesModal;
+        openMyNotesModal = function() {
+            originalMyNotesModalOpen();
+            syncBodyModalLock();
+        };
+
+        const originalMyNotesModalClose = closeMyNotesModal;
+        closeMyNotesModal = function() {
+            originalMyNotesModalClose();
+            syncBodyModalLock();
+        };
+
+        const originalTitlesModalOpen = openTitlesModal;
+        openTitlesModal = function() {
+            originalTitlesModalOpen();
+            syncBodyModalLock();
+        };
+
+        const originalTitlesModalClose = closeTitlesModal;
+        closeTitlesModal = function() {
+            originalTitlesModalClose();
+            syncBodyModalLock();
+        };
+
+        if (typeof showPomodoroModal === 'function') {
+            const originalPomodoroModalOpen = showPomodoroModal;
+            showPomodoroModal = function() {
+                originalPomodoroModalOpen();
+                syncBodyModalLock();
+            };
+        }
+
+        if (typeof hidePomodoroModal === 'function') {
+            const originalPomodoroModalClose = hidePomodoroModal;
+            hidePomodoroModal = function() {
+                originalPomodoroModalClose();
+                syncBodyModalLock();
+            };
+        }
+
         window.onload = () => {
             loadRandomQuote(); // Sayfa yüklendiğinde rastgele söz getir
             updateYKSCountdown();
@@ -8110,6 +8640,7 @@
             resetMyNoteEditor();
             setSupportVisibility('private');
             updateAdminUI();
+            toggleProfileTitlesPanel(false);
             toggleProfileNotesPanel(false);
             document.addEventListener('visibilitychange', syncAmbientIntervals);
             document.addEventListener('click', event => {
@@ -8128,6 +8659,12 @@
                     closeSupportModal();
                 }
             });
+            document.getElementById('profile-modal')?.addEventListener('click', event => {
+                if (event.target.id === 'profile-modal') {
+                    closeProfileModal();
+                }
+            });
+            syncBodyModalLock();
             syncAmbientIntervals();
         };
     </script>
