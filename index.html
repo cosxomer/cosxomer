@@ -8668,5 +8668,1907 @@
             syncAmbientIntervals();
         };
     </script>
+    <style id="codex-hotfix-styles">
+        html.modal-lock,
+        body.modal-lock {
+            overscroll-behavior: none;
+        }
+
+        body.modal-lock {
+            position: fixed;
+            left: 0;
+            right: 0;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .modal-overlay {
+            align-items: flex-start !important;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: clamp(12px, 2.5vw, 28px);
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+        }
+
+        .profile-modal-content,
+        .notes-modal-content,
+        .support-modal-content,
+        .titles-modal-content,
+        .pomodoro-content,
+        .cropper-modal-content {
+            margin: auto;
+            max-height: min(calc(100dvh - 24px), 940px) !important;
+            overflow-y: auto !important;
+            overflow-x: hidden;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            scrollbar-gutter: stable;
+        }
+
+        .profile-modal-content,
+        .titles-modal-content {
+            background: linear-gradient(160deg, rgba(23, 25, 36, 0.98), rgba(33, 37, 52, 0.96));
+        }
+
+        .profile-modal-content {
+            width: min(900px, 96vw);
+            padding: 22px 24px 26px;
+            border-radius: 30px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 28px 70px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+        }
+
+        .profile-modal-close-btn {
+            position: sticky;
+            top: 10px;
+            margin-left: auto;
+            margin-bottom: 16px;
+            z-index: 14;
+            background: rgba(18, 20, 29, 0.88);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.24);
+        }
+
+        .profile-modal-header {
+            display: grid;
+            gap: 8px;
+            padding-right: 56px;
+            margin-bottom: 18px;
+        }
+
+        .profile-modal-header h2 {
+            margin: 0;
+            line-height: 1.1;
+        }
+
+        .profile-member-since {
+            margin: 0;
+        }
+
+        .profile-title-wrapper {
+            margin-top: 0;
+            min-height: 0;
+        }
+
+        .profile-modal-body {
+            display: grid;
+            grid-template-columns: minmax(240px, 0.72fr) minmax(0, 1fr);
+            gap: 22px;
+            align-items: start;
+        }
+
+        .profile-avatar-section {
+            width: 100%;
+            border-radius: 26px;
+            padding: 18px;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            gap: 14px;
+        }
+
+        .profile-avatar-badges {
+            width: 100%;
+            gap: 10px;
+        }
+
+        .profile-avatar-badges > * {
+            max-width: 100%;
+        }
+
+        .profile-avatar-badges .title-badge,
+        .profile-avatar-badges .admin-badge {
+            justify-content: center;
+        }
+
+        .profile-avatar-large {
+            width: min(180px, 42vw);
+            height: min(180px, 42vw);
+            border-width: 3px;
+            box-shadow: 0 18px 36px rgba(0, 0, 0, 0.28);
+        }
+
+        .profile-fields {
+            gap: 14px;
+            min-width: 0;
+        }
+
+        .profile-field-group,
+        .profile-stat-card,
+        .profile-title-card,
+        .profile-note-card {
+            border-radius: 20px;
+        }
+
+        .profile-field-group input,
+        .profile-field-group textarea,
+        .profile-track-select {
+            padding: 13px 14px;
+            border-radius: 16px;
+        }
+
+        .profile-title-wrapper .title-badge,
+        .profile-title-wrapper .admin-badge {
+            display: none !important;
+        }
+
+        .profile-title-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            color: var(--text-color);
+            font-weight: 700;
+        }
+
+        .profile-title-current-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 0.74em;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+            background: rgba(255, 215, 0, 0.14);
+            border: 1px solid rgba(255, 215, 0, 0.24);
+            color: #ffe08a;
+        }
+
+        .profile-titles-list,
+        .profile-notes-list {
+            max-height: min(32vh, 320px);
+        }
+
+        .notes-modal-content,
+        .support-modal-content {
+            width: min(1180px, 96vw);
+            border-radius: 30px;
+        }
+
+        .notes-modal-header,
+        .support-modal-header {
+            position: sticky;
+            top: 0;
+            z-index: 8;
+            padding-bottom: 16px;
+            margin-bottom: 16px;
+            background: linear-gradient(180deg, var(--container-bg) 0%, var(--container-bg) 78%, rgba(0, 0, 0, 0) 100%);
+        }
+
+        .support-compose-panel,
+        .support-messages-panel,
+        .notes-editor-panel,
+        .notes-list-panel {
+            min-width: 0;
+        }
+
+        .support-messages-list {
+            max-height: min(50vh, 560px);
+        }
+
+        .support-reply-box textarea {
+            min-height: 120px;
+        }
+
+        .support-card-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .support-card-actions button {
+            flex: 1 1 220px;
+        }
+
+        .title-inline-row {
+            align-items: flex-start;
+            row-gap: 8px;
+        }
+
+        .leaderboard-panel {
+            width: min(480px, 100vw);
+            max-width: 100vw;
+        }
+
+        .leaderboard-list {
+            padding-right: 6px;
+        }
+
+        .leaderboard-item {
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .leaderboard-name-wrapper {
+            gap: 6px;
+        }
+
+        .leaderboard-name {
+            max-width: none !important;
+            white-space: normal !important;
+            overflow: visible;
+            text-overflow: clip;
+            line-height: 1.24;
+            word-break: break-word;
+        }
+
+        .leaderboard-stats {
+            min-width: 110px;
+            flex-shrink: 0;
+        }
+
+        .admin-badge {
+            white-space: nowrap;
+        }
+
+        .title-badge.small {
+            min-height: 28px;
+            font-size: 0.7em;
+        }
+
+        .pomodoro-content {
+            width: min(640px, 96vw);
+            padding: 28px 24px 24px;
+            border-radius: 36px;
+        }
+
+        .pomodoro-content h2 {
+            padding: 0 54px 0 0;
+            margin-bottom: 18px !important;
+        }
+
+        .pomodoro-time-inputs {
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .pomodoro-time-inputs input {
+            width: min(84px, 24vw);
+            min-width: 0;
+            border-radius: 14px;
+            padding: 10px 8px;
+            font-size: 1rem;
+        }
+
+        .timer-display {
+            margin: 18px 0 10px;
+            font-size: clamp(2.6rem, 11vw, 5.5rem);
+            line-height: 0.96;
+            word-break: break-word;
+        }
+
+        .timer-controls {
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .timer-controls > div {
+            width: min(220px, 100%);
+            height: auto;
+            min-height: 52px;
+        }
+
+        .timer-controls > div button,
+        .timer-controls button {
+            position: static;
+            width: 100%;
+            min-width: 0;
+            min-height: 52px;
+        }
+
+        #yks-countdown-container {
+            gap: 18px;
+        }
+
+        #yks-target-date {
+            white-space: normal;
+            text-align: center;
+        }
+
+        .week-nav {
+            gap: 12px;
+        }
+
+        .week-nav h3 {
+            min-width: 0;
+            flex: 1 1 220px;
+        }
+
+        @media (max-width: 900px) {
+            .profile-modal-body {
+                grid-template-columns: 1fr;
+            }
+
+            .profile-avatar-section {
+                order: -1;
+            }
+
+            .leaderboard-panel {
+                width: min(100vw, 420px);
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .modal-overlay {
+                padding: 10px;
+            }
+
+            .profile-modal-content,
+            .notes-modal-content,
+            .support-modal-content,
+            .titles-modal-content,
+            .pomodoro-content,
+            .cropper-modal-content {
+                max-height: calc(100dvh - 16px) !important;
+                border-radius: 24px;
+            }
+
+            .profile-modal-content {
+                width: 100%;
+                padding: 18px 14px 18px;
+            }
+
+            .profile-modal-close-btn,
+            .support-close-btn,
+            .notes-close-btn,
+            .pomodoro-close-btn {
+                width: 42px;
+                height: 42px;
+            }
+
+            .profile-modal-header,
+            .support-modal-header,
+            .notes-modal-header {
+                padding-right: 0;
+            }
+
+            .profile-avatar-section {
+                padding: 16px 14px;
+            }
+
+            .profile-avatar-large {
+                width: min(154px, 38vw);
+                height: min(154px, 38vw);
+            }
+
+            .week-nav {
+                display: grid !important;
+                grid-template-columns: 1fr 1fr;
+                align-items: stretch;
+            }
+
+            .week-nav h3 {
+                grid-column: 1 / -1;
+                order: -1;
+                text-align: center;
+                font-size: 1rem !important;
+            }
+
+            .week-nav button {
+                max-width: none !important;
+                min-width: 0;
+                padding-inline: 10px;
+            }
+
+            #yks-countdown-container {
+                padding: 16px 14px;
+            }
+
+            .countdown-group {
+                width: 100%;
+                max-width: none;
+                gap: 12px;
+                justify-content: center;
+            }
+
+            #yks-target-date {
+                padding: 0;
+                border: 0;
+                font-size: 0.9em;
+            }
+
+            .support-modal-body,
+            .notes-modal-body {
+                grid-template-columns: 1fr;
+            }
+
+            .support-compose-panel,
+            .support-messages-panel,
+            .notes-editor-panel,
+            .notes-list-panel {
+                padding: 16px;
+            }
+
+            .support-messages-list,
+            .notes-list {
+                max-height: 40vh;
+            }
+
+            .leaderboard-panel {
+                width: 100%;
+                right: -100%;
+            }
+
+            .leaderboard-item {
+                gap: 10px;
+                padding: 12px 10px;
+            }
+
+            .leaderboard-avatar {
+                width: 36px;
+                height: 36px;
+            }
+
+            .leaderboard-stats {
+                min-width: 86px;
+            }
+
+            .pomodoro-content {
+                width: 100%;
+                padding: 22px 14px 18px;
+                border-radius: 26px;
+            }
+
+            .pomodoro-content h2 {
+                padding: 0 40px 0 0;
+                font-size: 1.25em !important;
+            }
+
+            .pomodoro-time-inputs {
+                justify-content: space-between;
+                gap: 8px;
+            }
+
+            .pomodoro-time-inputs input {
+                width: calc((100% - 32px) / 3);
+                min-width: 0;
+            }
+
+            .timer-display {
+                font-size: clamp(2.1rem, 14vw, 3.4rem);
+            }
+
+            .timer-controls {
+                flex-direction: column;
+            }
+
+            .timer-controls > div,
+            .timer-controls button {
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .profile-title-meta {
+                width: 100%;
+                justify-content: center;
+                text-align: center;
+            }
+
+            .title-badge.small {
+                font-size: 0.64em;
+                padding: 3px 7px;
+            }
+
+            .countdown-item {
+                width: 58px;
+                height: 58px;
+            }
+
+            .countdown-value strong {
+                font-size: 1.08em;
+            }
+
+            .countdown-value span {
+                font-size: 0.46em;
+                letter-spacing: 0.3px;
+            }
+        }
+    </style>
+    <script id="codex-hotfix-script">
+        (() => {
+            function computeTitleInfo(profileData = {}) {
+                if (profileData.titleInfo && (profileData.titleInfo.currentTitle || Array.isArray(profileData.titleInfo.unlockedTitles))) {
+                    return profileData.titleInfo;
+                }
+
+                const sourceSchedule = profileData.schedule || scheduleData || {};
+                const fallbackSeconds = typeof profileData.currentWeekSeconds === 'number'
+                    ? profileData.currentWeekSeconds
+                    : getCurrentWeekTotalsFromSchedule(sourceSchedule).seconds;
+
+                return getCurrentTitleInfoFromSeconds(fallbackSeconds || 0);
+            }
+
+            function updateProfileHeaderSummary(titleInfo) {
+                const wrapper = document.getElementById('profile-title-wrapper');
+                if (!wrapper) return;
+
+                wrapper.innerHTML = `
+                    <span class="profile-title-meta">
+                        <i class="fas fa-chart-line"></i>
+                        Haftalik gunluk ortalama: ${(titleInfo?.avgHours || 0).toFixed(1)} saat
+                    </span>
+                `;
+            }
+
+            function stripOwnerSupportFields(messages, ownerDocId, fallbackUsername) {
+                return normalizeOwnerSupportMessages(messages || [], ownerDocId, fallbackUsername)
+                    .map(({ ownerDocId: _ignored, ...rest }) => rest);
+            }
+
+            async function ensureUserSupportDoc(ownerUid, fallbackData) {
+                const ownerRef = db.collection('users').doc(ownerUid);
+                const ownerDoc = await ownerRef.get();
+                if (!ownerDoc.exists) {
+                    await ownerRef.set(fallbackData, { merge: true });
+                    return { ...fallbackData };
+                }
+                return ownerDoc.data() || {};
+            }
+
+            function getCurrentUserSeedData() {
+                return {
+                    username: currentUsername || "Kullanici",
+                    email: currentUser?.email || "",
+                    isAdmin: isCurrentAdmin(),
+                    about: currentProfileAbout || "",
+                    profileImage: currentProfileImage || "",
+                    accountCreatedAt: currentAccountCreatedAt || new Date().toISOString(),
+                    studyTrack: studyTrack || "",
+                    selectedSubjects: normalizeSelectedSubjects(studyTrack || "", selectedSubjects || []),
+                    notes: normalizeUserNotes(userNotes || []),
+                    schedule: scheduleData || {},
+                    totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
+                    totalQuestionsAllTime: totalQuestionsAllTime || 0,
+                    supportMessages: [],
+                    isWorking: false
+                };
+            }
+
+            syncBodyModalLock = function() {
+                const hasOpenModal = Array.from(document.querySelectorAll('.modal-overlay')).some(modal => {
+                    const computed = window.getComputedStyle(modal);
+                    return computed.display !== 'none';
+                });
+
+                const body = document.body;
+                const root = document.documentElement;
+                if (!body || !root) return;
+
+                if (hasOpenModal) {
+                    if (body.dataset.modalScrollLocked !== 'true') {
+                        const scrollTop = window.scrollY || root.scrollTop || 0;
+                        body.dataset.modalScrollLocked = 'true';
+                        body.dataset.modalScrollTop = String(scrollTop);
+                        body.style.top = `-${scrollTop}px`;
+                    }
+                    body.classList.add('modal-lock');
+                    root.classList.add('modal-lock');
+                    return;
+                }
+
+                if (body.dataset.modalScrollLocked === 'true') {
+                    const scrollTop = parseInt(body.dataset.modalScrollTop || '0', 10) || 0;
+                    delete body.dataset.modalScrollLocked;
+                    delete body.dataset.modalScrollTop;
+                    body.classList.remove('modal-lock');
+                    root.classList.remove('modal-lock');
+                    body.style.top = '';
+                    window.scrollTo(0, scrollTop);
+                    return;
+                }
+
+                body.classList.remove('modal-lock');
+                root.classList.remove('modal-lock');
+                body.style.top = '';
+            };
+
+            renderProfileAvatarBadges = function(profileData, titleInfo) {
+                const container = document.getElementById('profile-avatar-badges');
+                if (!container) return;
+
+                const resolvedProfile = profileData || {};
+                const resolvedTitleInfo = titleInfo || computeTitleInfo(resolvedProfile);
+                const badges = [];
+                const titleBadge = getTitleBadgeHtml(resolvedTitleInfo);
+                const adminBadge = resolvedProfile.isAdmin ? getAdminBadgeHtml('admin-profile-pill') : '';
+
+                if (titleBadge) badges.push(titleBadge);
+                if (adminBadge) badges.push(adminBadge);
+
+                container.innerHTML = badges.join('');
+                container.style.display = badges.length ? 'flex' : 'none';
+            };
+
+            renderProfileTitles = function(profileData) {
+                const list = document.getElementById('profile-titles-list');
+                const hint = document.getElementById('profile-titles-hint');
+                const label = document.getElementById('profile-titles-label');
+                if (!list || !hint || !label) return;
+
+                const titleInfo = computeTitleInfo(profileData || {});
+                const unlockedTitles = titleInfo.unlockedTitles || [];
+                const profileName = profileData?.username || 'Bu kullanici';
+                const currentTitleId = titleInfo.currentTitle?.id || "";
+
+                label.innerText = 'Unvanlar';
+                hint.innerText = unlockedTitles.length
+                    ? `${profileName} icin acilan ${unlockedTitles.length} unvan listeleniyor.`
+                    : `${profileName} henuz unvan acmadi.`;
+
+                if (!unlockedTitles.length) {
+                    list.innerHTML = '<div class="profile-notes-empty">Henuz acilan unvan bulunmuyor.</div>';
+                    return;
+                }
+
+                list.innerHTML = unlockedTitles.map(level => `
+                    <article class="profile-title-card ${level.id === currentTitleId ? 'current' : ''}">
+                        <div class="title-inline-row">
+                            <span class="title-badge ${level.className}"><span>${level.icon}</span><span>${level.label}</span></span>
+                            ${level.id === currentTitleId ? '<span class="profile-title-current-pill"><i class="fas fa-star"></i> Aktif Unvan</span>' : ''}
+                        </div>
+                        <p><strong>${level.requirement}</strong><br>${level.description}</p>
+                    </article>
+                `).join('');
+            };
+
+            const previousShowProfileModalHotfix = showProfileModal;
+            showProfileModal = function(profileData, editable) {
+                const resolvedProfile = {
+                    ...profileData,
+                    email: profileData?.email || "",
+                    isAdmin: !!profileData?.isAdmin || isAdminIdentity(profileData?.username || "", profileData?.email || "")
+                };
+                const titleInfo = computeTitleInfo(resolvedProfile);
+
+                previousShowProfileModalHotfix({ ...resolvedProfile, titleInfo }, editable);
+
+                currentProfileModalEditable = editable;
+                currentProfileModalData = {
+                    ...(currentProfileModalData || {}),
+                    ...resolvedProfile,
+                    titleInfo,
+                    notes: editable
+                        ? normalizeUserNotes(resolvedProfile.notes || userNotes)
+                        : getPublicUserNotes(resolvedProfile.notes || [])
+                };
+
+                updateProfileHeaderSummary(titleInfo);
+                toggleProfileTitlesPanel(!editable && (titleInfo.unlockedTitles || []).length > 0);
+                toggleProfileNotesPanel(false);
+                syncBodyModalLock();
+            };
+
+            saveData = function() {
+                if (!currentUser) return;
+                refreshCurrentTotals();
+                db.collection('users')
+                    .doc(currentUser.uid)
+                    .set(buildUserPayload(), { merge: true })
+                    .catch(error => console.error("Veriler kaydedilemedi:", error));
+            };
+
+            saveToFirestore = function() {
+                if (!currentUser) return;
+                refreshCurrentTotals();
+                db.collection('users')
+                    .doc(currentUser.uid)
+                    .set(buildUserPayload(), { merge: true })
+                    .then(() => showAlert("Veriler Buluta Kaydedildi ✅", "success"))
+                    .catch(error => {
+                        console.error("Bulut kaydi basarisiz:", error);
+                        showAlert("Veriler kaydedilemedi.");
+                    });
+            };
+
+            updateWorkingStatus = function(status) {
+                if (!currentUser) return;
+                db.collection('users')
+                    .doc(currentUser.uid)
+                    .set({ isWorking: status }, { merge: true })
+                    .catch(error => console.error(error));
+            };
+
+            submitSupportMessage = async function() {
+                if (!currentUser) {
+                    showAlert("Mesaj gondermek icin giris yapmalisin.");
+                    return;
+                }
+
+                const submitButton = document.getElementById('support-submit-btn');
+                const messageInput = document.getElementById('support-message-input');
+                const message = messageInput?.value.trim() || "";
+
+                if (message.length < 5) {
+                    showAlert("Destek mesaji en az 5 karakter olmali.");
+                    return;
+                }
+
+                if (submitButton) submitButton.disabled = true;
+
+                try {
+                    const adminId = await resolveAdminUserUid();
+                    const existingData = await ensureUserSupportDoc(currentUser.uid, getCurrentUserSeedData());
+                    const existingMessages = normalizeOwnerSupportMessages(
+                        existingData.supportMessages || [],
+                        currentUser.uid,
+                        existingData.username || currentUsername || "Kullanici"
+                    );
+
+                    const nextMessages = [
+                        {
+                            id: createSupportMessageId(),
+                            senderId: currentUser.uid,
+                            senderUsername: existingData.username || currentUsername || "Kullanici",
+                            message,
+                            timestamp: new Date().toISOString(),
+                            read: false,
+                            adminId: adminId || adminUserUid || "",
+                            visibility: 'private',
+                            adminReply: "",
+                            repliedAt: "",
+                            repliedBy: ""
+                        },
+                        ...existingMessages
+                    ].map(({ ownerDocId: _ignored, ...rest }) => rest);
+
+                    await db.collection('users').doc(currentUser.uid).set({ supportMessages: nextMessages }, { merge: true });
+                    if (messageInput) messageInput.value = "";
+                    await loadSupportMessages();
+                    showAlert("Mesaj admin hesaba gonderildi.", "success");
+                } catch (error) {
+                    console.error("Destek mesaji gonderilirken hata:", error);
+                    showAlert("Mesaj gonderilemedi. Lutfen tekrar dene.");
+                } finally {
+                    if (submitButton) submitButton.disabled = false;
+                }
+            };
+
+            toggleSupportMessageRead = async function(messageId) {
+                const message = supportMessagesCache.find(item => item.id === messageId);
+                if (!message?.ownerDocId) return;
+
+                try {
+                    const ownerRef = db.collection('users').doc(message.ownerDocId);
+                    const ownerDoc = await ownerRef.get();
+                    const ownerData = ownerDoc.exists ? (ownerDoc.data() || {}) : { username: message.senderUsername || "Kullanici" };
+                    const updatedMessages = stripOwnerSupportFields(
+                        normalizeOwnerSupportMessages(ownerData.supportMessages || [], message.ownerDocId, ownerData.username || message.senderUsername)
+                            .map(item => item.id === messageId ? { ...item, read: !item.read } : item),
+                        message.ownerDocId,
+                        ownerData.username || message.senderUsername
+                    );
+
+                    await ownerRef.set({ supportMessages: updatedMessages }, { merge: true });
+                    await loadSupportMessages();
+                } catch (error) {
+                    console.error("Mesaj durumu guncellenemedi:", error);
+                    showAlert("Okunma durumu guncellenemedi.");
+                }
+            };
+
+            saveSupportReply = async function(messageId) {
+                if (!isCurrentAdmin()) return;
+
+                const message = supportMessagesCache.find(item => item.id === messageId);
+                const replyValue = document.getElementById(`support-reply-${messageId}`)?.value.trim() || "";
+                if (!message?.ownerDocId) return;
+
+                if (replyValue.length < 2) {
+                    showAlert("Admin yaniti en az 2 karakter olmali.");
+                    return;
+                }
+
+                try {
+                    const ownerRef = db.collection('users').doc(message.ownerDocId);
+                    const ownerDoc = await ownerRef.get();
+                    const ownerData = ownerDoc.exists ? (ownerDoc.data() || {}) : { username: message.senderUsername || "Kullanici" };
+                    const updatedMessages = stripOwnerSupportFields(
+                        normalizeOwnerSupportMessages(ownerData.supportMessages || [], message.ownerDocId, ownerData.username || message.senderUsername)
+                            .map(item => item.id === messageId
+                                ? {
+                                    ...item,
+                                    adminReply: replyValue,
+                                    repliedAt: new Date().toISOString(),
+                                    repliedBy: currentUsername || ADMIN_USERNAME,
+                                    read: true,
+                                    adminId: currentUser?.uid || adminUserUid || ""
+                                }
+                                : item
+                            ),
+                        message.ownerDocId,
+                        ownerData.username || message.senderUsername
+                    );
+
+                    await ownerRef.set({ supportMessages: updatedMessages }, { merge: true });
+                    await loadSupportMessages();
+                    showAlert("Yanit kaydedildi.", "success");
+                } catch (error) {
+                    console.error("Admin yaniti kaydedilemedi:", error);
+                    showAlert("Yanit kaydedilemedi.");
+                }
+            };
+
+            window.addEventListener('load', () => {
+                updateProfileHeaderSummary(computeTitleInfo(currentProfileModalData || {}));
+                syncBodyModalLock();
+            });
+        })();
+    </script>
+    <style id="codex-hotfix-styles-2">
+        #leaderboard-toggle-btn {
+            top: auto !important;
+            right: 18px !important;
+            bottom: 18px !important;
+            transform: none !important;
+            transform-origin: center !important;
+            border-radius: 999px !important;
+            padding: 12px 18px !important;
+            box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        #leaderboard-toggle-btn:hover {
+            transform: translateY(-2px) scale(1.02) !important;
+        }
+
+        .week-nav {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+            align-items: center !important;
+            gap: 14px;
+        }
+
+        .week-nav h3 {
+            justify-self: center;
+            text-align: center;
+            margin: 0;
+            width: auto !important;
+        }
+
+        .week-nav button:first-of-type {
+            justify-self: start;
+        }
+
+        .week-nav button:last-of-type {
+            justify-self: end;
+        }
+
+        .auth-link-btn {
+            width: 100%;
+            margin-top: 10px;
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text-color);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: none;
+        }
+
+        .auth-link-btn:hover {
+            border-color: var(--accent-color);
+            color: var(--header-text);
+        }
+
+        @media (max-width: 768px) {
+            #leaderboard-toggle-btn {
+                right: 12px !important;
+                bottom: 12px !important;
+                padding: 11px 14px !important;
+                font-size: 0.92em;
+            }
+
+            .week-nav {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .week-nav h3 {
+                grid-column: 1 / -1;
+                order: -1;
+            }
+        }
+    </style>
+    <script id="codex-hotfix-script-2">
+        (() => {
+            function getAutoSubjectsForTrack(track) {
+                return track === 'free' ? [] : getTrackSubjects(track);
+            }
+
+            function hideManualSubjectSelectors() {
+                const profileGroup = document.getElementById('profile-subjects-container')?.closest('.profile-field-group');
+                const onboardingGroup = document.getElementById('onboarding-subjects-container')?.closest('.profile-field-group');
+                const onboardingHint = document.querySelector('#onboarding-modal .profile-member-since');
+
+                if (profileGroup) profileGroup.style.display = 'none';
+                if (onboardingGroup) onboardingGroup.style.display = 'none';
+                if (onboardingHint) {
+                    onboardingHint.innerText = 'Bir kez alanini sec. Dersler sistem tarafindan otomatik tanimlanir.';
+                }
+            }
+
+            function setAuthError(message = "") {
+                const target = document.getElementById('login-error-message');
+                if (target) target.innerText = message;
+            }
+
+            function translateAuthError(error, mode = 'login') {
+                const code = error?.code || "";
+                const map = {
+                    'auth/invalid-email': 'Gecerli bir e-posta adresi yaz.',
+                    'auth/missing-email': 'E-posta adresini yaz.',
+                    'auth/missing-password': 'Sifreni yaz.',
+                    'auth/user-not-found': 'Bu e-posta ile kayitli bir hesap bulunamadi.',
+                    'auth/wrong-password': 'Sifre hatali.',
+                    'auth/invalid-credential': mode === 'login'
+                        ? 'E-posta ya da sifre hatali.'
+                        : 'Girdigin bilgiler gecersiz.',
+                    'auth/email-already-in-use': 'Bu e-posta adresi zaten kullaniliyor.',
+                    'auth/weak-password': 'Sifre en az 6 karakter olmali.',
+                    'auth/user-disabled': 'Bu hesap devre disi birakilmis.',
+                    'auth/too-many-requests': 'Cok fazla deneme yapildi. Lutfen biraz sonra tekrar dene.',
+                    'auth/network-request-failed': 'Baglanti hatasi olustu. Internetini kontrol et.',
+                    'auth/internal-error': 'Sistem gecici olarak cevap veremedi. Tekrar dene.'
+                };
+
+                return map[code] || 'Bir hata olustu. Lutfen tekrar dene.';
+            }
+
+            function ensureForgotPasswordButton() {
+                const loginForm = document.getElementById('login-form');
+                if (!loginForm || document.getElementById('forgot-password-btn')) return;
+
+                const button = document.createElement('button');
+                button.id = 'forgot-password-btn';
+                button.type = 'button';
+                button.className = 'auth-link-btn';
+                button.innerHTML = '<i class="fas fa-key"></i> Sifremi Unuttum';
+                button.onclick = sendPasswordResetLink;
+                loginForm.appendChild(button);
+            }
+
+            normalizeSelectedSubjects = function(track) {
+                return getAutoSubjectsForTrack(track);
+            };
+
+            renderSubjectOptions = function(containerId, track) {
+                const container = document.getElementById(containerId);
+                if (!container) return;
+
+                if (!track) {
+                    container.innerHTML = '<div class="subject-hint">Alanini sectiginde dersler otomatik tanimlanir.</div>';
+                    return;
+                }
+
+                const autoSubjects = getAutoSubjectsForTrack(track);
+                if (!autoSubjects.length) {
+                    container.innerHTML = '<div class="subject-hint">Free modunda ders takibi otomatik zorunlu ders listesi olmadan ilerler.</div>';
+                    return;
+                }
+
+                const labels = autoSubjects.map(subjectId => SUBJECT_DEFINITIONS[subjectId]?.label || subjectId);
+                container.innerHTML = `<div class="subject-hint">${STUDY_TRACKS[track]?.label || 'Secilen alan'} icin sistemin takip edecegi dersler: ${labels.join(', ')}.</div>`;
+            };
+
+            handleProfileTrackChange = function() {
+                profileDraftTrack = document.getElementById('profile-track-select').value;
+                profileDraftSubjects = getAutoSubjectsForTrack(profileDraftTrack);
+                renderSubjectOptions('profile-subjects-container', profileDraftTrack);
+            };
+
+            handleOnboardingTrackChange = function() {
+                const selectedTrack = document.getElementById('onboarding-track-select').value;
+                onboardingSelectedSubjects = getAutoSubjectsForTrack(selectedTrack);
+                renderSubjectOptions('onboarding-subjects-container', selectedTrack);
+            };
+
+            openOnboardingModal = function() {
+                if (!currentUser) return;
+                onboardingSelectedSubjects = getAutoSubjectsForTrack(studyTrack);
+                renderTrackOptions('onboarding-track-select', studyTrack || "");
+                renderSubjectOptions('onboarding-subjects-container', studyTrack || "");
+                hideManualSubjectSelectors();
+                document.getElementById('onboarding-modal').style.display = 'flex';
+                syncBodyModalLock();
+            };
+
+            saveOnboardingSettings = function() {
+                if (!currentUser) return;
+                const selectedTrack = document.getElementById('onboarding-track-select').value;
+                if (!selectedTrack) return showAlert("Once alanini sec.");
+
+                studyTrack = selectedTrack;
+                selectedSubjects = getAutoSubjectsForTrack(selectedTrack);
+                onboardingSelectedSubjects = [...selectedSubjects];
+                document.getElementById('onboarding-modal').style.display = 'none';
+                saveData();
+                updateSubjectReminder();
+                syncBodyModalLock();
+                showAlert("Baslangic ayarlari kaydedildi.", "success");
+            };
+
+            isCurrentAdmin = function() {
+                return !!currentUser && (
+                    isAdminUser ||
+                    (currentUser.email || "").trim().toLowerCase() === ADMIN_EMAIL ||
+                    isAdminIdentity(currentUsername || "", currentUser.email || "")
+                );
+            };
+
+            signInWithEmailPassword = function() {
+                const email = document.getElementById('login-email').value.trim();
+                const pass = document.getElementById('login-password').value;
+
+                if (!email) return setAuthError('E-posta adresini yaz.');
+                if (!pass) return setAuthError('Sifreni yaz.');
+
+                setAuthError("");
+                auth.signInWithEmailAndPassword(email, pass).catch(error => {
+                    setAuthError(translateAuthError(error, 'login'));
+                });
+            };
+
+            signUpWithEmailPasswordAndUsername = function() {
+                const username = document.getElementById('signup-username').value.trim();
+                const email = document.getElementById('signup-email').value.trim();
+                const pass = document.getElementById('signup-password').value;
+
+                if (username.length < 2) return setAuthError('Kullanici adi en az 2 karakter olmali.');
+                if (!email) return setAuthError('E-posta adresini yaz.');
+                if (pass.length < 6) return setAuthError('Sifre en az 6 karakter olmali.');
+
+                const accountCreatedAt = new Date().toISOString();
+                setAuthError("");
+                auth.createUserWithEmailAndPassword(email, pass)
+                    .then(cred => db.collection('users').doc(cred.user.uid).set({
+                        username,
+                        email,
+                        isAdmin: isAdminIdentity(username, email),
+                        about: "",
+                        profileImage: "",
+                        accountCreatedAt,
+                        studyTrack: "",
+                        selectedSubjects: [],
+                        notes: [],
+                        supportMessages: [],
+                        schedule: {},
+                        totalWorkedSeconds: 0,
+                        totalQuestionsAllTime: 0,
+                        isWorking: false
+                    }))
+                    .catch(error => {
+                        setAuthError(translateAuthError(error, 'signup'));
+                    });
+            };
+
+            sendPasswordResetLink = function() {
+                const email = document.getElementById('login-email').value.trim();
+                if (!email) {
+                    setAuthError('Sifre sifirlama icin once e-posta adresini yaz.');
+                    return;
+                }
+
+                setAuthError("");
+                auth.sendPasswordResetEmail(email)
+                    .then(() => {
+                        setAuthError('Sifre sifirlama baglantisi e-posta adresine gonderildi.');
+                        showAlert("Sifre sifirlama baglantisi e-posta adresine gonderildi.", "success");
+                    })
+                    .catch(error => {
+                        setAuthError(translateAuthError(error, 'reset'));
+                    });
+            };
+
+            const previousProfileModalHotfixTwo = showProfileModal;
+            showProfileModal = function(profileData, editable) {
+                previousProfileModalHotfixTwo(profileData, editable);
+                hideManualSubjectSelectors();
+            };
+
+            window.addEventListener('load', () => {
+                ensureForgotPasswordButton();
+                hideManualSubjectSelectors();
+                selectedSubjects = getAutoSubjectsForTrack(studyTrack);
+                onboardingSelectedSubjects = getAutoSubjectsForTrack(studyTrack);
+                profileDraftSubjects = getAutoSubjectsForTrack(profileDraftTrack || studyTrack);
+                renderSubjectOptions('profile-subjects-container', profileDraftTrack || studyTrack || "");
+                renderSubjectOptions('onboarding-subjects-container', studyTrack || "");
+            });
+        })();
+    </script>
+    <style id="codex-hotfix-styles-3">
+        .leaderboard-panel {
+            right: 0 !important;
+            width: min(458px, 100vw) !important;
+            max-width: 100vw !important;
+            padding: 8px 5px 8px 8px !important;
+            transform: translateX(calc(100% + 16px));
+            transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .leaderboard-panel.open {
+            transform: translateX(0);
+        }
+
+        .leaderboard-header {
+            padding: 0 4px 10px 4px;
+            margin-bottom: 6px;
+        }
+
+        .leaderboard-tabs {
+            padding-inline: 2px;
+        }
+
+        .leaderboard-list {
+            padding: 4px 0 4px 0;
+        }
+
+        .leaderboard-item {
+            padding: 12px 10px;
+            border-radius: 18px;
+            overflow: hidden;
+            box-shadow: 0 14px 24px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+        }
+
+        .profile-modal-content {
+            width: min(920px, 96vw);
+            padding: 22px 20px 22px;
+            position: relative;
+        }
+
+        .profile-modal-content::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.08), transparent 30%),
+                radial-gradient(circle at bottom right, rgba(187, 134, 252, 0.14), transparent 26%);
+        }
+
+        .profile-modal-content > * {
+            position: relative;
+            z-index: 1;
+        }
+
+        .profile-modal-header {
+            padding-right: 72px !important;
+        }
+
+        .profile-modal-close-btn {
+            top: 14px;
+            margin-bottom: 8px;
+            border-radius: 16px;
+        }
+
+        .profile-modal-content::-webkit-scrollbar,
+        .notes-list::-webkit-scrollbar,
+        .support-messages-list::-webkit-scrollbar,
+        .profile-notes-list::-webkit-scrollbar,
+        .profile-titles-list::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .profile-modal-content::-webkit-scrollbar-track,
+        .notes-list::-webkit-scrollbar-track,
+        .support-messages-list::-webkit-scrollbar-track,
+        .profile-notes-list::-webkit-scrollbar-track,
+        .profile-titles-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 999px;
+        }
+
+        .profile-modal-content::-webkit-scrollbar-thumb,
+        .notes-list::-webkit-scrollbar-thumb,
+        .support-messages-list::-webkit-scrollbar-thumb,
+        .profile-notes-list::-webkit-scrollbar-thumb,
+        .profile-titles-list::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(187, 134, 252, 0.38));
+            border-radius: 999px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+
+        body[data-theme="kitty"] {
+            --bg-color: #efcad7;
+            --container-bg: #f0d2dd;
+            --header-bg: #d68faa;
+            --header-text: #fff7fb;
+            --text-color: #573647;
+            --border-color: #d79db4;
+            --day-bg: #f2d7e0;
+            --accent-color: #cb5d87;
+            --accent-glow: rgba(203, 93, 135, 0.34);
+            --button-bg: #d86b93;
+            --button-hover: #c65a84;
+            --progress-bg: #e8bccd;
+            --progress-fill: #c65e86;
+            --pomodoro-bg: #f2d7e0;
+            --pomodoro-accent: #e56b95;
+            --task-bg: #f3d7e1;
+            --task-completed-bg: #eabfce;
+            --theme-controls-bg: #ecc9d7;
+            --countdown-bg: #efd0dc;
+            --countdown-fill: #b74f78;
+            --instagram-bg: #cb5d87;
+        }
+
+        body[data-theme="kitty"] .profile-modal-content,
+        body[data-theme="kitty"] .notes-modal-content,
+        body[data-theme="kitty"] .support-modal-content {
+            background: linear-gradient(160deg, rgba(252, 237, 243, 0.97), rgba(241, 205, 219, 0.95));
+            border-color: rgba(178, 72, 121, 0.22);
+            box-shadow: 0 28px 60px rgba(173, 78, 122, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.12);
+        }
+
+        body[data-theme="kitty"] .support-compose-panel,
+        body[data-theme="kitty"] .support-messages-panel,
+        body[data-theme="kitty"] .support-section,
+        body[data-theme="kitty"] .notes-editor-panel,
+        body[data-theme="kitty"] .notes-list-panel,
+        body[data-theme="kitty"] .profile-avatar-section,
+        body[data-theme="kitty"] .profile-stat-card,
+        body[data-theme="kitty"] .profile-title-card,
+        body[data-theme="kitty"] .profile-note-card,
+        body[data-theme="kitty"] .support-message-card,
+        body[data-theme="kitty"] .support-reply-block {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(247, 223, 232, 0.84));
+            border-color: rgba(190, 92, 135, 0.16);
+            box-shadow: 0 18px 34px rgba(189, 104, 143, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.52);
+        }
+
+        body[data-theme="kitty"] .profile-modal-close-btn,
+        body[data-theme="kitty"] .support-close-btn,
+        body[data-theme="kitty"] .notes-close-btn,
+        body[data-theme="kitty"] .pomodoro-close-btn {
+            background: linear-gradient(135deg, #ee8faf, #cf5f86);
+            color: #fffafc;
+            border-color: rgba(255, 255, 255, 0.28);
+        }
+
+        body[data-theme="kitty"] .support-modal-header,
+        body[data-theme="kitty"] .notes-modal-header {
+            background: linear-gradient(180deg, rgba(243, 214, 226, 0.98) 0%, rgba(243, 214, 226, 0.9) 76%, rgba(243, 214, 226, 0) 100%);
+        }
+
+        body[data-theme="kitty"] .support-private-note,
+        body[data-theme="kitty"] .support-pill.private {
+            background: rgba(203, 93, 135, 0.12);
+            border-color: rgba(203, 93, 135, 0.18);
+            color: #9e3e68;
+        }
+
+        body[data-theme="kitty"] .support-pill.unread {
+            background: rgba(255, 213, 88, 0.2);
+            border-color: rgba(255, 193, 7, 0.22);
+            color: #8a5b00;
+        }
+
+        @media (max-width: 768px) {
+            .leaderboard-panel {
+                width: 100% !important;
+                padding: 10px 4px 8px 6px !important;
+                transform: translateX(100%);
+            }
+
+            .profile-modal-header {
+                padding-right: 58px !important;
+            }
+        }
+    </style>
+    <script id="codex-hotfix-script-3">
+        (() => {
+            function sortSupportMessages(messages) {
+                return [...(messages || [])].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            }
+
+            async function getOwnerSupportContext(ownerDocId, fallbackUsername = "Kullanici") {
+                const ownerRef = db.collection('users').doc(ownerDocId);
+                const ownerDoc = await ownerRef.get();
+                const ownerData = ownerDoc.exists ? (ownerDoc.data() || {}) : { username: fallbackUsername, supportMessages: [] };
+                const messages = normalizeOwnerSupportMessages(
+                    ownerData.supportMessages || [],
+                    ownerDocId,
+                    ownerData.username || fallbackUsername
+                );
+
+                return {
+                    ownerRef,
+                    ownerData,
+                    messages
+                };
+            }
+
+            async function persistOwnerSupportMessages(ownerDocId, messages) {
+                const serializedMessages = (messages || []).map(({ ownerDocId: _ignored, ...rest }) => rest);
+                await db.collection('users').doc(ownerDocId).set({ supportMessages: serializedMessages }, { merge: true });
+            }
+
+            updateSupportButton = function() {
+                const button = document.getElementById('support-btn');
+                const label = document.getElementById('support-btn-text');
+                if (!button || !label) return;
+
+                if (isCurrentAdmin()) {
+                    const unreadCount = supportMessagesCache.filter(item => !item.read).length;
+                    button.classList.add('admin-mode');
+                    label.innerText = unreadCount ? `Admin Destek (${unreadCount})` : 'Admin Destek';
+                    return;
+                }
+
+                const ownCount = currentUser
+                    ? supportMessagesCache.filter(item => item.senderId === currentUser.uid).length
+                    : 0;
+                button.classList.remove('admin-mode');
+                label.innerText = ownCount ? `Destek (${ownCount})` : 'Destek';
+            };
+
+            updateAdminUI = function() {
+                const isAdmin = isCurrentAdmin();
+                const button = document.getElementById('support-btn');
+                const label = document.getElementById('support-btn-text');
+                const userComposer = document.getElementById('support-user-composer');
+                const adminSummary = document.getElementById('support-admin-summary');
+                const modalTitle = document.getElementById('support-modal-title');
+                const modalSubtitle = document.getElementById('support-modal-subtitle');
+                const listTitle = document.getElementById('support-list-title');
+                const listHint = document.getElementById('support-list-hint');
+                const secondaryMeta = document.getElementById('support-meta-secondary');
+
+                button?.classList.toggle('admin-mode', isAdmin);
+                if (label) label.innerText = isAdmin ? 'Admin Destek' : 'Destek';
+                if (userComposer) userComposer.style.display = isAdmin ? 'none' : 'block';
+                if (adminSummary) adminSummary.style.display = isAdmin ? 'block' : 'none';
+                if (modalTitle) modalTitle.innerText = isAdmin ? 'Admin Destek Paneli' : 'Yardim ve Destek';
+                if (modalSubtitle) {
+                    modalSubtitle.innerText = isAdmin
+                        ? 'Gelen mesajlari oku, cevapla, okundu durumunu guncelle veya sil.'
+                        : 'Mesajlar sadece sen ve admin arasinda kalir. Istersen sonradan silebilirsin.';
+                }
+                if (listTitle) listTitle.innerText = isAdmin ? 'Tum Gelen Mesajlar' : 'Destek Gecmisi';
+                if (listHint) {
+                    listHint.innerText = isAdmin
+                        ? 'Admin olarak gelen tum ozel mesajlari yonetebilirsin.'
+                        : 'Yolladigin mesajlar, admin yanitlari ve silme islemleri burada gorunur.';
+                }
+                if (secondaryMeta) {
+                    secondaryMeta.innerText = isAdmin
+                        ? 'Mesajlar sadece admin ve ilgili kullanici tarafinda gorunur'
+                        : 'Mesajlar sadece sen ve admin tarafinda gorunur';
+                }
+
+                updateSupportButton();
+            };
+
+            loadSupportMessages = async function() {
+                if (!currentUser) {
+                    supportMessagesCache = [];
+                    updateSupportButton();
+                    renderSupportModal();
+                    return;
+                }
+
+                try {
+                    if (isCurrentAdmin()) {
+                        const usersSnapshot = await db.collection('users').get();
+                        supportMessagesCache = sortSupportMessages(
+                            usersSnapshot.docs.flatMap(doc => {
+                                const data = doc.data() || {};
+                                return normalizeOwnerSupportMessages(data.supportMessages || [], doc.id, data.username || "Kullanici");
+                            }).filter(item => item.message || item.adminReply)
+                        );
+                    } else {
+                        const ownerContext = await getOwnerSupportContext(currentUser.uid, currentUsername || "Kullanici");
+                        supportMessagesCache = sortSupportMessages(ownerContext.messages);
+                    }
+                } catch (error) {
+                    console.error("Destek mesajlari yuklenirken hata:", error);
+                    supportMessagesCache = [];
+                }
+
+                updateSupportButton();
+                renderSupportModal();
+            };
+
+            renderSupportModal = function() {
+                const list = document.getElementById('support-messages-list');
+                const primaryMeta = document.getElementById('support-meta-primary');
+                const secondaryMeta = document.getElementById('support-meta-secondary');
+                const totalStat = document.getElementById('support-admin-total');
+                const unreadStat = document.getElementById('support-admin-unread');
+                const repliedStat = document.getElementById('support-admin-public');
+                if (!list || !primaryMeta || !secondaryMeta || !totalStat || !unreadStat || !repliedStat) return;
+
+                const isAdminView = isCurrentAdmin();
+                const visibleMessages = isAdminView
+                    ? sortSupportMessages(supportMessagesCache)
+                    : sortSupportMessages(supportMessagesCache.filter(item => item.senderId === currentUser?.uid));
+                const unreadCount = supportMessagesCache.filter(item => !item.read).length;
+                const repliedCount = supportMessagesCache.filter(item => item.adminReply).length;
+
+                primaryMeta.innerText = isAdminView
+                    ? `${supportMessagesCache.length} mesaj`
+                    : `${visibleMessages.length} kayit`;
+                secondaryMeta.innerText = isAdminView
+                    ? `${unreadCount} yeni mesaj`
+                    : 'Silinen mesajlar destek gecmisinden kaldirilir';
+                totalStat.innerText = supportMessagesCache.length;
+                unreadStat.innerText = unreadCount;
+                repliedStat.innerText = repliedCount;
+
+                if (!visibleMessages.length) {
+                    list.innerHTML = `<div class="support-empty">${isAdminView ? 'Henuz destek mesaji gelmedi.' : 'Henuz destek mesaji yok. Ilk mesaji gonderebilirsin.'}</div>`;
+                    updateSupportButton();
+                    return;
+                }
+
+                list.innerHTML = visibleMessages.map(item => {
+                    const senderLabel = isAdminView ? escapeUserNoteHtml(item.senderUsername || "Kullanici") : 'Sen';
+                    const replyBlock = item.adminReply
+                        ? `
+                            <div class="support-reply-block">
+                                <div class="support-reply-label"><i class="fas fa-reply"></i> Admin Yaniti</div>
+                                <div class="support-reply-text">${formatUserNoteHtml(item.adminReply)}</div>
+                                <div class="support-card-meta" style="margin-top: 8px;">
+                                    ${item.repliedAt ? `Yanit: ${formatUserNoteDate(item.repliedAt)}` : ''}
+                                </div>
+                            </div>
+                        `
+                        : '';
+
+                    const deleteButton = `
+                        <button type="button" onclick="deleteSupportMessage('${item.id}')" style="background-color: var(--pomodoro-accent); color: var(--header-text);">
+                            <i class="fas fa-trash"></i> Sil
+                        </button>
+                    `;
+
+                    const adminControls = isAdminView
+                        ? `
+                            <div class="support-card-actions">
+                                <button type="button" onclick="toggleSupportMessageRead('${item.id}')" style="background-color: var(--button-bg); color: var(--header-text);">
+                                    <i class="fas ${item.read ? 'fa-envelope-open-text' : 'fa-envelope'}"></i> ${item.read ? 'Okunmamis Yap' : 'Okundu Yap'}
+                                </button>
+                                <button type="button" onclick="saveSupportReply('${item.id}')" style="background-color: var(--accent-color); color: var(--header-text);">
+                                    <i class="fas fa-paper-plane"></i> Yaniti Kaydet
+                                </button>
+                                ${deleteButton}
+                            </div>
+                            <div class="support-reply-box">
+                                <textarea id="support-reply-${item.id}" rows="4" placeholder="Bu mesaja admin yaniti yaz...">${escapeUserNoteHtml(item.adminReply || "")}</textarea>
+                            </div>
+                        `
+                        : `
+                            <div class="support-card-actions">
+                                ${deleteButton}
+                            </div>
+                        `;
+
+                    return `
+                        <article class="support-message-card private ${item.read ? '' : 'unread'}">
+                            <div class="support-card-top">
+                                <div>
+                                    <div class="support-card-title">
+                                        <span>${senderLabel}</span>
+                                    </div>
+                                    <div class="support-card-meta">${formatUserNoteDate(item.timestamp)}</div>
+                                </div>
+                                <div class="support-pill-row">
+                                    <span class="support-pill private"><i class="fas fa-lock"></i> Ozel</span>
+                                    ${isAdminView ? `<span class="support-pill ${item.read ? '' : 'unread'}"><i class="fas ${item.read ? 'fa-check' : 'fa-bell'}"></i> ${item.read ? 'Okundu' : 'Yeni'}</span>` : ''}
+                                </div>
+                            </div>
+                            <div class="support-message-body">${formatUserNoteHtml(item.message)}</div>
+                            ${replyBlock}
+                            ${adminControls}
+                        </article>
+                    `;
+                }).join('');
+
+                updateSupportButton();
+            };
+
+            deleteSupportMessage = async function(messageId) {
+                const message = supportMessagesCache.find(item => item.id === messageId);
+                if (!message?.ownerDocId) return;
+
+                const canDelete = isCurrentAdmin() || message.senderId === currentUser?.uid;
+                if (!canDelete) return;
+                if (!confirm("Bu destek mesajini silmek istiyor musun?")) return;
+
+                try {
+                    const ownerContext = await getOwnerSupportContext(message.ownerDocId, message.senderUsername || "Kullanici");
+                    const nextMessages = ownerContext.messages.filter(item => item.id !== messageId);
+                    await persistOwnerSupportMessages(message.ownerDocId, nextMessages);
+                    await loadSupportMessages();
+                    showAlert("Mesaj silindi.", "success");
+                } catch (error) {
+                    console.error("Mesaj silinemedi:", error);
+                    showAlert("Mesaj silinemedi.");
+                }
+            };
+
+            toggleSupportMessageRead = async function(messageId) {
+                const message = supportMessagesCache.find(item => item.id === messageId);
+                if (!message?.ownerDocId || !isCurrentAdmin()) return;
+
+                try {
+                    const ownerContext = await getOwnerSupportContext(message.ownerDocId, message.senderUsername || "Kullanici");
+                    const nextMessages = ownerContext.messages.map(item => item.id === messageId ? { ...item, read: !item.read } : item);
+                    await persistOwnerSupportMessages(message.ownerDocId, nextMessages);
+                    await loadSupportMessages();
+                } catch (error) {
+                    console.error("Mesaj durumu guncellenemedi:", error);
+                    showAlert("Okunma durumu guncellenemedi.");
+                }
+            };
+
+            saveSupportReply = async function(messageId) {
+                const message = supportMessagesCache.find(item => item.id === messageId);
+                if (!message?.ownerDocId || !isCurrentAdmin()) return;
+
+                const replyField = document.getElementById(`support-reply-${messageId}`);
+                const replyValue = replyField?.value.trim() || "";
+                if (replyValue.length < 2) {
+                    showAlert("Admin yaniti en az 2 karakter olmali.");
+                    return;
+                }
+
+                try {
+                    const ownerContext = await getOwnerSupportContext(message.ownerDocId, message.senderUsername || "Kullanici");
+                    const nextMessages = ownerContext.messages.map(item => item.id === messageId
+                        ? {
+                            ...item,
+                            adminReply: replyValue,
+                            repliedAt: new Date().toISOString(),
+                            repliedBy: currentUsername || ADMIN_USERNAME,
+                            read: true,
+                            adminId: currentUser?.uid || adminUserUid || ""
+                        }
+                        : item
+                    );
+
+                    await persistOwnerSupportMessages(message.ownerDocId, nextMessages);
+                    await loadSupportMessages();
+                    showAlert("Yanit kullaniciya kaydedildi.", "success");
+                } catch (error) {
+                    console.error("Admin yaniti kaydedilemedi:", error);
+                    showAlert("Yanit kaydedilemedi.");
+                }
+            };
+
+            openSupportModal = async function() {
+                if (!currentUser) {
+                    showAlert("Destek paneli icin giris yapmalisin.");
+                    return;
+                }
+
+                document.getElementById('support-modal').style.display = 'flex';
+                updateAdminUI();
+                await loadSupportMessages();
+                syncBodyModalLock();
+            };
+
+            window.addEventListener('load', () => {
+                updateAdminUI();
+            });
+
+            auth.onAuthStateChanged(user => {
+                if (!user) return;
+                setTimeout(() => {
+                    updateAdminUI();
+                    loadSupportMessages().catch(error => console.error("Destek yeniden yuklenemedi:", error));
+                }, 450);
+            });
+        })();
+    </script>
+    <style id="codex-hotfix-styles-4">
+        #leaderboard-panel {
+            right: 0 !important;
+            padding: 6px 2px 6px 4px !important;
+            transform: translate3d(calc(100% + 48px), 0, 0) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #leaderboard-panel.open {
+            transform: translate3d(0, 0, 0) !important;
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #leaderboard-panel .leaderboard-header {
+            padding: 0 2px 8px !important;
+            margin-bottom: 4px !important;
+        }
+
+        #leaderboard-panel .leaderboard-tabs {
+            padding-inline: 0 !important;
+            gap: 6px;
+        }
+
+        #leaderboard-panel .leaderboard-list {
+            padding: 2px 0 !important;
+            gap: 4px !important;
+        }
+
+        #leaderboard-panel .leaderboard-item {
+            margin: 0 !important;
+            padding: 10px 8px !important;
+            border-radius: 16px !important;
+            overflow: visible !important;
+            box-shadow: 0 12px 22px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+        }
+
+        #leaderboard-panel .leaderboard-item.rank-1,
+        #leaderboard-panel .leaderboard-item.rank-2,
+        #leaderboard-panel .leaderboard-item.rank-3 {
+            margin: 0 !important;
+        }
+
+        #leaderboard-panel .leaderboard-item.rank-1::before {
+            top: -8px;
+            left: -4px;
+        }
+
+        #leaderboard-panel .leaderboard-name-wrapper {
+            row-gap: 4px !important;
+        }
+
+        #leaderboard-panel .leaderboard-stats {
+            min-width: 92px;
+        }
+
+        #profile-modal .profile-modal-content {
+            width: min(940px, 96vw) !important;
+            padding: 28px 24px 24px !important;
+            border-radius: 32px !important;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(216, 104, 145, 0.76) rgba(255, 255, 255, 0.08);
+        }
+
+        #profile-modal .profile-modal-content::before {
+            background:
+                radial-gradient(circle at top left, rgba(255, 255, 255, 0.12), transparent 28%),
+                radial-gradient(circle at bottom right, rgba(216, 104, 145, 0.18), transparent 26%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0));
+        }
+
+        #profile-modal .profile-modal-close-btn {
+            position: absolute !important;
+            top: 18px !important;
+            right: 18px;
+            margin: 0 !important;
+            z-index: 24;
+            border-radius: 18px !important;
+            background: rgba(17, 20, 29, 0.88) !important;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 18px 34px rgba(0, 0, 0, 0.28);
+        }
+
+        #profile-modal .profile-modal-header {
+            padding-right: 92px !important;
+            padding-top: 4px;
+        }
+
+        #profile-modal .profile-modal-body {
+            align-items: flex-start;
+            gap: 18px;
+        }
+
+        #profile-modal .profile-avatar-section,
+        #profile-modal .profile-stat-card,
+        #profile-modal .profile-title-card,
+        #profile-modal .profile-note-card {
+            border-radius: 24px !important;
+        }
+
+        #profile-modal .profile-modal-content::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        #profile-modal .profile-modal-content::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 999px;
+        }
+
+        #profile-modal .profile-modal-content::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(216, 104, 145, 0.52));
+            border-radius: 999px;
+            border: 2px solid transparent;
+            background-clip: padding-box;
+        }
+
+        body[data-theme="kitty"] {
+            --bg-color: #e7b3c3;
+            --container-bg: #efc4d1;
+            --header-bg: #c95c89;
+            --header-text: #fff9fc;
+            --text-color: #4a2332;
+            --border-color: #d688a7;
+            --day-bg: #f2ced9;
+            --accent-color: #c44778;
+            --accent-glow: rgba(196, 71, 120, 0.34);
+            --button-bg: #d15988;
+            --button-hover: #bc456f;
+            --progress-bg: #ebb6c7;
+            --progress-fill: #bf3f6f;
+            --pomodoro-bg: #f2ced9;
+            --pomodoro-accent: #de5c8c;
+            --task-bg: #f4d4de;
+            --task-completed-bg: #ebbecd;
+            --theme-controls-bg: #efccda;
+            --countdown-bg: #efcad7;
+            --countdown-fill: #b53a69;
+            --instagram-bg: #c44778;
+        }
+
+        body[data-theme="kitty"] {
+            background-image:
+                radial-gradient(circle at top left, rgba(255, 196, 214, 0.28), transparent 24%),
+                radial-gradient(circle at bottom right, rgba(244, 214, 225, 0.92), transparent 34%),
+                linear-gradient(180deg, #efbfd0 0%, #e4adb4 100%);
+        }
+
+        body[data-theme="kitty"] .support-titlebox h2,
+        body[data-theme="kitty"] #profile-modal .profile-modal-header h2,
+        body[data-theme="kitty"] .notes-panel-header h3,
+        body[data-theme="kitty"] .profile-stat-card strong,
+        body[data-theme="kitty"] .profile-title-card strong,
+        body[data-theme="kitty"] .support-admin-stat strong {
+            color: #562536 !important;
+        }
+
+        body[data-theme="kitty"] .support-modal-subtitle,
+        body[data-theme="kitty"] .support-card-meta,
+        body[data-theme="kitty"] .support-message-body,
+        body[data-theme="kitty"] .support-reply-text,
+        body[data-theme="kitty"] .support-admin-stat span,
+        body[data-theme="kitty"] .notes-panel-header p,
+        body[data-theme="kitty"] #profile-modal .profile-member-since,
+        body[data-theme="kitty"] #profile-modal .profile-title-card p,
+        body[data-theme="kitty"] #profile-modal .profile-note-card .note-card-content,
+        body[data-theme="kitty"] #profile-modal .profile-field-group label,
+        body[data-theme="kitty"] #profile-modal .profile-title-meta {
+            color: #5a2b3c !important;
+            opacity: 1;
+        }
+
+        body[data-theme="kitty"] .support-compose-fields textarea,
+        body[data-theme="kitty"] .support-reply-box textarea,
+        body[data-theme="kitty"] .notes-editor-fields input,
+        body[data-theme="kitty"] .notes-editor-fields textarea,
+        body[data-theme="kitty"] #profile-modal .profile-field-group input,
+        body[data-theme="kitty"] #profile-modal .profile-field-group textarea,
+        body[data-theme="kitty"] #profile-modal .profile-track-select {
+            background: rgba(255, 253, 254, 0.92) !important;
+            color: #532536 !important;
+            border-color: rgba(175, 75, 121, 0.24) !important;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
+        }
+
+        body[data-theme="kitty"] .week-nav button,
+        body[data-theme="kitty"] #support-submit-btn,
+        body[data-theme="kitty"] #save-btn,
+        body[data-theme="kitty"] #reset-btn,
+        body[data-theme="kitty"] #start-pause-btn,
+        body[data-theme="kitty"] #view-toggle-btn,
+        body[data-theme="kitty"] #titles-info-btn,
+        body[data-theme="kitty"] #profile-image-trigger,
+        body[data-theme="kitty"] #profile-save-btn,
+        body[data-theme="kitty"] #my-note-save-btn,
+        body[data-theme="kitty"] #my-note-cancel-btn,
+        body[data-theme="kitty"] #study-insight-prev-btn,
+        body[data-theme="kitty"] #study-insight-next-btn,
+        body[data-theme="kitty"] .support-card-actions button,
+        body[data-theme="kitty"] .close-leaderboard,
+        body[data-theme="kitty"] #leaderboard-toggle-btn {
+            background: linear-gradient(135deg, #d75f8d, #b93a6e) !important;
+            color: #fffafc !important;
+            border-color: rgba(255, 255, 255, 0.24) !important;
+            box-shadow: 0 14px 24px rgba(191, 67, 116, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.18) !important;
+        }
+
+        body[data-theme="kitty"] .week-nav button:hover,
+        body[data-theme="kitty"] #support-submit-btn:hover,
+        body[data-theme="kitty"] #save-btn:hover,
+        body[data-theme="kitty"] #reset-btn:hover,
+        body[data-theme="kitty"] #start-pause-btn:hover,
+        body[data-theme="kitty"] #view-toggle-btn:hover,
+        body[data-theme="kitty"] #titles-info-btn:hover,
+        body[data-theme="kitty"] #profile-image-trigger:hover,
+        body[data-theme="kitty"] #profile-save-btn:hover,
+        body[data-theme="kitty"] #my-note-save-btn:hover,
+        body[data-theme="kitty"] #my-note-cancel-btn:hover,
+        body[data-theme="kitty"] #study-insight-prev-btn:hover,
+        body[data-theme="kitty"] #study-insight-next-btn:hover,
+        body[data-theme="kitty"] .support-card-actions button:hover,
+        body[data-theme="kitty"] .close-leaderboard:hover,
+        body[data-theme="kitty"] #leaderboard-toggle-btn:hover {
+            background: linear-gradient(135deg, #ca507e, #a93061) !important;
+        }
+
+        body[data-theme="kitty"] .support-private-note,
+        body[data-theme="kitty"] .support-pill.private {
+            background: rgba(196, 71, 120, 0.14) !important;
+            border-color: rgba(181, 56, 106, 0.24) !important;
+            color: #8c3058 !important;
+        }
+
+        body[data-theme="kitty"] .support-pill.unread {
+            background: rgba(255, 219, 115, 0.28) !important;
+            border-color: rgba(227, 173, 33, 0.28) !important;
+            color: #7c4f00 !important;
+        }
+
+        body[data-theme="kitty"] .support-meta-pill,
+        body[data-theme="kitty"] .support-admin-stat {
+            background: rgba(255, 255, 255, 0.68) !important;
+            border-color: rgba(190, 92, 135, 0.18) !important;
+        }
+
+        body[data-theme="kitty"] #profile-modal .profile-modal-close-btn,
+        body[data-theme="kitty"] .support-close-btn,
+        body[data-theme="kitty"] .notes-close-btn,
+        body[data-theme="kitty"] .pomodoro-close-btn {
+            background: linear-gradient(135deg, #e96d98, #bf446f) !important;
+            color: #fff9fc !important;
+            border-color: rgba(255, 255, 255, 0.3) !important;
+        }
+
+        @media (max-width: 768px) {
+            #leaderboard-panel {
+                padding: 8px 2px 8px 4px !important;
+                transform: translate3d(calc(100% + 28px), 0, 0) !important;
+            }
+
+            #profile-modal .profile-modal-content {
+                padding: 68px 14px 18px !important;
+            }
+
+            #profile-modal .profile-modal-close-btn {
+                top: 14px !important;
+                right: 14px;
+            }
+
+            #profile-modal .profile-modal-header {
+                padding-right: 0 !important;
+            }
+
+            #profile-modal .profile-modal-header h2 {
+                padding-right: 58px;
+            }
+        }
+    </style>
+    <script src="codex-hotfix-4.js"></script>
 </body>
 </html>
