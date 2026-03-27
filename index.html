@@ -1,14 +1,16 @@
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>COSX ÖMER DERS ÇİZELGESİ - LUXURY PRO</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800;900&family=Playfair+Display:ital,wght@1,700;1,900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="codex-kitty-responsive-5.css">
     <link rel="stylesheet" href="codex-pomodoro-ui-6.css">
+    <link rel="stylesheet" href="codex-upgrade-7.css">
 
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
@@ -3403,6 +3405,61 @@
             .title-badge.small { font-size: 0.62em; padding: 2px 7px; }
         }
     </style>
+    <style id="codex-github-pages-stability">
+        html,
+        body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
+
+        .modal-overlay {
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior: contain;
+        }
+
+        .profile-modal-content,
+        .notes-modal-content,
+        .support-modal-content,
+        .titles-modal-content,
+        .pomodoro-content,
+        .cropper-modal-content {
+            width: min(100%, calc(100vw - 16px));
+            max-width: min(100%, calc(100vw - 16px));
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+        }
+
+        #leaderboard-panel {
+            max-width: 100vw !important;
+            overflow-x: hidden !important;
+            overflow-y: auto !important;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #leaderboard-panel .leaderboard-list {
+            overflow: visible !important;
+            min-height: 0;
+        }
+
+        @media (max-width: 1024px) {
+            .profile-modal-content,
+            .notes-modal-content,
+            .support-modal-content,
+            .titles-modal-content,
+            .pomodoro-content,
+            .cropper-modal-content {
+                max-height: 80vh !important;
+            }
+
+            #leaderboard-panel {
+                max-height: 80vh !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <div id="custom-alert">Hata Mesajı</div>
@@ -6003,6 +6060,16 @@
             const btnText = document.getElementById('view-toggle-text');
             grid.classList.toggle('scrolling-mode');
             btnText.innerText = grid.classList.contains('scrolling-mode') ? "Tablo Moduna Geç" : "Yatay Kaydırma Modu";
+        }
+
+        function applyDefaultScheduleView() {
+            const grid = document.querySelector('.schedule-grid');
+            const btnText = document.getElementById('view-toggle-text');
+            if (!grid) return;
+            grid.classList.add('scrolling-mode');
+            if (btnText) {
+                btnText.innerText = "Tablo Moduna Geç";
+            }
         }
 
         function syncAmbientIntervals() {
@@ -8632,6 +8699,7 @@
 
         window.onload = () => {
             loadRandomQuote(); // Sayfa yüklendiğinde rastgele söz getir
+            applyDefaultScheduleView();
             updateYKSCountdown();
             initializeCropperEvents();
             renderTrackOptions('profile-track-select', studyTrack || "");
@@ -10572,9 +10640,103 @@
             }
         }
     </style>
-    <link rel="stylesheet" href="codex-upgrade-7.css">
+    <script src="codex-hotfix-4.js"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
     <script src="codex-upgrade-7.js"></script>
-    <script src="codex-hotfix-4.js"></script>
+    <script id="codex-github-pages-mobile-fix">
+        (function () {
+            function hasVisibleModal() {
+                return Array.from(document.querySelectorAll('.modal-overlay')).some(function (modal) {
+                    return window.getComputedStyle(modal).display !== 'none';
+                });
+            }
+
+            function isLeaderboardOpen() {
+                var panel = document.getElementById('leaderboard-panel');
+                return !!(panel && panel.classList.contains('open'));
+            }
+
+            window.syncBodyModalLock = function () {
+                var body = document.body;
+                var root = document.documentElement;
+                if (!body || !root) return;
+
+                var shouldLock = hasVisibleModal() || isLeaderboardOpen();
+                if (shouldLock) {
+                    if (body.dataset.modalScrollLocked !== 'true') {
+                        var scrollTop = window.scrollY || root.scrollTop || 0;
+                        body.dataset.modalScrollLocked = 'true';
+                        body.dataset.modalScrollTop = String(scrollTop);
+                        body.style.top = '-' + scrollTop + 'px';
+                    }
+                    body.classList.add('modal-lock');
+                    root.classList.add('modal-lock');
+                    body.style.overflow = 'hidden';
+                    root.style.overflow = 'hidden';
+                    return;
+                }
+
+                if (body.dataset.modalScrollLocked === 'true') {
+                    var previousScrollTop = parseInt(body.dataset.modalScrollTop || '0', 10) || 0;
+                    delete body.dataset.modalScrollLocked;
+                    delete body.dataset.modalScrollTop;
+                    body.classList.remove('modal-lock');
+                    root.classList.remove('modal-lock');
+                    body.style.top = '';
+                    body.style.overflow = 'auto';
+                    root.style.overflow = 'auto';
+                    window.scrollTo(0, previousScrollTop);
+                    return;
+                }
+
+                body.classList.remove('modal-lock');
+                root.classList.remove('modal-lock');
+                body.style.top = '';
+                body.style.overflow = 'auto';
+                root.style.overflow = 'auto';
+            };
+
+            var originalToggleLeaderboard = window.toggleLeaderboard;
+            if (typeof originalToggleLeaderboard === 'function') {
+                window.toggleLeaderboard = function () {
+                    var result = originalToggleLeaderboard.apply(this, arguments);
+                    window.syncBodyModalLock();
+                    return result;
+                };
+            }
+
+            var leaderboardPanel = document.getElementById('leaderboard-panel');
+            if (leaderboardPanel) {
+                leaderboardPanel.style.overflowY = 'auto';
+                leaderboardPanel.style.maxHeight = window.innerWidth <= 1024 ? '80vh' : '100vh';
+                leaderboardPanel.style.webkitOverflowScrolling = 'touch';
+            }
+
+            Array.from(document.querySelectorAll('.modal-overlay')).forEach(function (modal) {
+                modal.style.overflowY = 'auto';
+                modal.style.maxHeight = '100dvh';
+                modal.style.webkitOverflowScrolling = 'touch';
+            });
+
+            Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content')).forEach(function (panel) {
+                panel.style.overflowY = 'auto';
+                panel.style.overflowX = 'hidden';
+                panel.style.maxHeight = window.innerWidth <= 1024 ? '80vh' : panel.style.maxHeight;
+                panel.style.webkitOverflowScrolling = 'touch';
+            });
+
+            window.addEventListener('pageshow', window.syncBodyModalLock);
+            window.addEventListener('resize', window.syncBodyModalLock);
+            document.addEventListener('visibilitychange', function () {
+                if (!document.hidden) {
+                    window.syncBodyModalLock();
+                }
+            });
+
+            window.syncBodyModalLock();
+        })();
+    </script>
 </body>
 </html>
+
+
