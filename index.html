@@ -3433,15 +3433,30 @@
         }
 
         #leaderboard-panel {
+            display: flex;
+            flex-direction: column;
             max-width: 100vw !important;
             overflow-x: hidden !important;
-            overflow-y: auto !important;
+            overflow-y: hidden !important;
             overscroll-behavior: contain;
             -webkit-overflow-scrolling: touch;
         }
 
         #leaderboard-panel .leaderboard-list {
-            overflow: visible !important;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: 100%;
+            overflow-y: auto !important;
+            overflow-x: hidden !important;
+            overscroll-behavior: contain;
+            -webkit-overflow-scrolling: touch;
+            touch-action: pan-y;
+            padding-right: 2px;
+        }
+
+        #leaderboard-panel .leaderboard-header,
+        #leaderboard-panel .leaderboard-tabs {
+            flex-shrink: 0;
             min-height: 0;
         }
 
@@ -3456,7 +3471,8 @@
             }
 
             #leaderboard-panel {
-                max-height: 80vh !important;
+                height: min(80vh, calc(100dvh - 16px)) !important;
+                max-height: min(80vh, calc(100dvh - 16px)) !important;
             }
         }
     </style>
@@ -10656,6 +10672,50 @@
                 return !!(panel && panel.classList.contains('open'));
             }
 
+            function configureScrollableOverlays() {
+                var mobileViewport = window.innerWidth <= 1024;
+                var leaderboardPanel = document.getElementById('leaderboard-panel');
+                var leaderboardList = document.getElementById('leaderboard-list');
+
+                if (leaderboardPanel) {
+                    leaderboardPanel.style.display = 'flex';
+                    leaderboardPanel.style.flexDirection = 'column';
+                    leaderboardPanel.style.overflowX = 'hidden';
+                    leaderboardPanel.style.overflowY = 'hidden';
+                    leaderboardPanel.style.webkitOverflowScrolling = 'touch';
+                    leaderboardPanel.style.touchAction = 'none';
+                    leaderboardPanel.style.height = mobileViewport ? 'min(80vh, calc(100dvh - 16px))' : '100dvh';
+                    leaderboardPanel.style.maxHeight = mobileViewport ? 'min(80vh, calc(100dvh - 16px))' : '100dvh';
+                }
+
+                if (leaderboardList) {
+                    leaderboardList.style.flex = '1 1 auto';
+                    leaderboardList.style.minHeight = '0';
+                    leaderboardList.style.maxHeight = '100%';
+                    leaderboardList.style.overflowY = 'auto';
+                    leaderboardList.style.overflowX = 'hidden';
+                    leaderboardList.style.webkitOverflowScrolling = 'touch';
+                    leaderboardList.style.overscrollBehavior = 'contain';
+                    leaderboardList.style.touchAction = 'pan-y';
+                }
+
+                Array.from(document.querySelectorAll('.modal-overlay')).forEach(function (modal) {
+                    modal.style.overflowY = 'auto';
+                    modal.style.overflowX = 'hidden';
+                    modal.style.maxHeight = '100dvh';
+                    modal.style.webkitOverflowScrolling = 'touch';
+                    modal.style.touchAction = 'pan-y';
+                });
+
+                Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content')).forEach(function (panel) {
+                    panel.style.overflowY = 'auto';
+                    panel.style.overflowX = 'hidden';
+                    panel.style.maxHeight = mobileViewport ? '80vh' : panel.style.maxHeight;
+                    panel.style.webkitOverflowScrolling = 'touch';
+                    panel.style.touchAction = 'pan-y';
+                });
+            }
+
             window.syncBodyModalLock = function () {
                 var body = document.body;
                 var root = document.documentElement;
@@ -10673,6 +10733,8 @@
                     root.classList.add('modal-lock');
                     body.style.overflow = 'hidden';
                     root.style.overflow = 'hidden';
+                    body.style.touchAction = 'none';
+                    root.style.touchAction = 'none';
                     return;
                 }
 
@@ -10685,6 +10747,8 @@
                     body.style.top = '';
                     body.style.overflow = 'auto';
                     root.style.overflow = 'auto';
+                    body.style.touchAction = '';
+                    root.style.touchAction = '';
                     window.scrollTo(0, previousScrollTop);
                     return;
                 }
@@ -10694,41 +10758,35 @@
                 body.style.top = '';
                 body.style.overflow = 'auto';
                 root.style.overflow = 'auto';
+                body.style.touchAction = '';
+                root.style.touchAction = '';
             };
 
             var originalToggleLeaderboard = window.toggleLeaderboard;
             if (typeof originalToggleLeaderboard === 'function') {
                 window.toggleLeaderboard = function () {
                     var result = originalToggleLeaderboard.apply(this, arguments);
-                    window.syncBodyModalLock();
+                    configureScrollableOverlays();
+                    window.requestAnimationFrame(window.syncBodyModalLock);
                     return result;
                 };
             }
 
-            var leaderboardPanel = document.getElementById('leaderboard-panel');
-            if (leaderboardPanel) {
-                leaderboardPanel.style.overflowY = 'auto';
-                leaderboardPanel.style.maxHeight = window.innerWidth <= 1024 ? '80vh' : '100vh';
-                leaderboardPanel.style.webkitOverflowScrolling = 'touch';
-            }
-
-            Array.from(document.querySelectorAll('.modal-overlay')).forEach(function (modal) {
-                modal.style.overflowY = 'auto';
-                modal.style.maxHeight = '100dvh';
-                modal.style.webkitOverflowScrolling = 'touch';
-            });
-
-            Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content')).forEach(function (panel) {
-                panel.style.overflowY = 'auto';
-                panel.style.overflowX = 'hidden';
-                panel.style.maxHeight = window.innerWidth <= 1024 ? '80vh' : panel.style.maxHeight;
-                panel.style.webkitOverflowScrolling = 'touch';
-            });
-
+            configureScrollableOverlays();
             window.addEventListener('pageshow', window.syncBodyModalLock);
-            window.addEventListener('resize', window.syncBodyModalLock);
+            window.addEventListener('resize', function () {
+                configureScrollableOverlays();
+                window.syncBodyModalLock();
+            });
             document.addEventListener('visibilitychange', function () {
                 if (!document.hidden) {
+                    configureScrollableOverlays();
+                    window.syncBodyModalLock();
+                }
+            });
+
+            document.addEventListener('click', function (event) {
+                if (event.target && event.target.id === 'leaderboard-panel') {
                     window.syncBodyModalLock();
                 }
             });
