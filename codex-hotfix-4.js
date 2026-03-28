@@ -217,6 +217,132 @@
         }
     }
 
+    function parseSupportInteger(value, fallback = 0) {
+        const parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function getTodayTimerResetMeta() {
+        const now = new Date();
+        return {
+            now,
+            dateKey: now.toLocaleDateString("sv-SE"),
+            weekKey: typeof getWeekKey === "function" ? getWeekKey(now) : "",
+            dayIdx: (now.getDay() + 6) % 7
+        };
+    }
+
+    function cloneScheduleWithTodayReset(schedule, weekKey, dayIdx) {
+        const nextSchedule = JSON.parse(JSON.stringify(schedule || {}));
+        if (!nextSchedule[weekKey]) nextSchedule[weekKey] = {};
+
+        const dayKey = String(dayIdx);
+        const currentDay = nextSchedule[weekKey][dayKey] || nextSchedule[weekKey][dayIdx] || {};
+        nextSchedule[weekKey][dayKey] = {
+            ...currentDay,
+            workedSeconds: 0
+        };
+
+        return nextSchedule;
+    }
+
+    function getWorkedSecondsTotal(schedule) {
+        if (typeof calculateTotalWorkedSecondsFromSchedule === "function") {
+            return calculateTotalWorkedSecondsFromSchedule(schedule || {});
+        }
+
+        let total = 0;
+        Object.values(schedule || {}).forEach(week => {
+            Object.values(week || {}).forEach(day => {
+                total += parseSupportInteger(day?.workedSeconds, 0);
+            });
+        });
+        return total;
+    }
+
+    function createAdminTimerResetMarker(resetMeta) {
+        const requestedAt = resetMeta?.now instanceof Date ? resetMeta.now : new Date();
+        const requestedAtMs = requestedAt.getTime();
+        return {
+            token: `admin_reset_${requestedAtMs}_${Math.random().toString(36).slice(2, 8)}`,
+            dateKey: resetMeta?.dateKey || requestedAt.toLocaleDateString("sv-SE"),
+            requestedAt: requestedAt.toISOString(),
+            requestedAtMs,
+            requestedBy: currentUsername || ADMIN_USERNAME,
+            requestedByEmail: currentUser?.email || ADMIN_EMAIL
+        };
+    }
+
+    function buildTodayTimerResetPatch(userData, resetMeta, resetMarker) {
+        const nextSchedule = cloneScheduleWithTodayReset(userData?.schedule || {}, resetMeta.weekKey, resetMeta.dayIdx);
+        const totalWorkedSeconds = getWorkedSecondsTotal(nextSchedule);
+
+        return {
+            schedule: nextSchedule,
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            dailyStudyTime: 0,
+            currentSessionTime: 0,
+            activeTimer: null,
+            isWorking: false,
+            lastTimerSyncAt: resetMarker.requestedAtMs,
+            adminTimerReset: resetMarker
+        };
+    }
+
+    async function commitTimerResetPatches(patches) {
+        if (!patches.length) return;
+
+        const chunkSize = 400;
+        for (let index = 0; index < patches.length; index += chunkSize) {
+            const batch = db.batch();
+            patches.slice(index, index + chunkSize).forEach(item => {
+                batch.set(item.ref, item.patch, { merge: true });
+            });
+            await batch.commit();
+        }
+    }
+
+    function ensureAdminTimerResetControls() {
+        const adminSummary = document.getElementById('support-admin-summary');
+        if (!adminSummary) return { panel: null, button: null, status: null };
+
+        let panel = document.getElementById('support-admin-reset-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'support-admin-reset-panel';
+            panel.style.cssText = 'display:flex; flex-direction:column; gap:10px; margin-top:14px;';
+            panel.innerHTML = `
+                <button id="support-admin-reset-today-btn" type="button" style="display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:12px 16px; border:none; border-radius:14px; background:linear-gradient(135deg, var(--countdown-fill), var(--accent-color)); color:var(--header-text); font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,0.18); cursor:pointer;">
+                    <i class="fas fa-stopwatch"></i>
+                    <span>Bugunku Sureleri Sifirla</span>
+                </button>
+                <div id="support-admin-reset-status" style="font-size:0.92rem; line-height:1.5; opacity:0.82;">
+                    Bu islem, diger kullanicilarin sadece bugune ait calisma suresini sifirlar ve acik timerlarini kapatir.
+                </div>
+            `;
+            adminSummary.appendChild(panel);
+        }
+
+        const button = document.getElementById('support-admin-reset-today-btn');
+        const status = document.getElementById('support-admin-reset-status');
+
+        if (button && !button.dataset.bound) {
+            button.dataset.bound = '1';
+            button.addEventListener('click', resetAllUsersTimersForToday);
+        }
+
+        return { panel, button, status };
+    }
+
+    function setAdminTimerResetStatus(message, isError = false) {
+        const controls = ensureAdminTimerResetControls();
+        if (!controls.status) return;
+        controls.status.textContent = message;
+        controls.status.style.color = isError ? '#fecaca' : '';
+        controls.status.style.opacity = isError ? '1' : '0.82';
+    }
+
     async function upsertSupportMessageInUserDoc(message) {
         const ownerDocId = message.ownerDocId || message.senderId || currentUser?.uid || "";
         if (!ownerDocId) throw new Error("owner-doc-missing");
@@ -358,6 +484,11 @@
                 : 'Mesajlar sadece sen ve admin tarafinda gorunur';
         }
 
+        const adminResetControls = ensureAdminTimerResetControls();
+        if (adminResetControls.panel) {
+            adminResetControls.panel.style.display = isAdmin ? 'flex' : 'none';
+        }
+
         updateSupportButton();
     };
 
@@ -476,6 +607,72 @@
         }).join('');
 
         updateSupportButton();
+    };
+
+    resetAllUsersTimersForToday = async function() {
+        if (!currentUser || !isCurrentAdmin()) {
+            showAlert("Bu islem sadece admin hesabi icin aciktir.");
+            return;
+        }
+
+        const controls = ensureAdminTimerResetControls();
+        const resetButton = controls.button;
+        const originalButtonHtml = resetButton ? resetButton.innerHTML : "";
+        const resetMeta = getTodayTimerResetMeta();
+
+        if (!confirm("Diger tum kullanicilarin bugune ait calisma suresi sifirlansin mi? Acik pomodoro ve kronometreler de durdurulacak.")) {
+            return;
+        }
+
+        if (resetButton) {
+            resetButton.disabled = true;
+            resetButton.style.opacity = '0.72';
+            resetButton.style.cursor = 'wait';
+            resetButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Sureler sifirlaniyor...</span>';
+        }
+        setAdminTimerResetStatus("Kullanicilar guncelleniyor. Bu islem acik timerlari da kapatir.");
+
+        try {
+            const usersSnapshot = await db.collection('users').get();
+            const resetMarker = createAdminTimerResetMarker(resetMeta);
+            const patches = [];
+
+            usersSnapshot.docs.forEach(doc => {
+                const userData = doc.data() || {};
+                const adminDoc = !!userData.isAdmin || isAdminIdentity(userData.username || "", userData.email || "");
+                if (doc.id === currentUser.uid || adminDoc) return;
+
+                patches.push({
+                    ref: doc.ref,
+                    patch: buildTodayTimerResetPatch(userData, resetMeta, resetMarker)
+                });
+            });
+
+            await commitTimerResetPatches(patches);
+
+            setAdminTimerResetStatus(
+                patches.length
+                    ? `${patches.length} kullanicinin bugunku suresi sifirlandi.`
+                    : "Sifirlanacak baska kullanici bulunamadi."
+            );
+            showAlert(
+                patches.length
+                    ? `${patches.length} kullanicinin bugunku calisma suresi sifirlandi.`
+                    : "Sifirlanacak baska kullanici bulunamadi.",
+                "success"
+            );
+        } catch (error) {
+            console.error("Admin bugunluk timer sifirlama basarisiz:", error);
+            setAdminTimerResetStatus("Sifirlama sirasinda bir hata olustu. Lutfen tekrar dene.", true);
+            showAlert("Bugunku sureler sifirlanamadi.");
+        } finally {
+            if (resetButton) {
+                resetButton.disabled = false;
+                resetButton.style.opacity = '1';
+                resetButton.style.cursor = 'pointer';
+                resetButton.innerHTML = originalButtonHtml;
+            }
+        }
     };
 
     submitSupportMessage = async function() {

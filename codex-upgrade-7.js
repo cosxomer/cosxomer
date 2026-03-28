@@ -4,10 +4,12 @@
     const VERIFY_COOLDOWN_MS = 30000;
     const TIMER_SYNC_MS = 12000;
     const TIMER_OWNER_TTL_MS = 15000;
+    const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
     const TIMER_OWNER_AT_KEY = "codexTimerOwnerAtV1";
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
+    const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
     const VERIFY_EMAIL_KEY = "codexVerifyEmailV1";
     const VERIFY_COOLDOWN_KEY = "codexVerifyCooldownUntilV1";
     const NOTE_FOLDER_ALL_ID = "__all__";
@@ -21,6 +23,7 @@
     let activeQuestionDayIdx = null;
     let verifyCooldownInterval = null;
     let leaderboardRealtimeUnsubscribe = null;
+    let currentUserResetUnsubscribe = null;
     let leaderboardRealtimeDocs = [];
     let leaderboardLiveInterval = null;
     let timerSyncInterval = null;
@@ -33,7 +36,8 @@
     const timerState = {
         mode: localStorage.getItem(TIMER_MODE_KEY) || "pomodoro",
         session: null,
-        syncing: false
+        syncing: false,
+        lastModalSeenAt: Date.now()
     };
 
     const timerDrafts = {
@@ -87,6 +91,82 @@
             weekKey: typeof getWeekKey === "function" ? getWeekKey(date) : "",
             dayIdx: (date.getDay() + 6) % 7
         };
+    }
+
+    function normalizeAdminTimerReset(reset = null) {
+        if (!reset || typeof reset !== "object") return null;
+
+        const token = String(reset.token || reset.requestedAt || "").trim();
+        const dateKey = String(reset.dateKey || "").trim();
+        const requestedAtMs = Math.max(
+            parseInteger(reset.requestedAtMs, 0),
+            parseInteger(reset.timestamp, 0),
+            reset.requestedAt ? new Date(reset.requestedAt).getTime() : 0
+        );
+
+        if (!token || !dateKey || !requestedAtMs) return null;
+
+        return {
+            token,
+            dateKey,
+            requestedAtMs,
+            requestedBy: String(reset.requestedBy || "").trim(),
+            requestedByEmail: String(reset.requestedByEmail || "").trim()
+        };
+    }
+
+    function getAdminTimerResetSignature(reset = null) {
+        const normalizedReset = normalizeAdminTimerReset(reset);
+        return normalizedReset ? `${normalizedReset.dateKey}:${normalizedReset.token}` : "";
+    }
+
+    function readHandledAdminTimerResetSignature() {
+        try {
+            return localStorage.getItem(ADMIN_TIMER_RESET_KEY) || "";
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function writeHandledAdminTimerResetSignature(reset = null) {
+        const signature = getAdminTimerResetSignature(reset);
+        if (!signature) return;
+        try {
+            localStorage.setItem(ADMIN_TIMER_RESET_KEY, signature);
+        } catch (error) {
+            console.error("Admin timer reset imzasi kaydedilemedi:", error);
+        }
+    }
+
+    function shouldHonorAdminTimerReset(reset = null) {
+        const normalizedReset = normalizeAdminTimerReset(reset);
+        if (!normalizedReset) return false;
+        if (typeof isCurrentAdmin === "function" && isCurrentAdmin()) return false;
+        return normalizedReset.dateKey === getCurrentDayMeta(new Date()).dateKey;
+    }
+
+    function shouldForceClearTimerFromAdminReset(reset = null, session = null) {
+        const normalizedReset = normalizeAdminTimerReset(reset);
+        if (!shouldHonorAdminTimerReset(normalizedReset) || !session) return false;
+
+        const sessionUpdatedAt = Math.max(
+            parseInteger(session.updatedAtMs, 0),
+            parseInteger(session.startedAtMs, 0)
+        );
+
+        return !sessionUpdatedAt || sessionUpdatedAt <= normalizedReset.requestedAtMs;
+    }
+
+    function shouldApplyAdminResetSnapshot(reset = null, userData = {}) {
+        const normalizedReset = normalizeAdminTimerReset(reset);
+        if (!shouldHonorAdminTimerReset(normalizedReset)) return false;
+
+        const lastSyncAt = Math.max(
+            parseInteger(userData.lastTimerSyncAt, 0),
+            parseInteger(userData.activeTimer?.updatedAtMs, 0)
+        );
+
+        return !lastSyncAt || lastSyncAt <= (normalizedReset.requestedAtMs + 1000);
     }
 
     function getTrackedSubjectIds(dayData = null) {
@@ -563,12 +643,16 @@
         if (!session) return 0;
         const baseElapsed = Math.max(0, parseInteger(session.baseElapsedSeconds, 0));
         const targetDuration = Math.max(0, parseInteger(session.targetDurationSeconds, 0));
+        const updatedAtMs = Math.max(0, parseInteger(session.updatedAtMs, 0));
+        const effectiveNow = updatedAtMs > 0
+            ? Math.min(now, updatedAtMs + TIMER_AUTO_STOP_MS)
+            : now;
         if (!session.isRunning || !session.startedAtMs) {
             return session.mode === "pomodoro" && targetDuration > 0
                 ? Math.min(baseElapsed, targetDuration)
                 : baseElapsed;
         }
-        const runtime = Math.max(0, Math.floor((now - parseInteger(session.startedAtMs, now)) / 1000));
+        const runtime = Math.max(0, Math.floor((effectiveNow - parseInteger(session.startedAtMs, effectiveNow)) / 1000));
         const elapsed = baseElapsed + runtime;
         return session.mode === "pomodoro" && targetDuration > 0
             ? Math.min(elapsed, targetDuration)
@@ -577,17 +661,13 @@
 
     function isTimerRecordRunning(timerRecord, now = Date.now()) {
         if (!timerRecord || !timerRecord.isRunning) return false;
+        const updatedAtMs = Math.max(0, parseInteger(timerRecord.updatedAtMs, 0));
+        if (updatedAtMs > 0 && (now - updatedAtMs) > TIMER_AUTO_STOP_MS) return false;
         if ((timerRecord.mode || "pomodoro") !== "pomodoro") return true;
 
         const targetDuration = Math.max(0, parseInteger(timerRecord.targetDurationSeconds, 0));
         if (targetDuration <= 0) return true;
-
-        const baseElapsed = Math.max(0, parseInteger(timerRecord.baseElapsedSeconds, 0));
-        const runtime = timerRecord.startedAtMs
-            ? Math.max(0, Math.floor((now - parseInteger(timerRecord.startedAtMs, now)) / 1000))
-            : 0;
-
-        return (baseElapsed + runtime) < targetDuration;
+        return getTimerElapsedSeconds(timerRecord, now) < targetDuration;
     }
 
     function getTimerDisplaySeconds(session = timerState.session) {
@@ -751,7 +831,7 @@
             timerDrafts[timerState.session.mode] = frozenSession;
 
             if (timerState.session.isRunning) {
-                applyStudyDelta(getPendingTimerDelta(timerState.session));
+                applyPendingTimerDelta(timerState.session);
                 syncRealtimeTimer("mode-switch", {
                     activeSession: null,
                     currentSessionTime: 0,
@@ -815,6 +895,14 @@
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
+            const pomodoroModal = document.getElementById("pomodoro-modal");
+            const modalIsVisible = pomodoroModal && pomodoroModal.style.display === "flex";
+
+            if (!modalIsVisible && (Date.now() - parseInteger(timerState.lastModalSeenAt, 0)) >= TIMER_AUTO_STOP_MS) {
+                pauseRealtimeTimer();
+                return;
+            }
+
             renderTimerUi();
 
             if (timerState.mode === "pomodoro" && getTimerDisplaySeconds() <= 0) {
@@ -836,6 +924,105 @@
     function getPendingTimerDelta(session = timerState.session) {
         if (!session) return 0;
         return Math.max(0, getTimerElapsedSeconds(session) - parseInteger(session.lastPersistedElapsedSeconds, 0));
+    }
+
+    function getPendingTimerInterval(session = timerState.session, now = Date.now()) {
+        if (!session?.isRunning) return null;
+
+        const pendingSeconds = getPendingTimerDelta(session);
+        if (pendingSeconds <= 0) return null;
+
+        const normalizedNow = Math.floor(parseInteger(now, Date.now()) / 1000) * 1000;
+        const endMs = Math.max(0, normalizedNow);
+        const startMs = Math.max(0, endMs - (pendingSeconds * 1000));
+
+        return { startMs, endMs, pendingSeconds };
+    }
+
+    function getWindowOverlapSeconds(interval, windowStartMs, windowEndMs) {
+        if (!interval || windowEndMs <= windowStartMs) return 0;
+
+        const overlapStart = Math.max(interval.startMs, windowStartMs);
+        const overlapEnd = Math.min(interval.endMs, windowEndMs);
+        if (overlapEnd <= overlapStart) return 0;
+
+        return Math.max(0, Math.floor((overlapEnd - overlapStart) / 1000));
+    }
+
+    function applyPendingTimerDelta(session = timerState.session, now = Date.now()) {
+        const interval = getPendingTimerInterval(session, now);
+        if (!interval) return 0;
+
+        let cursorMs = interval.startMs;
+        let remainingSeconds = interval.pendingSeconds;
+
+        while (remainingSeconds > 0) {
+            const cursorDate = new Date(cursorMs);
+            const nextDay = new Date(cursorDate);
+            nextDay.setHours(24, 0, 0, 0);
+
+            const segmentEndMs = Math.min(interval.endMs, nextDay.getTime());
+            let segmentSeconds = Math.floor((segmentEndMs - cursorMs) / 1000);
+            if (segmentSeconds <= 0 || segmentSeconds > remainingSeconds) {
+                segmentSeconds = remainingSeconds;
+            }
+
+            applyStudyDelta(segmentSeconds, cursorDate);
+            remainingSeconds -= segmentSeconds;
+            cursorMs += segmentSeconds * 1000;
+        }
+
+        return interval.pendingSeconds;
+    }
+
+    function clampWorkedSecondsForDisplay(rawSeconds, dayDate, now = Date.now()) {
+        const safeSeconds = Math.max(0, parseInteger(rawSeconds, 0));
+        const dayStart = new Date(dayDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const nextDay = new Date(dayStart);
+        nextDay.setDate(nextDay.getDate() + 1);
+
+        const maxSeconds = now < nextDay.getTime()
+            ? Math.max(0, Math.floor((now - dayStart.getTime()) / 1000))
+            : 86400;
+
+        return Math.min(safeSeconds, maxSeconds);
+    }
+
+    function getRollingSevenDayWindow(nowDate = new Date()) {
+        const endDate = new Date(nowDate);
+        const todayStart = new Date(nowDate);
+        todayStart.setHours(0, 0, 0, 0);
+        const startDate = new Date(todayStart);
+        startDate.setDate(startDate.getDate() - 6);
+
+        return {
+            startDate,
+            endDate,
+            startMs: startDate.getTime(),
+            endMs: endDate.getTime()
+        };
+    }
+
+    function getRollingSevenDayTotalsFromSchedule(schedule, nowDate = new Date()) {
+        const sourceSchedule = schedule || {};
+        const nowMs = nowDate.getTime();
+        const { startDate } = getRollingSevenDayWindow(nowDate);
+        let seconds = 0;
+        let questions = 0;
+
+        for (let offset = 0; offset < 7; offset += 1) {
+            const dayDate = new Date(startDate);
+            dayDate.setDate(dayDate.getDate() + offset);
+            const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
+            const dayData = sourceSchedule?.[weekKey]?.[dayIdx];
+            if (!dayData) continue;
+
+            seconds += clampWorkedSecondsForDisplay(dayData.workedSeconds, dayDate, nowMs);
+            questions += parseInteger(dayData.questions, 0);
+        }
+
+        return { seconds, questions };
     }
 
     function applyStudyDelta(deltaSeconds, date = new Date()) {
@@ -921,9 +1108,8 @@
 
         try {
             if (timerState.session) {
-                const delta = getPendingTimerDelta(timerState.session);
+                const delta = applyPendingTimerDelta(timerState.session);
                 if (delta > 0) {
-                    applyStudyDelta(delta);
                     timerState.session.lastPersistedElapsedSeconds = getTimerElapsedSeconds(timerState.session);
                 }
             }
@@ -983,6 +1169,63 @@
 
         updateTimerSessionPill();
         refreshLeaderboardOptimistically();
+    }
+
+    function getTodayQuestionState() {
+        const today = new Date();
+        const todayDayIdx = (today.getDay() + 6) % 7;
+        const todayWeekStart = new Date(today);
+        todayWeekStart.setHours(0, 0, 0, 0);
+        todayWeekStart.setDate(todayWeekStart.getDate() - todayDayIdx);
+
+        const todayWeekKey = typeof getWeekKey === "function" ? getWeekKey(todayWeekStart) : "";
+        const todayDay = ensureDayObject(scheduleData?.[todayWeekKey]?.[todayDayIdx] || {});
+
+        return { todayWeekKey, todayDayIdx, todayDay };
+    }
+
+    function refreshQuestionSummaryCounters() {
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+
+        const todayNode = document.getElementById("today-question-count");
+        const weekNode = document.getElementById("week-question-count");
+        const { todayDay } = getTodayQuestionState();
+
+        if (todayNode) {
+            todayNode.textContent = `🎯 Günlük Soru: ${parseInteger(todayDay?.questions, 0)}`;
+        }
+
+        if (weekNode) {
+            const currentWeekKey = typeof getWeekKey === "function" ? getWeekKey(currentWeekStart) : "";
+            const currentWeek = scheduleData?.[currentWeekKey] || {};
+            let totalWeeklyQuestions = 0;
+
+            for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
+                totalWeeklyQuestions += parseInteger(currentWeek?.[dayIdx]?.questions, 0);
+            }
+
+            weekNode.textContent = `🎯 Haftalık Soru: ${totalWeeklyQuestions}`;
+        }
+    }
+
+    function syncQuestionCountersAfterInput(dayIdx, questionsValue) {
+        const normalizedValue = parseInteger(questionsValue, 0);
+        const today = new Date();
+        const todayDayIdx = (today.getDay() + 6) % 7;
+        const displayedWeekKey = typeof getWeekKey === "function" ? getWeekKey(currentWeekStart) : "";
+        const todayWeekStart = new Date(today);
+        todayWeekStart.setHours(0, 0, 0, 0);
+        todayWeekStart.setDate(todayWeekStart.getDate() - todayDayIdx);
+        const todayWeekKey = typeof getWeekKey === "function" ? getWeekKey(todayWeekStart) : "";
+
+        if (displayedWeekKey === todayWeekKey && dayIdx === todayDayIdx) {
+            const todayNode = document.getElementById("today-question-count");
+            if (todayNode) {
+                todayNode.textContent = `🎯 Günlük Soru: ${normalizedValue}`;
+            }
+        }
+
+        refreshQuestionSummaryCounters();
     }
 
     function startOrResumeRealtimeTimer() {
@@ -1074,9 +1317,9 @@
 
     async function resetRealtimeTimer(resetInputs = true, silent = false) {
         if (timerState.session) {
-            const delta = getPendingTimerDelta(timerState.session);
+            const delta = applyPendingTimerDelta(timerState.session);
             if (delta > 0) {
-                applyStudyDelta(delta);
+                timerState.session.lastPersistedElapsedSeconds = getTimerElapsedSeconds(timerState.session);
             }
         }
 
@@ -1115,7 +1358,14 @@
     }
 
     function restoreTimerFromPersistence(userData = {}) {
-        const stored = readStoredTimerSession();
+        const adminTimerReset = normalizeAdminTimerReset(userData.adminTimerReset);
+        let stored = readStoredTimerSession();
+        if (shouldForceClearTimerFromAdminReset(adminTimerReset, stored)) {
+            localStorage.removeItem(TIMER_STORAGE_KEY);
+            stored = null;
+            writeHandledAdminTimerResetSignature(adminTimerReset);
+        }
+
         const dbSession = userData.activeTimer && userData.activeTimer.uid !== currentUser?.uid
             ? null
             : userData.activeTimer;
@@ -1135,7 +1385,8 @@
             baseElapsedSeconds: Math.max(0, parseInteger(source.baseElapsedSeconds, 0)),
             lastPersistedElapsedSeconds: Math.max(0, parseInteger(source.lastPersistedElapsedSeconds, 0)),
             targetDurationSeconds: Math.max(0, parseInteger(source.targetDurationSeconds, 0)),
-            startedAtMs: parseInteger(source.startedAtMs, 0)
+            startedAtMs: parseInteger(source.startedAtMs, 0),
+            updatedAtMs: parseInteger(source.updatedAtMs, 0)
         };
 
         setTimerMode(timerState.mode, { persist: false, keepSession: true });
@@ -1145,6 +1396,14 @@
         }
 
         timerDrafts[timerState.mode] = { ...timerState.session };
+
+        if (timerState.session.isRunning && !isTimerRecordRunning(timerState.session)) {
+            const cappedElapsed = getTimerElapsedSeconds(timerState.session, Date.now());
+            timerState.session.baseElapsedSeconds = cappedElapsed;
+            timerState.session.lastPersistedElapsedSeconds = cappedElapsed;
+            timerState.session.isRunning = false;
+            timerState.session.startedAtMs = 0;
+        }
 
         const shouldResume = timerState.session.isRunning && claimTimerOwnership();
         if (shouldResume) {
@@ -1157,24 +1416,98 @@
         renderTimerUi();
     }
 
+    function applyAdminTimerResetFromUserData(userData = {}, options = {}) {
+        const adminTimerReset = normalizeAdminTimerReset(userData.adminTimerReset);
+        if (!shouldHonorAdminTimerReset(adminTimerReset)) return false;
+
+        const handledSignature = readHandledAdminTimerResetSignature();
+        const currentSignature = getAdminTimerResetSignature(adminTimerReset);
+        const liveSessionNeedsClear = shouldForceClearTimerFromAdminReset(adminTimerReset, timerState.session);
+        const storedSessionNeedsClear = shouldForceClearTimerFromAdminReset(adminTimerReset, readStoredTimerSession());
+        const shouldRefreshFromSnapshot = shouldApplyAdminResetSnapshot(adminTimerReset, userData);
+        const shouldApply = liveSessionNeedsClear
+            || storedSessionNeedsClear
+            || (handledSignature !== currentSignature && shouldRefreshFromSnapshot);
+
+        if (!shouldApply) {
+            if (handledSignature !== currentSignature && !liveSessionNeedsClear && !storedSessionNeedsClear) {
+                writeHandledAdminTimerResetSignature(adminTimerReset);
+            }
+            return false;
+        }
+
+        writeHandledAdminTimerResetSignature(adminTimerReset);
+        stopTimerLoops();
+        isRunning = false;
+        persistTimerSessionLocally(null);
+        releaseTimerOwnership();
+
+        scheduleData = sanitizeScheduleData(userData.schedule || scheduleData || {});
+        totalWorkedSecondsAllTime = Math.max(
+            parseInteger(userData.totalWorkedSeconds, 0),
+            parseInteger(userData.totalStudyTime, 0),
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(scheduleData)
+                : 0
+        );
+        totalQuestionsAllTime = Math.max(
+            parseInteger(userData.totalQuestionsAllTime, 0),
+            typeof calculateTotalQuestionsFromSchedule === "function"
+                ? calculateTotalQuestionsFromSchedule(scheduleData)
+                : 0
+        );
+
+        timerState.session = createEmptyTimerSession(timerState.mode);
+        if (timerState.mode === "pomodoro") {
+            timerState.session.targetDurationSeconds = getPomodoroInputSeconds() || 1500;
+        }
+        timerDrafts[timerState.mode] = { ...timerState.session };
+
+        renderTimerUi();
+        if (typeof renderSchedule === "function") {
+            renderSchedule();
+        }
+        updateLiveStudyPreview();
+        refreshLeaderboardOptimistically(null);
+
+        if (!options.silent) {
+            safeShowAlert("Admin bugunku calisma suresini sifirladi.", "success");
+        }
+
+        return true;
+    }
+
     function getLiveLeaderboardSeconds(userData) {
         const currentDate = new Date();
         const { weekKey, dayIdx } = getCurrentDayMeta(currentDate);
         let totalSeconds = 0;
+        let dayStartMs = 0;
+        const now = Date.now();
 
         if (currentLeaderboardTab === "daily") {
-            totalSeconds = parseInteger(userData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, 0);
-        } else if (userData?.schedule?.[weekKey]) {
-            for (let i = 0; i < 7; i += 1) {
-                totalSeconds += parseInteger(userData.schedule[weekKey]?.[i]?.workedSeconds, 0);
-            }
+            const dayStart = new Date(currentDate);
+            dayStart.setHours(0, 0, 0, 0);
+            dayStartMs = dayStart.getTime();
+            totalSeconds = clampWorkedSecondsForDisplay(userData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
+        } else {
+            totalSeconds = getRollingSevenDayTotalsFromSchedule(userData?.schedule || {}, currentDate).seconds;
         }
 
         const activeTimer = userData?.activeTimer;
         if (activeTimer?.isRunning) {
-            const liveElapsed = getTimerElapsedSeconds(activeTimer, Date.now());
-            const liveDelta = Math.max(0, liveElapsed - parseInteger(activeTimer.lastPersistedElapsedSeconds, 0));
-            totalSeconds += liveDelta;
+            const pendingInterval = getPendingTimerInterval(activeTimer, now);
+
+            if (currentLeaderboardTab === "daily") {
+                totalSeconds += getWindowOverlapSeconds(pendingInterval, dayStartMs, dayStartMs + 86400000);
+            } else {
+                const rollingWindow = getRollingSevenDayWindow(currentDate);
+                totalSeconds += getWindowOverlapSeconds(pendingInterval, rollingWindow.startMs, rollingWindow.endMs);
+            }
+        }
+
+        if (currentLeaderboardTab === "daily" && dayStartMs > 0) {
+            const maxTodaySeconds = Math.max(0, Math.floor((now - dayStartMs) / 1000));
+            totalSeconds = Math.min(totalSeconds, maxTodaySeconds);
         }
 
         return totalSeconds;
@@ -1187,10 +1520,8 @@
 
         if (currentLeaderboardTab === "daily") {
             totalQuestions = parseInteger(userData?.schedule?.[weekKey]?.[dayIdx]?.questions, 0);
-        } else if (userData?.schedule?.[weekKey]) {
-            for (let i = 0; i < 7; i += 1) {
-                totalQuestions += parseInteger(userData.schedule[weekKey]?.[i]?.questions, 0);
-            }
+        } else {
+            totalQuestions = getRollingSevenDayTotalsFromSchedule(userData?.schedule || {}, currentDate).questions;
         }
 
         return totalQuestions;
@@ -1807,22 +2138,14 @@
 
         const optionSet = new Set(taskOptions);
         const nextMap = {};
-        let legacyTotal = 0;
 
         Object.entries(rawMap).forEach(([key, amount]) => {
             const normalizedAmount = clampNumber(amount, 0, QUESTION_LIMIT);
             if (normalizedAmount <= 0) return;
             if (optionSet.has(key)) {
                 nextMap[key] = normalizedAmount;
-            } else {
-                legacyTotal += normalizedAmount;
             }
         });
-
-        if (legacyTotal > 0) {
-            const primaryKey = taskOptions[0];
-            nextMap[primaryKey] = clampNumber((nextMap[primaryKey] || 0) + legacyTotal, 0, QUESTION_LIMIT);
-        }
 
         return normalizeSubjectQuestionMap(nextMap);
     }
@@ -2459,16 +2782,16 @@
             }
 
             const weekKey = getWeekKey(currentWeekStart);
-            const dayData = ensureWeekDay(weekKey, dayIdx);
-            const subjectId = select?.value || getDayQuestionSubjectOptions(dayData)[0] || "";
-            if (!subjectId) {
+            const dayData = syncDayQuestionState(ensureWeekDay(weekKey, dayIdx));
+            const taskLabel = getSafeSelectedTask(dayData, select?.value || "");
+            if (!taskLabel) {
                 setQuestionValidation(dayIdx, "Önce görev eklemelisiniz");
                 safeShowAlert("Önce görev ekleyin, sonra soru girin.");
                 return;
             }
 
             const otherQuestionsTotal = Object.entries(dayData.subjectQuestions || {})
-                .filter(([id]) => id !== subjectId)
+                .filter(([key]) => key !== taskLabel)
                 .reduce((sum, [, amount]) => sum + parseInteger(amount, 0), 0);
 
             if ((otherQuestionsTotal + value) > QUESTION_LIMIT) {
@@ -2477,32 +2800,36 @@
                 return;
             }
 
-            dayData.subjectQuestions = normalizeSubjectQuestionMap(dayData.subjectQuestions || {});
-            dayData.subjectQuestions[subjectId] = value;
-            dayData.questions = Object.values(dayData.subjectQuestions).reduce((sum, amount) => sum + amount, 0);
+            dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
+            dayData.subjectQuestions[taskLabel] = value;
+            dayData.questions = Object.values(dayData.subjectQuestions || {}).reduce((sum, amount) => sum + parseInteger(amount, 0), 0);
+            scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
 
             saveData();
+            syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             input.value = "";
             setQuestionValidation(dayIdx, "");
             renderSchedule();
-            safeShowAlert(`${subjectId} için soru sayısı ${value} olarak kaydedildi.`, "success");
+            safeShowAlert(`${taskLabel} için soru sayısı ${value} olarak kaydedildi.`, "success");
         };
 
         clearQuestions = function(dayIdx) {
             const weekKey = getWeekKey(currentWeekStart);
-            const dayData = ensureWeekDay(weekKey, dayIdx);
+            const dayData = syncDayQuestionState(ensureWeekDay(weekKey, dayIdx));
             const select = document.getElementById(`q-subject-${dayIdx}`);
-            const subjectId = select?.value || getDayQuestionSubjectOptions(dayData)[0] || FREE_GENERAL_SUBJECT;
-            dayData.subjectQuestions = normalizeSubjectQuestionMap(dayData.subjectQuestions || {});
+            const taskLabel = getSafeSelectedTask(dayData, select?.value || "");
+            dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
 
-            if (dayData.subjectQuestions[subjectId]) {
-                delete dayData.subjectQuestions[subjectId];
+            if (taskLabel && dayData.subjectQuestions[taskLabel]) {
+                delete dayData.subjectQuestions[taskLabel];
             } else {
                 dayData.subjectQuestions = {};
             }
 
-            dayData.questions = Object.values(dayData.subjectQuestions).reduce((sum, amount) => sum + amount, 0);
+            dayData.questions = Object.values(dayData.subjectQuestions || {}).reduce((sum, amount) => sum + parseInteger(amount, 0), 0);
+            scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
             saveData();
+            syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             renderSchedule();
         };
     }
@@ -2535,9 +2862,29 @@
         };
 
         saveWorkSession = function() {
-            syncRealtimeTimer("manual-save");
-            safeShowAlert("Süre kaydedildi. Sayaç arka planda çalışmaya devam edebilir.", "success");
-            hidePomodoroModal();
+            const finishAndClose = async () => {
+                if (timerState.session?.isRunning) {
+                    await pauseRealtimeTimer();
+                } else {
+                    await syncRealtimeTimer("manual-save", {
+                        activeSession: null,
+                        currentSessionTime: 0,
+                        clearActive: true
+                    });
+                }
+
+                timerState.session = null;
+                persistTimerSessionLocally(null);
+                releaseTimerOwnership();
+                renderTimerUi();
+                safeShowAlert("Süre kaydedildi ve durduruldu.", "success");
+                hidePomodoroModal();
+            };
+
+            finishAndClose().catch(error => {
+                console.error("Sure kaydedilip durdurulamadi:", error);
+                safeShowAlert("Süre kaydedilirken bir hata oluştu.");
+            });
         };
 
         checkActiveTimer = function() {
@@ -2547,6 +2894,7 @@
         showPomodoroModal = (function(originalShowPomodoroModal) {
             return function() {
                 if (guardVerifiedAccess()) return;
+                timerState.lastModalSeenAt = Date.now();
                 if (typeof originalShowPomodoroModal === "function") {
                     originalShowPomodoroModal();
                 } else {
@@ -2817,6 +3165,7 @@
         renderSchedule = function() {
             scheduleData = sanitizeScheduleData(scheduleData || {});
             originalRenderSchedule();
+            refreshQuestionSummaryCounters();
             renderQuestionTrackingEnhancements();
             updateLiveStudyPreview();
         };
@@ -2826,6 +3175,11 @@
         auth.onAuthStateChanged(async user => {
             ensureVerificationCard();
             applyTurkishInputSupport();
+
+            if (currentUserResetUnsubscribe) {
+                currentUserResetUnsubscribe();
+                currentUserResetUnsubscribe = null;
+            }
 
             if (!user) {
                 currentUser = null;
@@ -2853,6 +3207,16 @@
             }
 
             hideVerificationGate();
+
+            let isInitialResetSnapshot = true;
+            currentUserResetUnsubscribe = db.collection("users").doc(user.uid).onSnapshot(doc => {
+                if (!doc.exists) return;
+                const data = doc.data() || {};
+                applyAdminTimerResetFromUserData(data, { silent: isInitialResetSnapshot });
+                isInitialResetSnapshot = false;
+            }, error => {
+                console.error("Admin timer reset dinlenemedi:", error);
+            });
 
             db.collection("users").doc(user.uid).get().then(doc => {
                 const data = doc.exists ? (doc.data() || {}) : {};
