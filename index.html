@@ -3701,11 +3701,11 @@
             <div class="pomodoro-time-inputs">
                 <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="updateTimerFromInputsAndReset()">
                 <span>:</span>
-                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="updateTimerFromInputsAndReset()">
+                <input type="number" id="study-minutes" value="0" min="0" max="59" placeholder="Dakika" oninput="updateTimerFromInputsAndReset()">
                 <span>:</span>
                 <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="updateTimerFromInputsAndReset()">
             </div>
-            <div class="timer-display" id="timer-display" role="timer" aria-live="polite" aria-label="Pomodoro sayaci">00:25:00</div>
+            <div class="timer-display" id="timer-display" role="timer" aria-live="polite" aria-label="Pomodoro sayaci">00:00:00</div>
             <p id="timer-status" style="font-size: 1.1em; font-weight: 700; color: var(--accent-color); margin-bottom: 30px;"></p>
             <div class="timer-controls">
                 <div>
@@ -4034,12 +4034,12 @@
         currentWeekStart.setHours(0, 0, 0, 0);
 
         let timerInterval = null;
-        let timeRemaining = 1500;
+        let timeRemaining = 0;
         let isRunning = false;
         let totalWorkedSecondsAllTime = 0;
         let totalQuestionsAllTime = 0;
         let currentLeaderboardTab = 'daily'; // Sekme durumu
-        let currentUsername = "Ömer";
+        let currentUsername = "";
         let currentProfileAbout = "";
         let currentProfileImage = "";
         let currentAccountCreatedAt = "";
@@ -4087,7 +4087,9 @@
         let currentProfileModalData = null;
         let currentProfileModalEditable = false;
         const ADMIN_USERNAME = "cosxomer";
-        const ADMIN_EMAIL = "aqqw1@gmail.com";
+        const ADMIN_EMAIL = "omrfrk.37.kaya@gmail.com";
+        const ADMIN_ROLE = "admin";
+        const ADMIN_SPECIAL_TITLE = "Kurucu Admin";
         let isAdminUser = false;
         let adminUserUid = "";
         let supportMessagesCache = [];
@@ -5102,7 +5104,7 @@
         }
 
         function updateProfileButton() {
-            document.getElementById('username-display').innerText = currentUsername || "Ömer";
+            document.getElementById('username-display').innerText = currentUsername || "";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
         }
 
@@ -5419,10 +5421,11 @@
         }
 
         function buildUserPayload() {
+            const adminProfile = getAdminProfileMeta(currentUsername, currentUser?.email || "");
             return {
                 username: currentUsername,
                 email: currentUser?.email || "",
-                isAdmin: isCurrentAdmin(),
+                ...adminProfile,
                 about: currentProfileAbout,
                 profileImage: currentProfileImage,
                 accountCreatedAt: currentAccountCreatedAt || new Date().toISOString(),
@@ -5436,7 +5439,7 @@
         }
 
         function updateProfileButton() {
-            document.getElementById('username-display').innerText = currentUsername || "Ömer";
+            document.getElementById('username-display').innerText = currentUsername || "";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
         }
 
@@ -5788,7 +5791,7 @@
                     if (doc.exists) {
                         const data = doc.data();
                         scheduleData = data.schedule || {};
-                        currentUsername = data.username || "Ömer";
+                        currentUsername = data.username || "";
                         currentProfileAbout = data.about || "";
                         currentProfileImage = data.profileImage || "";
                         currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
@@ -5799,6 +5802,16 @@
                         updateMyNotesButton();
                         renderSchedule();
                     } else {
+                        scheduleData = {};
+                        currentUsername = "";
+                        currentProfileAbout = "";
+                        currentProfileImage = "";
+                        currentAccountCreatedAt = "";
+                        userNotes = [];
+                        totalWorkedSecondsAllTime = 0;
+                        totalQuestionsAllTime = 0;
+                        updateProfileButton();
+                        updateMyNotesButton();
                         renderSchedule();
                     }
                 });
@@ -5809,13 +5822,15 @@
                 document.getElementById('user-info').style.display = 'none';
                 document.getElementById('logout-btn').style.display = 'none';
                 document.getElementById('cloud-sync-btn').style.display = 'none';
-                currentUsername = "Ömer";
+                currentUsername = "";
                 currentProfileAbout = "";
                 currentProfileImage = "";
                 currentAccountCreatedAt = "";
+                scheduleData = {};
                 userNotes = [];
                 totalWorkedSecondsAllTime = 0;
                 totalQuestionsAllTime = 0;
+                updateProfileButton();
                 updateMyNotesButton();
                 closeProfileModal();
             }
@@ -5844,7 +5859,7 @@
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
             const accountCreatedAt = new Date().toISOString();
             auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
+                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, ...getAdminProfileMeta(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
@@ -5878,7 +5893,7 @@
             const grid = document.querySelector('.schedule-grid');
             grid.innerHTML = '';
             const weekKey = getWeekKey(currentWeekStart);
-            if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
+            const weekData = scheduleData[weekKey] || {};
             refreshCurrentTotals();
 
             const days = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -5892,14 +5907,14 @@
                 dayDate.setDate(dayDate.getDate() + i);
                 const isToday = dayDate.toDateString() === today.toDateString();
 
-                if (!scheduleData[weekKey][i]) scheduleData[weekKey][i] = { tasks: [], workedSeconds: 0, questions: 0 };
-                const dayObj = scheduleData[weekKey][i];
+                const dayObj = weekData[i] || { tasks: [], workedSeconds: 0, questions: 0 };
+                const dayTasks = Array.isArray(dayObj.tasks) ? dayObj.tasks : [];
                 
                 totalWeeklyQuestions += (dayObj.questions || 0);
                 totalWeeklySeconds += (dayObj.workedSeconds || 0); 
 
-                const completedTasks = dayObj.tasks.filter(t => t.completed).length;
-                const progress = dayObj.tasks.length > 0 ? (completedTasks / dayObj.tasks.length) * 100 : 0;
+                const completedTasks = dayTasks.filter(t => t.completed).length;
+                const progress = dayTasks.length > 0 ? (completedTasks / dayTasks.length) * 100 : 0;
 
                 const dayCell = document.createElement('div');
                 dayCell.className = `day-cell ${isToday ? 'active-today' : ''}`;
@@ -5920,7 +5935,7 @@
 
                     <div class="question-input-box">
                         <div class="question-input-row">
-                             <input type="number" id="q-input-${i}" placeholder="Soru Sayısı" value="${dayObj.questions || 0}">
+                             <input type="number" id="q-input-${i}" placeholder="Soru Sayısı" value="${dayObj.questions > 0 ? dayObj.questions : ''}">
                         </div>
                         <div class="question-btn-group">
                              <button class="question-btn" onclick="updateQuestions(${i})" style="background: #4caf50;">Kaydet</button>
@@ -5937,7 +5952,7 @@
 
                 grid.appendChild(dayCell);
                 const taskList = dayCell.querySelector('.task-list');
-                dayObj.tasks.forEach((task, tIdx) => {
+                dayTasks.forEach((task, tIdx) => {
                     const li = document.createElement('li');
                     li.className = `task-item ${task.completed ? 'completed' : ''}`;
                     li.draggable = true;
@@ -6237,7 +6252,7 @@
             document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
             if (resetInputs) {
                 document.getElementById('study-hours').value = 0;
-                document.getElementById('study-minutes').value = 25;
+                document.getElementById('study-minutes').value = 0;
                 document.getElementById('study-seconds').value = 0;
             }
             updateTimerFromInputsAndReset();
@@ -6889,7 +6904,19 @@
         auth.onAuthStateChanged(user => {
             if (user) {
                 db.collection('users').doc(user.uid).get().then(doc => {
-                    if (!doc.exists) return;
+                    if (!doc.exists) {
+                        studyTrack = "";
+                        selectedSubjects = [];
+                        studyInsightSelectedSubjects = [];
+                        profileDraftTrack = "";
+                        profileDraftSubjects = [];
+                        onboardingSelectedSubjects = [];
+                        document.getElementById('onboarding-modal').style.display = 'none';
+                        document.getElementById('subject-reminder-banner').classList.remove('show');
+                        resetStudyInsightRotation();
+                        renderTitlesModal();
+                        return;
+                    }
                     const data = doc.data();
                     studyTrack = data.studyTrack || "";
                     selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
@@ -6900,16 +6927,7 @@
                     updateSubjectReminder();
                     resetStudyInsightRotation();
                     renderTitlesModal();
-
-                    const needsOnboarding = !studyTrack || (studyTrack !== 'free' && !selectedSubjects.length);
-                    setTimeout(() => {
-                        if (!currentUser || currentUser.uid !== user.uid) return;
-                        if (needsOnboarding) {
-                            openOnboardingModal();
-                        } else {
-                            document.getElementById('onboarding-modal').style.display = 'none';
-                        }
-                    }, 350);
+                    document.getElementById('onboarding-modal').style.display = 'none';
                 }).catch(error => console.error("Profil ayarları yüklenirken hata:", error));
             } else {
                 studyTrack = "";
@@ -7451,13 +7469,22 @@
                 && (email || "").trim().toLowerCase() === ADMIN_EMAIL;
         }
 
+        function getAdminProfileMeta(username, email) {
+            const isAdmin = isAdminIdentity(username, email);
+            return {
+                isAdmin,
+                role: isAdmin ? ADMIN_ROLE : "user",
+                adminTitle: isAdmin ? ADMIN_SPECIAL_TITLE : ""
+            };
+        }
+
         function isCurrentAdmin() {
             return !!currentUser && (isAdminUser || isAdminIdentity(currentUsername || "", currentUser.email || ""));
         }
 
         function getAdminBadgeHtml(extraClass = "") {
             const className = `admin-badge ${extraClass}`.trim();
-            return `<span class="${className}"><i class="fas fa-crown"></i> Admin</span>`;
+            return `<span class="${className}"><i class="fas fa-crown"></i> ${ADMIN_SPECIAL_TITLE}</span>`;
         }
 
         function toggleProfileNotesPanel(forceState) {
@@ -7576,6 +7603,16 @@
                     return adminUserUid;
                 }
 
+                const emailMatch = await db.collection('users').where('email', '==', ADMIN_EMAIL).get();
+                const emailDoc = emailMatch.docs.find(doc => {
+                    const data = doc.data() || {};
+                    return isAdminIdentity(data.username || "", data.email || "");
+                });
+                if (emailDoc) {
+                    adminUserUid = emailDoc.id;
+                    return adminUserUid;
+                }
+
                 const usernameMatch = await db.collection('users').where('username', '==', ADMIN_USERNAME).get();
                 const matchingDoc = usernameMatch.docs.find(doc => {
                     const data = doc.data() || {};
@@ -7602,7 +7639,11 @@
             try {
                 const userDoc = await db.collection('users').doc(currentUser.uid).get();
                 const data = userDoc.exists ? userDoc.data() : {};
-                const derivedAdmin = !!data.isAdmin || isAdminIdentity(data.username || currentUsername || "", currentUser.email || data.email || "");
+                const adminProfile = getAdminProfileMeta(
+                    data.username || currentUsername || "",
+                    currentUser.email || data.email || ""
+                );
+                const derivedAdmin = !!data.isAdmin || adminProfile.isAdmin;
                 const profilePatch = {};
 
                 isAdminUser = derivedAdmin;
@@ -7615,6 +7656,21 @@
                 }
                 if (!!data.isAdmin !== derivedAdmin) {
                     profilePatch.isAdmin = derivedAdmin;
+                }
+                if (derivedAdmin) {
+                    if (data.role !== ADMIN_ROLE) {
+                        profilePatch.role = ADMIN_ROLE;
+                    }
+                    if ((data.adminTitle || "") !== ADMIN_SPECIAL_TITLE) {
+                        profilePatch.adminTitle = ADMIN_SPECIAL_TITLE;
+                    }
+                } else {
+                    if (data.role === ADMIN_ROLE) {
+                        profilePatch.role = "user";
+                    }
+                    if (data.adminTitle) {
+                        profilePatch.adminTitle = "";
+                    }
                 }
 
                 if (Object.keys(profilePatch).length) {
@@ -9677,22 +9733,6 @@
     </style>
     <script id="codex-hotfix-script-2">
         (() => {
-            function getAutoSubjectsForTrack(track) {
-                return track === 'free' ? [] : getTrackSubjects(track);
-            }
-
-            function hideManualSubjectSelectors() {
-                const profileGroup = document.getElementById('profile-subjects-container')?.closest('.profile-field-group');
-                const onboardingGroup = document.getElementById('onboarding-subjects-container')?.closest('.profile-field-group');
-                const onboardingHint = document.querySelector('#onboarding-modal .profile-member-since');
-
-                if (profileGroup) profileGroup.style.display = 'none';
-                if (onboardingGroup) onboardingGroup.style.display = 'none';
-                if (onboardingHint) {
-                    onboardingHint.innerText = 'Bir kez alanini sec. Dersler sistem tarafindan otomatik tanimlanir.';
-                }
-            }
-
             function setAuthError(message = "") {
                 const target = document.getElementById('login-error-message');
                 if (target) target.innerText = message;
@@ -9700,6 +9740,7 @@
 
             function translateAuthError(error, mode = 'login') {
                 const code = error?.code || "";
+                const rawMessage = String(error?.message || "").toUpperCase();
                 const map = {
                     'auth/invalid-email': 'Gecerli bir e-posta adresi yaz.',
                     'auth/missing-email': 'E-posta adresini yaz.',
@@ -9714,10 +9755,29 @@
                     'auth/user-disabled': 'Bu hesap devre disi birakilmis.',
                     'auth/too-many-requests': 'Cok fazla deneme yapildi. Lutfen biraz sonra tekrar dene.',
                     'auth/network-request-failed': 'Baglanti hatasi olustu. Internetini kontrol et.',
-                    'auth/internal-error': 'Sistem gecici olarak cevap veremedi. Tekrar dene.'
+                    'auth/internal-error': 'Sistem gecici olarak cevap veremedi. Tekrar dene.',
+                    'auth/operation-not-allowed': 'Firebase Authentication panelinde Email/Password girisini etkinlestir.',
+                    'auth/configuration-not-found': 'Firebase Authentication ayari eksik. Email/Password girisini ac.',
+                    'auth/invalid-api-key': 'Firebase API anahtari gecersiz ya da kisitli.',
+                    'auth/app-not-authorized': 'Bu site Firebase Auth icin yetkili degil. Authorized domains listesine alan adini ekle.',
+                    'auth/unauthorized-domain': 'Bu site Firebase Auth icin yetkili degil. Authorized domains listesine alan adini ekle.'
                 };
 
-                return map[code] || 'Bir hata olustu. Lutfen tekrar dene.';
+                if (map[code]) return map[code];
+                if (rawMessage.includes('CONFIGURATION_NOT_FOUND') || rawMessage.includes('PASSWORD_LOGIN_DISABLED') || rawMessage.includes('OPERATION_NOT_ALLOWED')) {
+                    return 'Firebase Authentication panelinde Email/Password girisini etkinlestir.';
+                }
+                if (rawMessage.includes('INVALID_LOGIN_CREDENTIALS')) {
+                    return mode === 'login' ? 'E-posta ya da sifre hatali.' : 'Girdigin bilgiler gecersiz.';
+                }
+                if (rawMessage.includes('INVALID_API_KEY') || rawMessage.includes('API KEY NOT VALID')) {
+                    return 'Firebase API anahtari gecersiz ya da kisitli.';
+                }
+                if (rawMessage.includes('APP_NOT_AUTHORIZED') || rawMessage.includes('UNAUTHORIZED_DOMAIN')) {
+                    return 'Bu site Firebase Auth icin yetkili degil. Authorized domains listesine alan adini ekle.';
+                }
+
+                return 'Bir hata olustu. Lutfen tekrar dene.';
             }
 
             function ensureForgotPasswordButton() {
@@ -9732,66 +9792,6 @@
                 button.onclick = sendPasswordResetLink;
                 loginForm.appendChild(button);
             }
-
-            normalizeSelectedSubjects = function(track) {
-                return getAutoSubjectsForTrack(track);
-            };
-
-            renderSubjectOptions = function(containerId, track) {
-                const container = document.getElementById(containerId);
-                if (!container) return;
-
-                if (!track) {
-                    container.innerHTML = '<div class="subject-hint">Alanini sectiginde dersler otomatik tanimlanir.</div>';
-                    return;
-                }
-
-                const autoSubjects = getAutoSubjectsForTrack(track);
-                if (!autoSubjects.length) {
-                    container.innerHTML = '<div class="subject-hint">Free modunda ders takibi otomatik zorunlu ders listesi olmadan ilerler.</div>';
-                    return;
-                }
-
-                const labels = autoSubjects.map(subjectId => SUBJECT_DEFINITIONS[subjectId]?.label || subjectId);
-                container.innerHTML = `<div class="subject-hint">${STUDY_TRACKS[track]?.label || 'Secilen alan'} icin sistemin takip edecegi dersler: ${labels.join(', ')}.</div>`;
-            };
-
-            handleProfileTrackChange = function() {
-                profileDraftTrack = document.getElementById('profile-track-select').value;
-                profileDraftSubjects = getAutoSubjectsForTrack(profileDraftTrack);
-                renderSubjectOptions('profile-subjects-container', profileDraftTrack);
-            };
-
-            handleOnboardingTrackChange = function() {
-                const selectedTrack = document.getElementById('onboarding-track-select').value;
-                onboardingSelectedSubjects = getAutoSubjectsForTrack(selectedTrack);
-                renderSubjectOptions('onboarding-subjects-container', selectedTrack);
-            };
-
-            openOnboardingModal = function() {
-                if (!currentUser) return;
-                onboardingSelectedSubjects = getAutoSubjectsForTrack(studyTrack);
-                renderTrackOptions('onboarding-track-select', studyTrack || "");
-                renderSubjectOptions('onboarding-subjects-container', studyTrack || "");
-                hideManualSubjectSelectors();
-                document.getElementById('onboarding-modal').style.display = 'flex';
-                syncBodyModalLock();
-            };
-
-            saveOnboardingSettings = function() {
-                if (!currentUser) return;
-                const selectedTrack = document.getElementById('onboarding-track-select').value;
-                if (!selectedTrack) return showAlert("Once alanini sec.");
-
-                studyTrack = selectedTrack;
-                selectedSubjects = getAutoSubjectsForTrack(selectedTrack);
-                onboardingSelectedSubjects = [...selectedSubjects];
-                document.getElementById('onboarding-modal').style.display = 'none';
-                saveData();
-                updateSubjectReminder();
-                syncBodyModalLock();
-                showAlert("Baslangic ayarlari kaydedildi.", "success");
-            };
 
             isCurrentAdmin = function() {
                 return !!currentUser && (
@@ -9829,7 +9829,7 @@
                     .then(cred => db.collection('users').doc(cred.user.uid).set({
                         username,
                         email,
-                        isAdmin: isAdminIdentity(username, email),
+                        ...getAdminProfileMeta(username, email),
                         about: "",
                         profileImage: "",
                         accountCreatedAt,
@@ -9865,20 +9865,10 @@
                     });
             };
 
-            const previousProfileModalHotfixTwo = showProfileModal;
-            showProfileModal = function(profileData, editable) {
-                previousProfileModalHotfixTwo(profileData, editable);
-                hideManualSubjectSelectors();
-            };
-
             window.addEventListener('load', () => {
                 ensureForgotPasswordButton();
-                hideManualSubjectSelectors();
-                selectedSubjects = getAutoSubjectsForTrack(studyTrack);
-                onboardingSelectedSubjects = getAutoSubjectsForTrack(studyTrack);
-                profileDraftSubjects = getAutoSubjectsForTrack(profileDraftTrack || studyTrack);
-                renderSubjectOptions('profile-subjects-container', profileDraftTrack || studyTrack || "");
-                renderSubjectOptions('onboarding-subjects-container', studyTrack || "");
+                renderSubjectOptions('profile-subjects-container', profileDraftTrack || studyTrack || "", profileDraftSubjects, true, 'toggleProfileSubject');
+                renderSubjectOptions('onboarding-subjects-container', studyTrack || "", onboardingSelectedSubjects, true, 'toggleOnboardingSubject');
             });
         })();
     </script>
