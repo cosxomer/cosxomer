@@ -1,0 +1,176 @@
+#pomodoro-modal .pomodoro-content {
+    width: min(640px, calc(100vw - 20px)) !important;
+    max-width: 100% !important;
+    padding: clamp(18px, 4vw, 30px) !important;
+    border-radius: 28px !important;
+    overflow-x: hidden !important;
+}
+
+#pomodoro-modal .pomodoro-content,
+#pomodoro-modal .pomodoro-content * {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+#pomodoro-modal .pomodoro-content h2 {
+    padding: 0 50px 0 0 !important;
+    margin-bottom: 14px !important;
+    font-size: clamp(18px, 5vw, 28px) !important;
+}
+
+#pomodoro-modal .pomodoro-time-inputs {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100%;
+    margin: 0 0 18px !important;
+}
+
+#pomodoro-modal .pomodoro-time-inputs span {
+    display: none !important;
+}
+
+#pomodoro-modal .pomodoro-time-inputs input {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    padding: 12px 10px !important;
+    text-align: center !important;
+    font-size: clamp(14px, 4vw, 16px) !important;
+    line-height: 1.1 !important;
+}
+
+#pomodoro-modal .timer-display {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: clamp(6px, 2vw, 14px) !important;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 12px 0 14px !important;
+    text-align: center;
+    line-height: 1 !important;
+    flex-wrap: nowrap !important;
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1;
+}
+
+#pomodoro-modal .timer-display__group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+#pomodoro-modal .timer-display__value {
+    display: block;
+    min-width: 2ch;
+    font-size: clamp(2.35rem, 12vw, 5.25rem);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.05em;
+    white-space: nowrap;
+}
+
+#pomodoro-modal .timer-display__separator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: clamp(2rem, 10vw, 4.4rem);
+    font-weight: 800;
+    line-height: 1;
+    white-space: nowrap;
+    transform: translateY(-0.04em);
+}
+
+#pomodoro-modal #timer-status {
+    margin: 0 0 18px !important;
+    font-size: clamp(14px, 4vw, 16px) !important;
+    line-height: 1.35;
+}
+
+#pomodoro-modal .timer-controls {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: stretch !important;
+    gap: 10px !important;
+    width: 100%;
+    margin-top: 16px !important;
+}
+
+#pomodoro-modal .timer-controls > div,
+#pomodoro-modal .timer-controls > div button,
+#pomodoro-modal .timer-controls button {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 48px !important;
+    height: auto !important;
+    position: static !important;
+}
+
+#pomodoro-modal .timer-controls button {
+    padding: 12px 14px !important;
+    font-size: clamp(14px, 4vw, 16px) !important;
+}
+
+@media (max-width: 768px) {
+    #pomodoro-modal .pomodoro-content {
+        width: min(100%, calc(100vw - 16px)) !important;
+        padding: 18px 14px 16px !important;
+    }
+
+    #pomodoro-modal .pomodoro-content h2 {
+        padding-right: 44px !important;
+    }
+
+    #pomodoro-modal .timer-controls {
+        grid-template-columns: 1fr !important;
+    }
+}
+
+@media (max-width: 480px) {
+    #pomodoro-modal .pomodoro-content {
+        border-radius: 24px !important;
+        padding: 16px 12px 14px !important;
+    }
+
+    #pomodoro-modal .pomodoro-time-inputs {
+        gap: 8px !important;
+    }
+
+    #pomodoro-modal .timer-display {
+        gap: 4px !important;
+        margin: 10px 0 12px !important;
+    }
+
+    #pomodoro-modal .timer-display__value {
+        font-size: clamp(1.95rem, 13vw, 2.9rem);
+    }
+
+    #pomodoro-modal .timer-display__separator {
+        font-size: clamp(1.55rem, 10vw, 2.3rem);
+    }
+}
+
+@media (max-width: 360px) {
+    #pomodoro-modal .pomodoro-content {
+        width: min(100%, calc(100vw - 12px)) !important;
+        padding: 14px 10px 12px !important;
+    }
+
+    #pomodoro-modal .pomodoro-time-inputs {
+        grid-template-columns: 1fr !important;
+    }
+
+    #pomodoro-modal .timer-display__value {
+        font-size: clamp(1.7rem, 12vw, 2.4rem);
+    }
+
+    #pomodoro-modal .timer-display__separator {
+        font-size: clamp(1.3rem, 8vw, 1.9rem);
+    }
+}
