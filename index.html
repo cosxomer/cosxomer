@@ -7019,7 +7019,7 @@
                         targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
-                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -7030,7 +7030,7 @@
                             selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
                             currentWeekSeconds: currentWeekSeconds,
                             titleInfo: titleInfo,
-                            competitionScore: getCompetitionScore(targetSeconds, targetQuestions),
+                            competitionScore: targetSeconds,
                             seconds: targetSeconds,
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
@@ -7040,7 +7040,7 @@
                     }
                 });
 
-                leaderboardData.sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+                leaderboardData.sort((a, b) => b.seconds - a.seconds);
                 listContainer.innerHTML = '';
 
                 if (!leaderboardData.length) {
@@ -7078,7 +7078,6 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -7157,7 +7156,7 @@
                     }
 
                     // Gösterim şartı
-                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({ 
                             uid: doc.id,
                             username: data.username, 
@@ -7209,7 +7208,6 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -8075,7 +8073,7 @@
                         }
                     }
 
-                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8086,7 +8084,7 @@
                             selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
                             currentWeekSeconds: currentWeekTotals.seconds,
                             titleInfo,
-                            competitionScore: getCompetitionScore(targetSeconds, targetQuestions),
+                            competitionScore: targetSeconds,
                             seconds: targetSeconds,
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
@@ -8097,7 +8095,7 @@
                     }
                 });
 
-                leaderboardData.sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+                leaderboardData.sort((a, b) => b.seconds - a.seconds);
                 listContainer.innerHTML = '';
 
                 if (!leaderboardData.length) {
@@ -8137,7 +8135,6 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -8294,7 +8291,7 @@
                         targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
-                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8307,7 +8304,7 @@
                             selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
                             currentWeekSeconds: currentWeekSeconds,
                             titleInfo,
-                            competitionScore: getCompetitionScore(targetSeconds, targetQuestions),
+                            competitionScore: targetSeconds,
                             seconds: targetSeconds,
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
@@ -8318,7 +8315,7 @@
                     }
                 });
 
-                leaderboardData.sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+                leaderboardData.sort((a, b) => b.seconds - a.seconds);
                 listContainer.innerHTML = '';
 
                 if (!leaderboardData.length) {
@@ -8363,7 +8360,6 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -10784,9 +10780,9 @@
             }
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260329-0456"></script>
+<script src="codex-hotfix-4.js?v=20260329-0508"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260329-0456"></script>
+<script src="codex-upgrade-7.js?v=20260329-0508"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

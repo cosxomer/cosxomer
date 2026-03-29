@@ -2320,10 +2320,7 @@
             ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
             : seconds;
         const isWorking = currentLeaderboardTab === "daily" && isTimerRecordRunning(data.activeTimer);
-        const hasVisibleStats = seconds > 0
-            || dailyQuestions > 0
-            || weeklyQuestions > 0
-            || isWorking;
+        const hasVisibleStats = seconds > 0 || isWorking;
 
         if (!hasVisibleStats) return null;
 
@@ -2343,9 +2340,7 @@
             titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
                 ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
                 : null,
-            competitionScore: typeof getCompetitionScore === "function"
-                ? getCompetitionScore(seconds, questions)
-                : (seconds * 10) + questions,
+            competitionScore: seconds,
             seconds,
             questions,
             dailyQuestions,
@@ -2391,7 +2386,7 @@
             nextData.push(localEntry);
         }
 
-        return nextData.sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+        return nextData.sort((a, b) => (b.seconds - a.seconds) || Number(b.isWorking) - Number(a.isWorking));
     }
 
     function buildLeaderboardViewModelFromDocs() {
@@ -2427,7 +2422,7 @@
                 );
 
                 if (!data.username) return null;
-                if (!(seconds > 0 || questions > 0 || resolvedIsAdmin || isWorking)) return null;
+                if (!(seconds > 0 || resolvedIsAdmin || isWorking)) return null;
 
                 return {
                     uid: doc.id,
@@ -2443,7 +2438,7 @@
                         : (data.selectedSubjects || []),
                     currentWeekSeconds: currentWeekTotals,
                     titleInfo,
-                    competitionScore: typeof getCompetitionScore === "function" ? getCompetitionScore(seconds, questions) : (seconds * 10) + questions,
+                    competitionScore: seconds,
                     seconds,
                     questions,
                     dailyQuestions: questionBreakdown.dailyQuestions,
@@ -2489,8 +2484,6 @@
             </div>
             <div class="leaderboard-stats">
                 <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(localEntry.seconds) : localEntry.seconds}</div>
-                <div class="leaderboard-questions">Günlük Soru: ${localEntry.dailyQuestions}</div>
-                <div class="leaderboard-questions">Haftalık Soru: ${localEntry.weeklyQuestions}</div>
             </div>
         `;
 
@@ -2536,8 +2529,6 @@
                 </div>
                 <div class="leaderboard-stats">
                     <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(user.seconds) : user.seconds}</div>
-                    <div class="leaderboard-questions">Günlük Soru: ${user.dailyQuestions}</div>
-                    <div class="leaderboard-questions">Haftalık Soru: ${user.weeklyQuestions}</div>
                     ${user.isWorking ? '<div class="working-badge">Calisiyor</div>' : ""}
                 </div>
             `;
@@ -3381,8 +3372,6 @@
                 </div>
                 <div class="leaderboard-stats">
                     <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(user.seconds) : user.seconds}</div>
-                    <div class="leaderboard-questions">Günlük Soru: ${user.dailyQuestions}</div>
-                    <div class="leaderboard-questions">Haftalık Soru: ${user.weeklyQuestions}</div>
                     ${user.isWorking ? '<div class="working-badge">Calisiyor</div>' : ""}
                 </div>
             `;
