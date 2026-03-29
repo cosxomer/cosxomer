@@ -6986,7 +6986,7 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
 
-                const usersSnapshot = await db.collection('publicProfiles').get();
+            const usersSnapshot = await db.collection('leaderboard').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -7118,7 +7118,7 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7; 
 
-                const usersSnapshot = await db.collection('publicProfiles').get();
+            const usersSnapshot = await db.collection('leaderboard').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -8051,7 +8051,7 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-                const usersSnapshot = await db.collection('publicProfiles').get();
+            const usersSnapshot = await db.collection('leaderboard').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -8256,7 +8256,7 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-                const usersSnapshot = await db.collection('publicProfiles').get();
+            const usersSnapshot = await db.collection('leaderboard').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -10784,9 +10784,9 @@
             }
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260329-0158"></script>
+<script src="codex-hotfix-4.js?v=20260329-0315"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260329-0158"></script>
+<script src="codex-upgrade-7.js?v=20260329-0315"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

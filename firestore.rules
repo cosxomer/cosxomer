@@ -29,6 +29,11 @@ service cloud.firestore {
       allow delete: if isOwner(uid) || isAdmin();
     }
 
+    match /leaderboard/{uid} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if isOwner(uid) || isAdmin();
+    }
+
     match /supportMessages/{messageId} {
       allow create: if signedIn()
         && request.resource.data.senderId == request.auth.uid;

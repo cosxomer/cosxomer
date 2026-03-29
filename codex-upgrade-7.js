@@ -18,6 +18,8 @@
     const NOTE_FOLDER_DEFAULT_ID = "general";
     const LOCAL_LEADERBOARD_PREVIEW_ID = "__local_leaderboard_preview__";
     const PUBLIC_PROFILE_COLLECTION = "publicProfiles";
+    const LEADERBOARD_COLLECTION = "leaderboard";
+    const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
     const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
@@ -1343,6 +1345,18 @@
         };
     }
 
+    function getCurrentDayWorkedSecondsFromSchedule(schedule, referenceDate = new Date()) {
+        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
+        const dayData = ensureDayObject(schedule?.[weekKey]?.[dayIdx] || {});
+        return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, Date.now());
+    }
+
+    function isCurrentUserPayloadTarget(basePayload = {}) {
+        const targetUid = String(basePayload?.uid || "");
+        if (!currentUser?.uid) return !targetUid;
+        return !targetUid || targetUid === currentUser.uid;
+    }
+
     function buildPublicProfilePayload(basePayload = {}) {
         const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
@@ -1403,6 +1417,111 @@
         };
     }
 
+    function buildLeaderboardDocumentPayload(basePayload = {}) {
+        const isCurrentUserTarget = isCurrentUserPayloadTarget(basePayload);
+        const safeSchedule = sanitizeScheduleData(basePayload.schedule || (isCurrentUserTarget ? (scheduleData || {}) : {}));
+        const questionCounters = buildQuestionCounterPayload(safeSchedule);
+        const resolvedEmail = String(
+            (isCurrentUserTarget ? (currentUser?.email || "") : "")
+            || basePayload.email
+            || ""
+        ).trim();
+        const resolvedUsername = String(
+            (isCurrentUserTarget ? (currentUsername || "") : "")
+            || basePayload.username
+            || (isCurrentUserTarget ? (currentUser?.displayName || "") : "")
+            || resolvedEmail.split("@")[0]
+            || ""
+        ).trim();
+        const resolvedStudyTrack = String(
+            (isCurrentUserTarget ? (studyTrack || "") : "")
+            || basePayload.studyTrack
+            || ""
+        ).trim();
+        const resolvedSelectedSubjectsSource = isCurrentUserTarget && Array.isArray(selectedSubjects) && selectedSubjects.length
+            ? selectedSubjects
+            : (basePayload.selectedSubjects || []);
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(resolvedStudyTrack, resolvedSelectedSubjectsSource)
+            : resolvedSelectedSubjectsSource;
+        const derivedAdminMeta = typeof getAdminProfileMeta === "function"
+            ? getAdminProfileMeta(resolvedUsername, resolvedEmail)
+            : null;
+        const resolvedIsAdmin = typeof basePayload.isAdmin === "boolean"
+            ? basePayload.isAdmin
+            : !!derivedAdminMeta?.isAdmin;
+        const resolvedRole = basePayload.role || (resolvedIsAdmin ? "admin" : "user");
+        const resolvedAdminTitle = basePayload.adminTitle || (resolvedIsAdmin ? (derivedAdminMeta?.adminTitle || "Kurucu Admin") : "");
+        const dailyStudyTime = Math.max(
+            parseInteger(basePayload.dailyStudyTime, 0),
+            isCurrentUserTarget ? getCurrentDayWorkedSeconds() : getCurrentDayWorkedSecondsFromSchedule(safeSchedule)
+        );
+        const weeklyStudyTime = Math.max(
+            parseInteger(basePayload.weeklyStudyTime, 0),
+            parseInteger(basePayload.currentWeekSeconds, 0),
+            typeof getCurrentWeekTotalsFromSchedule === "function"
+                ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
+                : 0
+        );
+        const activeTimer = basePayload.activeTimer || (isCurrentUserTarget && timerState.session ? serializeTimerSession(timerState.session) : null);
+        const currentSessionTime = Math.max(
+            parseInteger(basePayload.currentSessionTime, 0),
+            isCurrentUserTarget && timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0
+        );
+        const totalWorkedSeconds = Math.max(
+            parseInteger(basePayload.totalWorkedSeconds, 0),
+            parseInteger(basePayload.totalStudyTime, 0),
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(safeSchedule)
+                : 0
+        );
+        const totalQuestionsAllTime = Math.max(
+            parseInteger(basePayload.totalQuestionsAllTime, 0),
+            questionCounters.dailyQuestions,
+            questionCounters.weeklyQuestions,
+            typeof calculateTotalQuestionsFromSchedule === "function"
+                ? calculateTotalQuestionsFromSchedule(safeSchedule)
+                : 0
+        );
+        const publicNotes = typeof getPublicUserNotes === "function"
+            ? getPublicUserNotes(
+                (isCurrentUserTarget && Array.isArray(userNotes) && userNotes.length ? userNotes : (basePayload.notes || []))
+            )
+            : [];
+
+        return {
+            uid: String(basePayload.uid || (isCurrentUserTarget ? (currentUser?.uid || "") : "")),
+            username: resolvedUsername || "Kullanici",
+            email: resolvedEmail,
+            role: resolvedRole,
+            isAdmin: resolvedIsAdmin,
+            adminTitle: resolvedAdminTitle,
+            about: String((isCurrentUserTarget ? (currentProfileAbout || "") : "") || basePayload.about || "").trim(),
+            profileImage: (isCurrentUserTarget ? (currentProfileImage || "") : "") || basePayload.profileImage || "",
+            accountCreatedAt: (isCurrentUserTarget ? (currentAccountCreatedAt || "") : "") || basePayload.accountCreatedAt || "",
+            studyTrack: resolvedStudyTrack,
+            selectedSubjects: resolvedSelectedSubjects,
+            dailyStudyTime,
+            weeklyStudyTime,
+            currentWeekSeconds: weeklyStudyTime,
+            currentSessionTime,
+            activeTimer,
+            isWorking: !!basePayload.isWorking || isTimerRecordRunning(activeTimer),
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            daily: questionCounters.dailyQuestions,
+            weekly: questionCounters.weeklyQuestions,
+            total: totalQuestionsAllTime,
+            dailyQuestions: questionCounters.dailyQuestions,
+            weeklyQuestions: questionCounters.weeklyQuestions,
+            dailyQuestionCount: questionCounters.dailyQuestions,
+            weeklyQuestionCount: questionCounters.weeklyQuestions,
+            totalQuestionsAllTime,
+            lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
+            notes: publicNotes
+        };
+    }
+
     function syncPublicProfileSnapshot(basePayload = null) {
         if (!currentUser?.uid) return Promise.resolve();
         const userPayload = basePayload || (typeof buildUserPayload === "function" ? buildUserPayload() : {});
@@ -1413,6 +1532,22 @@
     function syncPublicProfileSnapshotSafely(basePayload = null) {
         return syncPublicProfileSnapshot(basePayload).catch(error => {
             console.error("Public profil anlik senkronu basarisiz:", error);
+        });
+    }
+
+    function syncLeaderboardSnapshot(basePayload = null) {
+        if (!currentUser?.uid) return Promise.resolve();
+        const userPayload = basePayload || (typeof buildUserPayload === "function" ? buildUserPayload() : {});
+        const leaderboardPayload = buildLeaderboardDocumentPayload({
+            ...userPayload,
+            uid: currentUser.uid
+        });
+        return db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true });
+    }
+
+    function syncLeaderboardSnapshotSafely(basePayload = null) {
+        return syncLeaderboardSnapshot(basePayload).catch(error => {
+            console.error("Leaderboard anlik senkronu basarisiz:", error);
         });
     }
 
@@ -1430,7 +1565,7 @@
             || ""
         ).trim();
 
-        return db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set({
+        const questionPatch = {
             uid: currentUser.uid,
             username: resolvedUsername || "Kullanici",
             daily: dailyQuestions,
@@ -1440,11 +1575,79 @@
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
+            total: totalQuestionsAllTime || 0,
             lastTimerSyncAt: Date.now()
-        }, { merge: true }).catch(error => {
+        };
+        const leaderboardPayload = buildLeaderboardDocumentPayload({
+            ...(typeof buildUserPayload === "function" ? buildUserPayload() : (currentUserLiveDoc || {})),
+            ...questionPatch
+        });
+
+        return Promise.all([
+            db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set(questionPatch, { merge: true }),
+            db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true })
+        ]).catch(error => {
             console.error("Public soru sayisi senkronu basarisiz:", error);
         });
     }
+
+    async function syncLeaderboardCollectionFromUsers() {
+        if (!currentUser?.uid) {
+            throw new Error("Kullanici oturumu bulunamadi.");
+        }
+
+        const usersSnapshot = await db.collection("users").get();
+        let batch = db.batch();
+        let operationCount = 0;
+        let updatedCount = 0;
+
+        const commitBatch = async () => {
+            if (!operationCount) return;
+            await batch.commit();
+            batch = db.batch();
+            operationCount = 0;
+        };
+
+        for (const doc of usersSnapshot.docs) {
+            const userData = doc.data() || {};
+            const leaderboardPayload = buildLeaderboardDocumentPayload({
+                ...userData,
+                uid: doc.id
+            });
+            if (!leaderboardPayload.uid || !leaderboardPayload.username) continue;
+
+            batch.set(db.collection(LEADERBOARD_COLLECTION).doc(doc.id), leaderboardPayload, { merge: true });
+            operationCount += 1;
+            updatedCount += 1;
+
+            if (operationCount >= 400) {
+                await commitBatch();
+            }
+        }
+
+        await commitBatch();
+        return { updatedCount };
+    }
+
+    async function maybeAutoSyncLeaderboardCollection() {
+        if (!(typeof isCurrentAdmin === "function" && isCurrentAdmin())) return;
+        const lastRunAt = parseInteger(sessionStorage.getItem(LEADERBOARD_AUTOSYNC_KEY), 0);
+        if (lastRunAt > 0 && (Date.now() - lastRunAt) < 600000) return;
+
+        sessionStorage.setItem(LEADERBOARD_AUTOSYNC_KEY, String(Date.now()));
+        try {
+            const result = await syncLeaderboardCollectionFromUsers();
+            console.info(`Leaderboard koleksiyonu ${result.updatedCount || 0} kullanici icin senkronlandi.`);
+        } catch (error) {
+            console.error("Leaderboard koleksiyonu toplu senkronu basarisiz:", error);
+        }
+    }
+
+    window.syncLeaderboardCollectionFromUsers = async function() {
+        const result = await syncLeaderboardCollectionFromUsers();
+        safeShowAlert(`${result.updatedCount || 0} kullanici lider tablosuna senkronlandi.`, "success");
+        return result;
+    };
 
     function applyStudyDelta(deltaSeconds, date = new Date()) {
         if (!deltaSeconds) return;
@@ -2317,7 +2520,7 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        leaderboardRealtimeUnsubscribe = db.collection(PUBLIC_PROFILE_COLLECTION).onSnapshot(snapshot => {
+        leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
             leaderboardRealtimeDocs = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
             if (currentUser?.uid) {
                 const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
@@ -3538,6 +3741,13 @@
                         ...buildPublicProfilePayload(signupPayload),
                         uid: credential.user.uid
                     }, { merge: true });
+                    await db.collection(LEADERBOARD_COLLECTION).doc(credential.user.uid).set(
+                        buildLeaderboardDocumentPayload({
+                            ...signupPayload,
+                            uid: credential.user.uid
+                        }),
+                        { merge: true }
+                    );
                     await credential.user.sendEmailVerification();
                     localStorage.setItem(VERIFY_EMAIL_KEY, email);
                     localStorage.setItem(VERIFY_COOLDOWN_KEY, String(Date.now() + VERIFY_COOLDOWN_MS));
@@ -3628,6 +3838,7 @@
 
             saveData({ authorized: true, immediate: true });
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
+            syncLeaderboardSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncPublicQuestionCountersNow();
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
@@ -3657,6 +3868,7 @@
                 : totalQuestionsAllTime;
             saveData({ authorized: true, immediate: true });
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
+            syncLeaderboardSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncPublicQuestionCountersNow();
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
@@ -3697,6 +3909,7 @@
                 const userRef = db.collection("users").doc(currentUser.uid);
                 await userRef.set(payload, { merge: true });
                 await syncPublicProfileSnapshot(payload);
+                await syncLeaderboardSnapshot(payload);
                 await syncPublicQuestionCountersNow();
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
@@ -3793,6 +4006,11 @@
                         });
                         await userRef.set(payload, { merge: true });
                         await syncPublicProfileSnapshot({
+                            ...(currentUserLiveDoc || {}),
+                            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+                            ...payload
+                        });
+                        await syncLeaderboardSnapshot({
                             ...(currentUserLiveDoc || {}),
                             ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
                             ...payload
@@ -4586,7 +4804,11 @@
                 syncPublicProfileSnapshot(data).catch(error => {
                     console.error("Public profil senkronu basarisiz:", error);
                 });
+                syncLeaderboardSnapshot(data).catch(error => {
+                    console.error("Leaderboard senkronu basarisiz:", error);
+                });
                 syncPublicQuestionCountersNow();
+                maybeAutoSyncLeaderboardCollection();
             }).catch(error => {
                 console.error("Genişletilmiş kullanıcı verisi okunamadi:", error);
             });
