@@ -1579,16 +1579,28 @@
             total: totalQuestionsAllTime || 0,
             lastTimerSyncAt: Date.now()
         };
+        const userQuestionPatch = {
+            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+            ...questionPatch,
+            email: currentUser?.email || "",
+            schedule: scheduleData,
+            totalQuestionsAllTime: totalQuestionsAllTime || 0
+        };
         const leaderboardPayload = buildLeaderboardDocumentPayload({
-            ...(typeof buildUserPayload === "function" ? buildUserPayload() : (currentUserLiveDoc || {})),
+            ...userQuestionPatch,
             ...questionPatch
         });
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            ...userQuestionPatch
+        };
 
         return Promise.all([
+            db.collection("users").doc(currentUser.uid).set(userQuestionPatch, { merge: true }),
             db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set(questionPatch, { merge: true }),
             db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true })
         ]).catch(error => {
-            console.error("Public soru sayisi senkronu basarisiz:", error);
+            console.error("Soru sayisi senkronu basarisiz:", error);
         });
     }
 
