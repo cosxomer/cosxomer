@@ -1,6 +1,12 @@
 (() => {
     const SUPPORT_COLLECTION = 'supportMessages';
 
+    function isFirestorePermissionError(error) {
+        const code = String(error?.code || "").toLowerCase();
+        const message = String(error?.message || "").toLowerCase();
+        return code === "permission-denied" || message.includes("insufficient permissions");
+    }
+
     function toSupportTimestamp(value) {
         const ms = value ? new Date(value).getTime() : 0;
         return Number.isFinite(ms) ? ms : 0;
@@ -164,6 +170,12 @@
             const ownerContext = await readOwnerSupportContext(currentUser.uid, currentUsername || "Kullanici");
             return ownerContext.messages;
         } catch (error) {
+            if (isFirestorePermissionError(error)) {
+                console.warn("Kullanici destek kayitlari Firestore kurallari nedeniyle toplu okunamadi. Yerel kayitlar gosterilecek.");
+                const ownerContext = await readOwnerSupportContext(currentUser.uid, currentUsername || "Kullanici").catch(() => ({ messages: [] }));
+                return ownerContext.messages || [];
+            }
+
             console.error("Kullanici destek kayitlari okunamadi:", error);
             return [];
         }
@@ -189,6 +201,11 @@
                 }
             }
         } catch (error) {
+            if (isFirestorePermissionError(error)) {
+                console.warn("Destek koleksiyonu Firestore kurallari nedeniyle okunamadi.");
+                return [];
+            }
+
             console.error("Destek koleksiyonu okunamadi:", error);
             return [];
         }

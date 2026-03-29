@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -4087,7 +4087,8 @@
         let currentProfileModalData = null;
         let currentProfileModalEditable = false;
         const ADMIN_USERNAME = "cosxomer";
-        const ADMIN_EMAIL = "aqqw1@gmail.com";
+        const ADMIN_EMAIL = "omrfrk.37.kaya@gmail.com";
+        const ADMIN_SPECIAL_TITLE = "Kurucu Admin";
         let isAdminUser = false;
         let adminUserUid = "";
         let supportMessagesCache = [];
@@ -5418,7 +5419,30 @@
             banner.classList.add('show');
         }
 
+        function getLiveQuestionCounterPayload(schedule = scheduleData) {
+            const today = new Date();
+            const currentWeekKey = getWeekKey(today);
+            const currentDayIdx = (today.getDay() + 6) % 7;
+            const currentWeek = schedule && schedule[currentWeekKey] ? schedule[currentWeekKey] : {};
+            const dailyQuestionCount = parseInt(currentWeek?.[currentDayIdx]?.questions, 10) || 0;
+            let weeklyQuestionCount = 0;
+
+            for (let i = 0; i < 7; i++) {
+                weeklyQuestionCount += parseInt(currentWeek?.[i]?.questions, 10) || 0;
+            }
+
+            return {
+                daily: dailyQuestionCount,
+                weekly: weeklyQuestionCount,
+                dailyQuestions: dailyQuestionCount,
+                weeklyQuestions: weeklyQuestionCount,
+                dailyQuestionCount,
+                weeklyQuestionCount
+            };
+        }
+
         function buildUserPayload() {
+            const questionCounters = getLiveQuestionCounterPayload(scheduleData);
             return {
                 username: currentUsername,
                 email: currentUser?.email || "",
@@ -5431,7 +5455,8 @@
                 notes: normalizeUserNotes(userNotes),
                 schedule: scheduleData,
                 totalWorkedSeconds: totalWorkedSecondsAllTime,
-                totalQuestionsAllTime: totalQuestionsAllTime
+                totalQuestionsAllTime: totalQuestionsAllTime,
+                ...questionCounters
             };
         }
 
@@ -5861,13 +5886,23 @@
         function saveToFirestore() {
             if (!currentUser) return;
             refreshCurrentTotals();
-            db.collection('users').doc(currentUser.uid).update(buildUserPayload()).then(() => showAlert("Veriler Buluta Kaydedildi ✅", "success"));
+            db.collection('users')
+                .doc(currentUser.uid)
+                .set(buildUserPayload(), { merge: true })
+                .then(() => showAlert("Veriler Buluta Kaydedildi ✅", "success"))
+                .catch(error => {
+                    console.error("Bulut kaydi basarisiz:", error);
+                    showAlert("Veriler kaydedilemedi.");
+                });
         }
 
         function saveData() {
             if (currentUser) {
                 refreshCurrentTotals();
-                db.collection('users').doc(currentUser.uid).update(buildUserPayload());
+                db.collection('users')
+                    .doc(currentUser.uid)
+                    .set(buildUserPayload(), { merge: true })
+                    .catch(error => console.error("Veri kaydi basarisiz:", error));
             }
         }
 
@@ -6951,21 +6986,23 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
 
-                const usersSnapshot = await db.collection('users').get();
+                const usersSnapshot = await db.collection('publicProfiles').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
-                    const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds);
+                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                    const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                            targetSeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
-                            targetQuestions = data.schedule[todayWeekKey][todayDayIdx].questions || 0;
+                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, parseInt(data.dailyStudyTime, 10) || 0);
+                            targetQuestions = Math.max(data.schedule[todayWeekKey][todayDayIdx].questions || 0, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                         }
+                        targetSeconds = Math.max(targetSeconds, parseInt(data.dailyStudyTime, 10) || 0);
+                        targetQuestions = Math.max(targetQuestions, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     } else if (data.schedule && data.schedule[todayWeekKey]) {
                         for (let i = 0; i < 7; i++) {
                             if (data.schedule[todayWeekKey][i]) {
@@ -6974,8 +7011,15 @@
                             }
                         }
                     }
+                    if (currentLeaderboardTab !== 'daily') {
+                        targetSeconds = Math.max(targetSeconds, parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                        targetQuestions = Math.max(targetQuestions, parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
+                    }
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
+                    }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -6984,7 +7028,7 @@
                             accountCreatedAt: data.accountCreatedAt || "",
                             studyTrack: data.studyTrack || "",
                             selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
-                            currentWeekSeconds: currentWeekTotals.seconds,
+                            currentWeekSeconds: currentWeekSeconds,
                             titleInfo: titleInfo,
                             competitionScore: getCompetitionScore(targetSeconds, targetQuestions),
                             seconds: targetSeconds,
@@ -7034,7 +7078,7 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${user.questions} Soru</div>
+                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -7074,20 +7118,26 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7; 
 
-                const usersSnapshot = await db.collection('users').get();
+                const usersSnapshot = await db.collection('publicProfiles').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
+                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                    const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
+                    const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     
                     if (currentLeaderboardTab === 'daily') {
                         // Günlük verileri hesapla
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                            targetSeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
-                            targetQuestions = data.schedule[todayWeekKey][todayDayIdx].questions || 0;
+                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, explicitDailySeconds);
+                            targetQuestions = Math.max(data.schedule[todayWeekKey][todayDayIdx].questions || 0, explicitDailyQuestions);
                         }
+                        targetSeconds = Math.max(targetSeconds, explicitDailySeconds);
+                        targetQuestions = Math.max(targetQuestions, explicitDailyQuestions);
                     } else {
                         // Haftalık verileri hesapla
                         if (data.schedule && data.schedule[todayWeekKey]) {
@@ -7098,10 +7148,16 @@
                                 }
                             }
                         }
+                        targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
+                        targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
+                    }
+
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
                     // Gösterim şartı
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({ 
                             uid: doc.id,
                             username: data.username, 
@@ -7153,7 +7209,7 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${user.questions} Soru</div>
+                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -7472,7 +7528,7 @@
 
         function getAdminBadgeHtml(extraClass = "") {
             const className = `admin-badge ${extraClass}`.trim();
-            return `<span class="${className}"><i class="fas fa-crown"></i> Admin</span>`;
+            return `<span class="${className}"><i class="fas fa-crown"></i> ${ADMIN_SPECIAL_TITLE}</span>`;
         }
 
         function toggleProfileNotesPanel(forceState) {
@@ -7633,10 +7689,20 @@
                 }
 
                 if (Object.keys(profilePatch).length) {
-                    await db.collection('users').doc(currentUser.uid).update(profilePatch);
+                    await db.collection('users').doc(currentUser.uid).set({
+                        username: data.username || currentUsername || "Kullanici",
+                        accountCreatedAt: data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString(),
+                        ...profilePatch
+                    }, { merge: true });
                 }
             } catch (error) {
-                console.error("Admin durumu guncellenirken hata:", error);
+                const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
+                    || String(error?.message || "").toLowerCase().includes("insufficient permissions");
+                if (permissionDenied) {
+                    console.warn("Admin durumu Firestore kurallari nedeniyle senkronlanamadi.");
+                } else {
+                    console.error("Admin durumu guncellenirken hata:", error);
+                }
             }
 
             updateAdminUI();
@@ -7952,10 +8018,10 @@
             if (!cachedProfile) return;
 
             try {
-                const profileDoc = await db.collection('users').doc(uid).get();
+                const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
+                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                 showProfileModal({
                     uid,
                     username: data.username || cachedProfile.username || "Kullanıcı",
@@ -7966,9 +8032,9 @@
                     selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
                     totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                     totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                    currentWeekSeconds: currentWeekTotals.seconds,
+                    currentWeekSeconds: currentWeekSeconds,
                     notes: getPublicUserNotes(data.notes || []),
-                    titleInfo: getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds)
+                    titleInfo: getCurrentTitleInfoFromSeconds(currentWeekSeconds)
                 }, false);
             } catch (error) {
                 console.error("Profil notları yüklenirken hata:", error);
@@ -7985,7 +8051,7 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-                const usersSnapshot = await db.collection('users').get();
+                const usersSnapshot = await db.collection('publicProfiles').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -8009,7 +8075,7 @@
                         }
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8071,7 +8137,7 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${user.questions} Soru</div>
+                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -8154,10 +8220,10 @@
             if (!cachedProfile) return;
 
             try {
-                const profileDoc = await db.collection('users').doc(uid).get();
+                const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
+                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                 const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                 showProfileModal({
                     uid,
@@ -8171,9 +8237,9 @@
                     selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
                     totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                     totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                    currentWeekSeconds: currentWeekTotals.seconds,
+                    currentWeekSeconds: currentWeekSeconds,
                     notes: getPublicUserNotes(data.notes || []),
-                    titleInfo: getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds)
+                    titleInfo: getCurrentTitleInfoFromSeconds(currentWeekSeconds)
                 }, false);
             } catch (error) {
                 console.error("Profil notlari yuklenirken hata:", error);
@@ -8190,22 +8256,28 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-                const usersSnapshot = await db.collection('users').get();
+                const usersSnapshot = await db.collection('publicProfiles').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
-                    const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds);
+                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                    const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
+                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                    const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
+                    const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                            targetSeconds = data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0;
-                            targetQuestions = data.schedule[todayWeekKey][todayDayIdx].questions || 0;
+                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, explicitDailySeconds);
+                            targetQuestions = Math.max(data.schedule[todayWeekKey][todayDayIdx].questions || 0, explicitDailyQuestions);
                         }
+                        targetSeconds = Math.max(targetSeconds, explicitDailySeconds);
+                        targetQuestions = Math.max(targetQuestions, explicitDailyQuestions);
                     } else if (data.schedule && data.schedule[todayWeekKey]) {
                         for (let i = 0; i < 7; i++) {
                             if (data.schedule[todayWeekKey][i]) {
@@ -8214,8 +8286,15 @@
                             }
                         }
                     }
+                    if (currentLeaderboardTab !== 'daily') {
+                        targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
+                        targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
+                    }
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
+                    }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
+                    if (data.username && (targetSeconds > 0 || targetQuestions > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8226,7 +8305,7 @@
                             accountCreatedAt: data.accountCreatedAt || "",
                             studyTrack: data.studyTrack || "",
                             selectedSubjects: normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || []),
-                            currentWeekSeconds: currentWeekTotals.seconds,
+                            currentWeekSeconds: currentWeekSeconds,
                             titleInfo,
                             competitionScore: getCompetitionScore(targetSeconds, targetQuestions),
                             seconds: targetSeconds,
@@ -8284,7 +8363,7 @@
                         </div>
                         <div class="leaderboard-stats">
                             <div class="leaderboard-score">${formatSeconds(user.seconds)}</div>
-                            <div class="leaderboard-questions">🎯 ${user.questions} Soru</div>
+                            <div class="leaderboard-questions">🎯 ${currentLeaderboardTab === 'daily' ? 'Günlük' : 'Haftalık'} Soru: ${user.questions}</div>
                         </div>
                     `;
                     listContainer.appendChild(item);
@@ -8803,6 +8882,39 @@
             background: linear-gradient(160deg, rgba(23, 25, 36, 0.98), rgba(33, 37, 52, 0.96));
         }
 
+        .titles-modal-content {
+            width: min(880px, 96vw);
+            padding: 24px 24px 28px;
+            border-radius: 30px;
+        }
+
+        .titles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(190px, 190px));
+            justify-content: center;
+            gap: 16px;
+            margin-top: 20px;
+        }
+
+        .title-card {
+            width: 190px;
+            min-height: 190px;
+            aspect-ratio: 1 / 1;
+            display: grid;
+            align-content: start;
+            gap: 10px;
+            padding: 18px 16px;
+            border-radius: 20px;
+        }
+
+        .title-card p {
+            margin: 0;
+        }
+
+        .title-card-header {
+            margin-bottom: 0;
+        }
+
         .profile-modal-content {
             width: min(900px, 96vw);
             padding: 22px 24px 26px;
@@ -9129,6 +9241,16 @@
             .profile-modal-content {
                 width: 100%;
                 padding: 18px 14px 18px;
+            }
+
+            .titles-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                justify-content: stretch;
+            }
+
+            .title-card {
+                width: auto;
+                min-height: 168px;
             }
 
             .profile-modal-close-btn,
@@ -9845,6 +9967,8 @@
                         username,
                         email,
                         isAdmin: isAdminIdentity(username, email),
+                        role: isAdminIdentity(username, email) ? "admin" : "user",
+                        adminTitle: isAdminIdentity(username, email) ? ADMIN_SPECIAL_TITLE : "",
                         about: "",
                         profileImage: "",
                         accountCreatedAt,
@@ -10660,9 +10784,9 @@
             }
         }
     </style>
-    <script src="codex-hotfix-4.js"></script>
+<script src="codex-hotfix-4.js?v=20260329-0135"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js"></script>
+<script src="codex-upgrade-7.js?v=20260329-0135"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
@@ -10725,7 +10849,7 @@
                 var root = document.documentElement;
                 if (!body || !root) return;
 
-                var shouldLock = hasVisibleModal() || isLeaderboardOpen();
+                var shouldLock = hasVisibleModal();
                 if (shouldLock) {
                     if (body.dataset.modalScrollLocked !== 'true') {
                         var scrollTop = window.scrollY || root.scrollTop || 0;

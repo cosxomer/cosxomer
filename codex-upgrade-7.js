@@ -17,6 +17,7 @@
     const NOTE_FOLDER_ALL_ID = "__all__";
     const NOTE_FOLDER_DEFAULT_ID = "general";
     const LOCAL_LEADERBOARD_PREVIEW_ID = "__local_leaderboard_preview__";
+    const PUBLIC_PROFILE_COLLECTION = "publicProfiles";
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
     const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
@@ -1308,10 +1309,96 @@
         if (!currentWeekKey || !sourceSchedule[currentWeekKey]) return 0;
 
         for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
-            questions += parseInteger(sourceSchedule[currentWeekKey]?.[dayIdx]?.questions, 0);
+            questions += parseInteger(ensureDayObject(sourceSchedule[currentWeekKey]?.[dayIdx] || {}).questions, 0);
         }
 
         return questions;
+    }
+
+    function getCurrentDayQuestionsFromSchedule(schedule, referenceDate = new Date()) {
+        const sourceSchedule = schedule || {};
+        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
+        return parseInteger(ensureDayObject(sourceSchedule?.[weekKey]?.[dayIdx] || {}).questions, 0);
+    }
+
+    function getExplicitQuestionCounterValue(userData = {}, fieldNames = []) {
+        return fieldNames.reduce((maxValue, fieldName) => {
+            const nextValue = parseInteger(userData?.[fieldName], 0);
+            return Math.max(maxValue, nextValue);
+        }, 0);
+    }
+
+    function buildQuestionCounterPayload(schedule, referenceDate = new Date()) {
+        const safeSchedule = sanitizeScheduleData(schedule || {});
+        const dailyQuestions = getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate);
+        const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
+
+        return {
+            daily: dailyQuestions,
+            weekly: weeklyQuestions,
+            dailyQuestions,
+            weeklyQuestions,
+            dailyQuestionCount: dailyQuestions,
+            weeklyQuestionCount: weeklyQuestions
+        };
+    }
+
+    function buildPublicProfilePayload(basePayload = {}) {
+        const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
+        const questionCounters = buildQuestionCounterPayload(safeSchedule);
+        const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === "function"
+            ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
+            : parseInteger(basePayload.currentWeekSeconds, 0);
+        const publicNotes = typeof getPublicUserNotes === "function"
+            ? getPublicUserNotes(basePayload.notes || userNotes || [])
+            : [];
+
+        return {
+            uid: currentUser?.uid || basePayload.uid || "",
+            username: currentUsername || basePayload.username || "Kullanici",
+            about: currentProfileAbout || basePayload.about || "",
+            profileImage: currentProfileImage || basePayload.profileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || basePayload.accountCreatedAt || "",
+            studyTrack: studyTrack || basePayload.studyTrack || "",
+            selectedSubjects: typeof normalizeSelectedSubjects === "function"
+                ? normalizeSelectedSubjects(studyTrack || basePayload.studyTrack || "", selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || []))
+                : (selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || [])),
+            isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!basePayload.isAdmin,
+            role: basePayload.role || ((typeof isCurrentAdmin === "function" && isCurrentAdmin()) ? "admin" : "user"),
+            adminTitle: basePayload.adminTitle || "",
+            totalWorkedSeconds: Math.max(
+                parseInteger(basePayload.totalWorkedSeconds, 0),
+                parseInteger(basePayload.totalStudyTime, 0),
+                typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                    ? calculateTotalWorkedSecondsFromSchedule(safeSchedule)
+                    : 0
+            ),
+            totalStudyTime: Math.max(
+                parseInteger(basePayload.totalStudyTime, 0),
+                parseInteger(basePayload.totalWorkedSeconds, 0)
+            ),
+            totalQuestionsAllTime: Math.max(
+                parseInteger(basePayload.totalQuestionsAllTime, 0),
+                typeof calculateTotalQuestionsFromSchedule === "function"
+                    ? calculateTotalQuestionsFromSchedule(safeSchedule)
+                    : 0
+            ),
+            dailyStudyTime: Math.max(parseInteger(basePayload.dailyStudyTime, 0), getCurrentDayWorkedSeconds()),
+            weeklyStudyTime,
+            currentWeekSeconds: weeklyStudyTime,
+            currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
+            isWorking: !!basePayload.isWorking,
+            lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
+            notes: publicNotes,
+            ...questionCounters
+        };
+    }
+
+    function syncPublicProfileSnapshot(basePayload = null) {
+        if (!currentUser?.uid) return Promise.resolve();
+        const userPayload = basePayload || (typeof buildUserPayload === "function" ? buildUserPayload() : {});
+        const publicPayload = buildPublicProfilePayload(userPayload);
+        return db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set(publicPayload, { merge: true });
     }
 
     function applyStudyDelta(deltaSeconds, date = new Date()) {
@@ -1335,12 +1422,14 @@
 
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
+        const questionCounters = buildQuestionCounterPayload(scheduleData);
 
         return {
             schedule: scheduleData,
             totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
             totalStudyTime: totalWorkedSecondsAllTime || 0,
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
+            ...questionCounters,
             dailyStudyTime: currentDayWorkedSeconds,
             currentSessionTime: options.currentSessionTime === undefined ? (activeSession?.isRunning ? getTimerElapsedSeconds(activeSession) : 0) : options.currentSessionTime,
             activeTimer: activeSession ? serializeTimerSession(activeSession) : null,
@@ -1358,6 +1447,7 @@
         const normalizedLocalSchedule = sanitizeScheduleData(scheduleData || {});
         const normalizedBaseSchedule = sanitizeScheduleData(baseData.schedule || {});
         const resolvedSchedule = hasAnyScheduleEntries(normalizedLocalSchedule) ? normalizedLocalSchedule : normalizedBaseSchedule;
+        const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
         const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
             ? normalizeSelectedSubjects(
                 studyTrack || baseData.studyTrack || "",
@@ -1394,6 +1484,7 @@
             totalWorkedSeconds: resolvedTotalWorkedSeconds,
             totalStudyTime: resolvedTotalWorkedSeconds,
             totalQuestionsAllTime: resolvedTotalQuestions,
+            ...questionCounters,
             activeTimer: activeSessionOverride === undefined ? (timerState.session ? serializeTimerSession(timerState.session) : null) : activeSessionOverride,
             isWorking: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
             notes: typeof normalizeUserNotes === "function"
@@ -1813,16 +1904,27 @@
         let totalSeconds = 0;
         let dayStartMs = 0;
         const now = Date.now();
+        const explicitDailySeconds = Math.max(
+            parseInteger(userData?.dailyStudyTime, 0),
+            parseInteger(userData?.todayStudyTime, 0)
+        );
+        const explicitWeeklySeconds = Math.max(
+            parseInteger(userData?.weeklyStudyTime, 0),
+            parseInteger(userData?.currentWeekSeconds, 0)
+        );
+        const explicitSessionSeconds = userData?.isWorking ? parseInteger(userData?.currentSessionTime, 0) : 0;
 
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
             dayStartMs = dayStart.getTime();
             totalSeconds = clampWorkedSecondsForDisplay(userData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
+            totalSeconds = Math.max(totalSeconds, explicitDailySeconds + explicitSessionSeconds);
         } else {
             totalSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
                 ? getCurrentWeekTotalsFromSchedule(userData?.schedule || {}).seconds
                 : getRollingSevenDayTotalsFromSchedule(userData?.schedule || {}, currentDate).seconds;
+            totalSeconds = Math.max(totalSeconds, explicitWeeklySeconds + explicitSessionSeconds);
         }
 
         const activeTimer = userData?.activeTimer;
@@ -1851,9 +1953,14 @@
 
     function getLeaderboardQuestionBreakdown(userData, referenceDate = new Date()) {
         const safeSchedule = sanitizeScheduleData(userData?.schedule || {});
-        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
-        const dailyQuestions = parseInteger(safeSchedule?.[weekKey]?.[dayIdx]?.questions, 0);
-        const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
+        const dailyQuestions = Math.max(
+            getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(userData || {}, ["dailyQuestionCount", "dailyQuestions", "daily"])
+        );
+        const weeklyQuestions = Math.max(
+            getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(userData || {}, ["weeklyQuestionCount", "weeklyQuestions", "weekly"])
+        );
 
         return {
             dailyQuestions,
@@ -1866,8 +1973,113 @@
         return getLeaderboardQuestionBreakdown(userData).activeQuestions;
     }
 
+    function extractTrailingNumber(value) {
+        const matches = String(value || "").match(/(\d+)/g);
+        if (!matches || !matches.length) return 0;
+        return parseInteger(matches[matches.length - 1], 0);
+    }
+
+    function getDisplayedQuestionCounts() {
+        const todayNode = document.getElementById("today-question-count");
+        const weekNode = document.getElementById("week-question-count");
+
+        return {
+            dailyQuestions: extractTrailingNumber(todayNode?.textContent || todayNode?.innerText || ""),
+            weeklyQuestions: extractTrailingNumber(weekNode?.textContent || weekNode?.innerText || "")
+        };
+    }
+
+    function buildForcedLocalLeaderboardEntry() {
+        const baseData = currentUserLiveDoc && typeof currentUserLiveDoc === "object"
+            ? currentUserLiveDoc
+            : {};
+        const data = buildOptimisticCurrentUserData(baseData);
+        const seconds = getLiveLeaderboardSeconds(data);
+        const questionBreakdown = getLeaderboardQuestionBreakdown(data);
+        const displayedQuestionCounts = getDisplayedQuestionCounts();
+        const dailyQuestions = Math.max(questionBreakdown.dailyQuestions, displayedQuestionCounts.dailyQuestions);
+        const weeklyQuestions = Math.max(questionBreakdown.weeklyQuestions, displayedQuestionCounts.weeklyQuestions);
+        const questions = currentLeaderboardTab === "daily" ? dailyQuestions : weeklyQuestions;
+        const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
+            ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
+            : seconds;
+        const isWorking = currentLeaderboardTab === "daily" && isTimerRecordRunning(data.activeTimer);
+        const hasVisibleStats = seconds > 0
+            || dailyQuestions > 0
+            || weeklyQuestions > 0
+            || isWorking;
+
+        if (!hasVisibleStats) return null;
+
+        return {
+            uid: currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID,
+            username: currentUsername || data.username || "Sen",
+            email: currentUser?.email || data.email || "",
+            isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!data.isAdmin,
+            about: currentProfileAbout || data.about || "",
+            profileImage: currentProfileImage || data.profileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || data.accountCreatedAt || "",
+            studyTrack: studyTrack || data.studyTrack || "",
+            selectedSubjects: typeof normalizeSelectedSubjects === "function"
+                ? normalizeSelectedSubjects(studyTrack || data.studyTrack || "", selectedSubjects && selectedSubjects.length ? selectedSubjects : (data.selectedSubjects || []))
+                : (selectedSubjects && selectedSubjects.length ? selectedSubjects : (data.selectedSubjects || [])),
+            currentWeekSeconds,
+            titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
+                ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
+                : null,
+            competitionScore: typeof getCompetitionScore === "function"
+                ? getCompetitionScore(seconds, questions)
+                : (seconds * 10) + questions,
+            seconds,
+            questions,
+            dailyQuestions,
+            weeklyQuestions,
+            totalWorkedSeconds: Math.max(
+                parseInteger(data.totalWorkedSeconds, 0),
+                parseInteger(data.totalStudyTime, 0),
+                typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                    ? calculateTotalWorkedSecondsFromSchedule(data.schedule || {})
+                    : 0
+            ),
+            currentPeriodQuestions: questions,
+            totalQuestionsAllTime: Math.max(
+                parseInteger(data.totalQuestionsAllTime, 0),
+                dailyQuestions,
+                weeklyQuestions,
+                typeof calculateTotalQuestionsFromSchedule === "function"
+                    ? calculateTotalQuestionsFromSchedule(data.schedule || {})
+                    : 0
+            ),
+            isWorking,
+            isLocalPreview: !currentUser,
+            notes: typeof getPublicUserNotes === "function" ? getPublicUserNotes(data.notes || []) : []
+        };
+    }
+
+    function mergeForcedLocalLeaderboardEntry(leaderboardData) {
+        const nextData = Array.isArray(leaderboardData) ? [...leaderboardData] : [];
+        const localEntry = buildForcedLocalLeaderboardEntry();
+        if (!localEntry) return nextData;
+
+        const localIndex = nextData.findIndex(user => {
+            if (currentUser?.uid) return user.uid === currentUser.uid;
+            return user.uid === LOCAL_LEADERBOARD_PREVIEW_ID || (!!user.isLocalPreview && user.username === localEntry.username);
+        });
+
+        if (localIndex >= 0) {
+            nextData[localIndex] = {
+                ...nextData[localIndex],
+                ...localEntry
+            };
+        } else {
+            nextData.push(localEntry);
+        }
+
+        return nextData.sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+    }
+
     function buildLeaderboardViewModelFromDocs() {
-        return getLeaderboardSourceDocs()
+        return mergeForcedLocalLeaderboardEntry(getLeaderboardSourceDocs()
             .map(doc => {
                 const data = doc.data || {};
                 const seconds = getLiveLeaderboardSeconds(data);
@@ -1880,9 +2092,13 @@
                         : 0
                 );
                 const questions = currentPeriodQuestions;
-                const currentWeekTotals = typeof getCurrentWeekTotalsFromSchedule === "function"
-                    ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
-                    : seconds;
+                const currentWeekTotals = Math.max(
+                    parseInteger(data.currentWeekSeconds, 0),
+                    parseInteger(data.weeklyStudyTime, 0),
+                    typeof getCurrentWeekTotalsFromSchedule === "function"
+                        ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
+                        : seconds
+                );
                 const titleInfo = typeof getCurrentTitleInfoFromSeconds === "function"
                     ? getCurrentTitleInfoFromSeconds(currentWeekTotals)
                     : null;
@@ -1920,8 +2136,45 @@
                     notes: typeof getPublicUserNotes === "function" ? getPublicUserNotes(data.notes || []) : []
                 };
             })
-            .filter(Boolean)
-            .sort((a, b) => (b.competitionScore - a.competitionScore) || (b.seconds - a.seconds) || (b.questions - a.questions));
+            .filter(Boolean));
+    }
+
+    function prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData = []) {
+        if (!listContainer) return;
+
+        const localEntry = buildForcedLocalLeaderboardEntry();
+        if (!localEntry) return;
+        const hasRealCurrentUserRow = Array.isArray(leaderboardData) && leaderboardData.some(user => {
+            if (!user) return false;
+            if (currentUser?.uid) {
+                return user.uid === currentUser.uid && !user.isLocalPreview;
+            }
+            return false;
+        });
+        if (hasRealCurrentUserRow) return;
+
+        const summaryCard = document.createElement("div");
+        summaryCard.className = "leaderboard-item";
+        summaryCard.style.border = "1px solid rgba(255,255,255,0.16)";
+        summaryCard.style.background = "linear-gradient(135deg, rgba(76, 175, 80, 0.22), rgba(33, 150, 243, 0.18))";
+        summaryCard.style.marginBottom = "10px";
+        summaryCard.innerHTML = `
+            <div class="leaderboard-rank">Sen</div>
+            <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(localEntry.profileImage, localEntry.username) : "")}" alt="${escapeHtml(localEntry.username)}">
+            <div class="leaderboard-name-wrapper">
+                <div class="leaderboard-name">${escapeHtml(localEntry.username)}</div>
+                <div class="leaderboard-extra-badges">
+                    <span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>
+                </div>
+            </div>
+            <div class="leaderboard-stats">
+                <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(localEntry.seconds) : localEntry.seconds}</div>
+                <div class="leaderboard-questions">Günlük Soru: ${localEntry.dailyQuestions}</div>
+                <div class="leaderboard-questions">Haftalık Soru: ${localEntry.weeklyQuestions}</div>
+            </div>
+        `;
+
+        listContainer.appendChild(summaryCard);
     }
 
     function renderLiveLeaderboardFromDocs() {
@@ -1936,6 +2189,8 @@
             listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
             return;
         }
+
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
 
         leaderboardData.forEach((user, index) => {
             const item = document.createElement("div");
@@ -1982,7 +2237,7 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(snapshot => {
+        leaderboardRealtimeUnsubscribe = db.collection(PUBLIC_PROFILE_COLLECTION).onSnapshot(snapshot => {
             leaderboardRealtimeDocs = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
             if (currentUser?.uid) {
                 const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
@@ -1998,12 +2253,22 @@
             }
             renderLiveLeaderboardFromDocs();
         }, error => {
-            console.error("Canli lider tablosu dinlenemedi:", error);
+            const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
+                || String(error?.message || "").toLowerCase().includes("insufficient permissions");
+            if (permissionDenied) {
+                console.warn("Canli lider tablosu Firestore kurallari nedeniyle acilamadi. Yerel ilerleme gosteriliyor.");
+            } else {
+                console.error("Canli lider tablosu dinlenemedi:", error);
+            }
+
+            leaderboardRealtimeDocs = [];
             const fallbackData = buildLeaderboardViewModelFromDocs();
             if (fallbackData.length) {
                 renderLiveLeaderboardFromDocs();
             } else if (listContainer) {
-                listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+                listContainer.innerHTML = permissionDenied
+                    ? '<p style="text-align:center; color:#facc15;">Lider tablosu Firestore izinleri nedeniyle sadece bu cihazdaki veriyi gosterebiliyor.</p>'
+                    : '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
             }
         });
 
@@ -2505,7 +2770,7 @@
         const rawMap = normalizeSubjectQuestionMap(dayData?.subjectQuestions || {});
 
         if (!taskOptions.length) {
-            return [FREE_GENERAL_SUBJECT];
+            return [];
         }
 
         if (rawMap[FREE_GENERAL_SUBJECT] > 0 && !taskOptions.includes(FREE_GENERAL_SUBJECT)) {
@@ -2541,8 +2806,18 @@
 
     function syncDayQuestionState(dayData) {
         if (!dayData || typeof dayData !== "object") return dayData;
-        dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
-        dayData.questions = Object.values(dayData.subjectQuestions || {}).reduce((sum, amount) => sum + parseInteger(amount, 0), 0);
+        const normalizedDay = ensureDayObject(dayData);
+        const normalizedMap = normalizeTaskQuestionMap(normalizedDay);
+        const normalizedTotal = Object.values(normalizedMap || {}).reduce((sum, amount) => sum + parseInteger(amount, 0), 0);
+
+        if (normalizedTotal > 0 || parseInteger(normalizedDay.questions, 0) <= 0) {
+            dayData.subjectQuestions = normalizedMap;
+            dayData.questions = normalizedTotal;
+            return dayData;
+        }
+
+        dayData.subjectQuestions = normalizeSubjectQuestionMap(normalizedDay.subjectQuestions || {});
+        dayData.questions = parseInteger(normalizedDay.questions, 0);
         return dayData;
     }
 
@@ -2573,7 +2848,7 @@
 
     function getSafeSelectedTask(dayData, currentValue = "") {
         const taskOptions = getQuestionTrackingOptions(dayData);
-        if (!taskOptions.length) return FREE_GENERAL_SUBJECT;
+        if (!taskOptions.length) return "";
         return taskOptions.includes(currentValue) ? currentValue : taskOptions[0];
     }
 
@@ -2696,23 +2971,33 @@
             const summaryRoot = input.closest(".question-input-box");
             const questionRow = input.closest(".question-input-row");
 
+            input.disabled = !taskOptions.length;
+            input.placeholder = taskOptions.length ? "Soru sayısını girin" : "Önce görev ekleyin";
+            if (!taskOptions.length && document.activeElement !== input) {
+                input.value = "";
+            }
+
             buttonGroup?.querySelector(".subject-breakdown-btn")?.remove();
 
             if (questionRow) {
                 let select = questionRow.querySelector(".question-subject-select");
-                if (!select) {
-                    select = document.createElement("select");
-                    select.className = "question-subject-select";
-                    select.id = `q-subject-${dayIdx}`;
-                }
-                questionRow.appendChild(select);
+                if (!taskOptions.length) {
+                    select?.remove();
+                } else {
+                    if (!select) {
+                        select = document.createElement("select");
+                        select.className = "question-subject-select";
+                        select.id = `q-subject-${dayIdx}`;
+                    }
+                    questionRow.appendChild(select);
 
-                const selectedValue = select.value;
-                select.innerHTML = taskOptions.map(taskLabel => `
-                    <option value="${escapeHtml(taskLabel)}">${escapeHtml(getQuestionTrackingLabel(taskLabel))}</option>
-                `).join("");
-                select.disabled = false;
-                select.value = getSafeSelectedTask(dayData, selectedValue);
+                    const selectedValue = select.value;
+                    select.innerHTML = taskOptions.map(taskLabel => `
+                        <option value="${escapeHtml(taskLabel)}">${escapeHtml(getQuestionTrackingLabel(taskLabel))}</option>
+                    `).join("");
+                    select.disabled = false;
+                    select.value = getSafeSelectedTask(dayData, selectedValue);
+                }
             }
 
             let summary = summaryRoot?.querySelector(".subject-question-summary");
@@ -2723,7 +3008,13 @@
             }
 
             if (summary) {
-                summary.innerHTML = getTaskQuestionSummaryHtml(dayData, taskOptions);
+                if (!taskOptions.length) {
+                    summary.innerHTML = "";
+                    summary.style.display = "none";
+                } else {
+                    summary.style.display = "";
+                    summary.innerHTML = getTaskQuestionSummaryHtml(dayData, taskOptions);
+                }
             }
 
             ensureTaskDecorations(dayIdx, dayData);
@@ -2744,6 +3035,8 @@
             return;
         }
 
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+
         leaderboardData.forEach((user, index) => {
             const item = document.createElement("div");
             item.className = "leaderboard-item";
@@ -2757,17 +3050,19 @@
 
             const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
             const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
+            const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
 
             item.innerHTML = `
                 <div class="leaderboard-rank">#${index + 1}</div>
                 <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
                 <div class="leaderboard-name-wrapper">
                     <div class="leaderboard-name">${escapeHtml(user.username)}</div>
-                    <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}</div>
+                    <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}</div>
                 </div>
                 <div class="leaderboard-stats">
                     <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(user.seconds) : user.seconds}</div>
-                    <div class="leaderboard-questions">${user.questions} Soru</div>
+                    <div class="leaderboard-questions">Günlük Soru: ${user.dailyQuestions}</div>
+                    <div class="leaderboard-questions">Haftalık Soru: ${user.weeklyQuestions}</div>
                     ${user.isWorking ? '<div class="working-badge">Calisiyor</div>' : ""}
                 </div>
             `;
@@ -2823,7 +3118,7 @@
             input.value = "";
             setQuestionValidation(dayIdx, "");
             renderSchedule();
-            safeShowAlert(`${taskLabel} için soru sayısı ${value} olarak kaydedildi.`, "success");
+            safeShowAlert(`${getQuestionTrackingLabel(taskLabel)} için soru sayısı ${value} olarak kaydedildi.`, "success");
         };
 
         clearQuestions = function(dayIdx) {
@@ -3146,7 +3441,15 @@
 
             auth.createUserWithEmailAndPassword(email, password)
                 .then(async credential => {
-                    await db.collection("users").doc(credential.user.uid).set(createSignupPayload(username, email, accountCreatedAt), { merge: true });
+                    const signupPayload = createSignupPayload(username, email, accountCreatedAt);
+                    await db.collection("users").doc(credential.user.uid).set(signupPayload, { merge: true });
+                    currentUser = credential.user;
+                    currentUsername = username;
+                    currentAccountCreatedAt = accountCreatedAt;
+                    await db.collection(PUBLIC_PROFILE_COLLECTION).doc(credential.user.uid).set({
+                        ...buildPublicProfilePayload(signupPayload),
+                        uid: credential.user.uid
+                    }, { merge: true });
                     await credential.user.sendEmailVerification();
                     localStorage.setItem(VERIFY_EMAIL_KEY, email);
                     localStorage.setItem(VERIFY_COOLDOWN_KEY, String(Date.now() + VERIFY_COOLDOWN_MS));
@@ -3241,7 +3544,7 @@
             input.value = "";
             setQuestionValidation(dayIdx, "");
             renderSchedule();
-            safeShowAlert(`${taskLabel} için soru sayısı ${value} olarak kaydedildi.`, "success");
+            safeShowAlert(`${getQuestionTrackingLabel(taskLabel)} için soru sayısı ${value} olarak kaydedildi.`, "success");
         };
 
         clearQuestions = function(dayIdx) {
@@ -3298,16 +3601,10 @@
             }
 
             const writePromise = withManualFirestoreWrite(() => queueCurrentUserWrite(label, async () => {
-                const userRef = db.collection("users").doc(currentUser.uid);
-                const snapshot = await userRef.get();
-                if (!snapshot.exists) {
-                    currentUserLiveDoc = null;
-                    safeShowAlert("Bulut verisi bulunamadi. Silinen veri otomatik olarak yeniden olusturulmayacak.");
-                    return;
-                }
-
                 const payload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
-                await userRef.update(payload);
+                const userRef = db.collection("users").doc(currentUser.uid);
+                await userRef.set(payload, { merge: true });
+                await syncPublicProfileSnapshot(payload);
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
                 }
@@ -3401,7 +3698,12 @@
                             activeSession,
                             currentSessionTime: options.currentSessionTime
                         });
-                        await userRef.update(payload);
+                        await userRef.set(payload, { merge: true });
+                        await syncPublicProfileSnapshot({
+                            ...(currentUserLiveDoc || {}),
+                            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+                            ...payload
+                        });
                     }));
                 } catch (error) {
                     console.error("Gercek zamanli sure senkronu basarisiz:", error);
@@ -4000,6 +4302,7 @@
 
             const basePayload = originalBuildUserPayload ? originalBuildUserPayload() : {};
             const resolvedEmail = currentUser?.email || basePayload.email || "";
+            const questionCounters = buildQuestionCounterPayload(scheduleData);
             const adminProfile = typeof getAdminProfileMeta === "function"
                 ? getAdminProfileMeta(currentUsername, resolvedEmail)
                 : {
@@ -4022,6 +4325,7 @@
                 totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
                 totalStudyTime: totalWorkedSecondsAllTime || 0,
                 totalQuestionsAllTime: totalQuestionsAllTime || 0,
+                ...questionCounters,
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
                 currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
                 activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
@@ -4186,6 +4490,9 @@
                 bootstrapExtendedUserData(data);
                 renderSchedule();
                 renderMyNotesPanel();
+                syncPublicProfileSnapshot(data).catch(error => {
+                    console.error("Public profil senkronu basarisiz:", error);
+                });
             }).catch(error => {
                 console.error("Genişletilmiş kullanıcı verisi okunamadi:", error);
             });
