@@ -332,7 +332,7 @@
 
     function getFreshForeignActiveTimer(userData = currentUserLiveDoc, now = Date.now()) {
         const activeTimer = userData?.activeTimer;
-        if (!activeTimer?.isRunning) return null;
+        if (!isTimerVisibleForLeaderboard(activeTimer, now)) return null;
 
         const ownerId = String(activeTimer.ownerId || "").trim();
         const updatedAtMs = parseInteger(activeTimer.updatedAtMs, 0);
@@ -506,11 +506,12 @@
         const baseDoc = currentUserLiveDoc && typeof currentUserLiveDoc === "object"
             ? currentUserLiveDoc
             : {};
+        const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
 
         currentUserLiveDoc = {
             ...baseDoc,
-            activeTimer: activeSession ? serializeTimerSession(activeSession) : null,
-            isWorking: !!activeSession?.isRunning
+            activeTimer: activeTimerRecord,
+            isWorking: isTimerVisibleForLeaderboard(activeTimerRecord)
         };
     }
 
@@ -943,8 +944,55 @@
         });
     }
 
+    function isTimerModalOpen() {
+        const modal = document.getElementById("pomodoro-modal");
+        if (!modal) return false;
+        if (modal.style.display === "none") return false;
+        return window.getComputedStyle(modal).display !== "none";
+    }
+
+    function touchTimerVisibility(referenceMs = Date.now(), options = {}) {
+        const safeReferenceMs = Math.max(0, parseInteger(referenceMs, Date.now()));
+        timerState.lastModalSeenAt = safeReferenceMs;
+
+        if (!timerState.session) return safeReferenceMs;
+
+        timerState.session.lastSeenAtMs = safeReferenceMs;
+        timerState.session.modalOpen = options.modalOpen === undefined
+            ? isTimerModalOpen()
+            : !!options.modalOpen;
+        timerDrafts[timerState.session.mode] = { ...timerState.session };
+
+        if (options.persist) {
+            persistTimerSessionLocally(timerState.session);
+        }
+
+        return safeReferenceMs;
+    }
+
+    function getTimerLastSeenAt(timerRecord) {
+        return Math.max(
+            0,
+            parseInteger(timerRecord?.lastSeenAtMs, 0),
+            parseInteger(timerRecord?.updatedAtMs, 0),
+            parseInteger(timerRecord?.startedAtMs, 0)
+        );
+    }
+
+    function isTimerVisibleForLeaderboard(timerRecord, now = Date.now()) {
+        const updatedAtMs = Math.max(0, parseInteger(timerRecord?.updatedAtMs, 0));
+        const hasFreshHeartbeat = updatedAtMs > 0 && (now - updatedAtMs) <= REMOTE_TIMER_STALE_MS;
+        return isTimerRecordRunning(timerRecord, now) && !!timerRecord?.modalOpen && hasFreshHeartbeat;
+    }
+
     function serializeTimerSession(session) {
         if (!session) return null;
+        const modalOpen = session.modalOpen === undefined ? isTimerModalOpen() : !!session.modalOpen;
+        const lastSeenAtMs = Math.max(
+            getTimerLastSeenAt(session),
+            modalOpen ? Date.now() : 0,
+            parseInteger(timerState.lastModalSeenAt, 0)
+        );
         return {
             uid: currentUser?.uid || "",
             mode: session.mode,
@@ -954,7 +1002,9 @@
             targetDurationSeconds: Math.max(0, parseInteger(session.targetDurationSeconds, 0)),
             startedAtMs: session.isRunning ? parseInteger(session.startedAtMs, Date.now()) : 0,
             updatedAtMs: Date.now(),
-            ownerId: timerInstanceId
+            ownerId: timerInstanceId,
+            modalOpen,
+            lastSeenAtMs
         };
     }
 
@@ -992,7 +1042,9 @@
             baseElapsedSeconds: 0,
             lastPersistedElapsedSeconds: 0,
             targetDurationSeconds: mode === "pomodoro" ? getPomodoroSeedSeconds() : 0,
-            startedAtMs: 0
+            startedAtMs: 0,
+            modalOpen: false,
+            lastSeenAtMs: 0
         };
     }
 
@@ -1010,9 +1062,9 @@
     function getTimerElapsedSeconds(session = timerState.session, now = Date.now()) {
         if (!session) return 0;
         const baseElapsed = Math.max(0, parseInteger(session.baseElapsedSeconds, 0));
-        const updatedAtMs = Math.max(0, parseInteger(session.updatedAtMs, 0));
-        const effectiveNow = updatedAtMs > 0
-            ? Math.min(now, updatedAtMs + TIMER_AUTO_STOP_MS)
+        const lastSeenAtMs = getTimerLastSeenAt(session);
+        const effectiveNow = lastSeenAtMs > 0
+            ? Math.min(now, lastSeenAtMs + TIMER_AUTO_STOP_MS)
             : now;
         if (!session.isRunning || !session.startedAtMs) {
             return baseElapsed;
@@ -1023,8 +1075,8 @@
 
     function isTimerRecordRunning(timerRecord, now = Date.now()) {
         if (!timerRecord || !timerRecord.isRunning) return false;
-        const updatedAtMs = Math.max(0, parseInteger(timerRecord.updatedAtMs, 0));
-        if (updatedAtMs > 0 && (now - updatedAtMs) > TIMER_AUTO_STOP_MS) return false;
+        const lastSeenAtMs = getTimerLastSeenAt(timerRecord);
+        if (lastSeenAtMs > 0 && (now - lastSeenAtMs) >= TIMER_AUTO_STOP_MS) return false;
         return true;
     }
 
@@ -1129,6 +1181,16 @@
         const content = document.querySelector("#pomodoro-modal .pomodoro-content");
         if (!content) return;
 
+        if (timerState.session?.isRunning) {
+            if (isTimerModalOpen()) {
+                touchTimerVisibility(Date.now(), { modalOpen: true });
+            } else {
+                maybeAutoStopHiddenTimer().catch(error => {
+                    console.error("Gizli timer otomatik durdurulamadi:", error);
+                });
+            }
+        }
+
         content.classList.toggle("is-stopwatch-mode", timerState.mode === "stopwatch");
         updateTimerButtons();
         updateTimerSessionPill();
@@ -1146,6 +1208,49 @@
         }
 
         updateLiveStudyPreview();
+    }
+
+    async function maybeAutoStopHiddenTimer() {
+        if (timerState.transitioning || !timerState.session?.isRunning || isTimerModalOpen()) {
+            return false;
+        }
+        if (isTimerRecordRunning(timerState.session)) {
+            return false;
+        }
+
+        timerState.transitioning = true;
+
+        try {
+            const session = timerState.session;
+            const commitSourceSession = createCommitSourceSession(session);
+            const elapsed = getTimerElapsedSeconds(commitSourceSession);
+
+            session.baseElapsedSeconds = elapsed;
+            session.isRunning = false;
+            session.startedAtMs = 0;
+            session.modalOpen = false;
+            timerState.session = session;
+            timerDrafts[session.mode] = { ...session };
+            isRunning = false;
+            stopTimerLoops();
+
+            await syncRealtimeTimer("auto-stop-hidden", {
+                activeSession: session,
+                currentSessionTime: 0,
+                commitElapsed: true,
+                commitSourceSession,
+                committedElapsedSeconds: elapsed,
+                userTriggeredWrite: true,
+                authorized: true
+            });
+
+            releaseTimerOwnership();
+            renderTimerUi();
+            safeShowAlert("Timer 3 saat boyunca acik kalmadigi icin otomatik durduruldu.", "info");
+            return true;
+        } finally {
+            timerState.transitioning = false;
+        }
     }
 
     function ensureTimerModeUi() {
@@ -1261,6 +1366,27 @@
         timerOwnerInterval = setInterval(() => {
             refreshTimerOwnership();
         }, Math.max(3000, Math.floor(TIMER_OWNER_TTL_MS / 3)));
+
+        timerSyncInterval = setInterval(() => {
+            if (!timerState.session?.isRunning || timerState.transitioning) return;
+
+            if (isTimerModalOpen()) {
+                touchTimerVisibility(Date.now(), { modalOpen: true });
+                syncRealtimeTimer("heartbeat", {
+                    activeSession: timerState.session,
+                    currentSessionTime: getTimerDisplaySeconds(timerState.session),
+                    userTriggeredWrite: true,
+                    authorized: true
+                }).catch(error => {
+                    console.error("Timer heartbeat senkronu basarisiz:", error);
+                });
+                return;
+            }
+
+            maybeAutoStopHiddenTimer().catch(error => {
+                console.error("Gizli timer heartbeat'i durdurulamadi:", error);
+            });
+        }, TIMER_SYNC_MS);
     }
 
     function getPendingTimerDelta(session = timerState.session) {
@@ -1474,7 +1600,8 @@
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
             activeTimer: basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null),
-            isWorking: !!basePayload.isWorking || isTimerRecordRunning(basePayload.activeTimer) || isTimerRecordRunning(timerState.session),
+            isWorking: isTimerVisibleForLeaderboard(basePayload.activeTimer)
+                || isTimerVisibleForLeaderboard(timerState.session),
             lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
             notes: publicNotes,
             ...questionCounters
@@ -1530,7 +1657,7 @@
         const activeTimer = basePayload.activeTimer || (isCurrentUserTarget && timerState.session ? serializeTimerSession(timerState.session) : null);
         const currentSessionTime = Math.max(
             parseInteger(basePayload.currentSessionTime, 0),
-            isCurrentUserTarget && timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0
+            isCurrentUserTarget && isTimerVisibleForLeaderboard(timerState.session) ? getTimerElapsedSeconds(timerState.session) : 0
         );
         const totalWorkedSeconds = Math.max(
             parseInteger(basePayload.totalWorkedSeconds, 0),
@@ -1570,7 +1697,7 @@
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime,
             activeTimer,
-            isWorking: !!basePayload.isWorking || isTimerRecordRunning(activeTimer),
+            isWorking: isTimerVisibleForLeaderboard(activeTimer),
             totalWorkedSeconds,
             totalStudyTime: totalWorkedSeconds,
             daily: questionCounters.dailyQuestions,
@@ -1762,6 +1889,7 @@
 
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
+        const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
         const questionCounters = buildQuestionCounterPayload(scheduleData);
 
         return {
@@ -1771,9 +1899,11 @@
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
             ...questionCounters,
             dailyStudyTime: currentDayWorkedSeconds,
-            currentSessionTime: options.currentSessionTime === undefined ? (activeSession?.isRunning ? getTimerElapsedSeconds(activeSession) : 0) : options.currentSessionTime,
-            activeTimer: activeSession ? serializeTimerSession(activeSession) : null,
-            isWorking: isTimerRecordRunning(activeSession),
+            currentSessionTime: options.currentSessionTime === undefined
+                ? (isTimerVisibleForLeaderboard(activeTimerRecord) ? getTimerElapsedSeconds(activeSession) : 0)
+                : options.currentSessionTime,
+            activeTimer: activeTimerRecord,
+            isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
             lastTimerSyncAt: Date.now(),
             emailVerified: !!currentUser?.emailVerified
         };
@@ -2183,14 +2313,20 @@
         }
 
         if (seedSession) {
+            const seedSessionRunning = isTimerRecordRunning(seedSession);
+            const frozenElapsedSeconds = getTimerElapsedSeconds(seedSession);
             timerState.session = {
                 mode: seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro",
-                isRunning: !!seedSession.isRunning,
-                baseElapsedSeconds: Math.max(0, parseInteger(seedSession.baseElapsedSeconds, 0)),
+                isRunning: seedSessionRunning,
+                baseElapsedSeconds: seedSessionRunning
+                    ? Math.max(0, parseInteger(seedSession.baseElapsedSeconds, 0))
+                    : frozenElapsedSeconds,
                 lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
                 targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
-                startedAtMs: seedSession.isRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
+                startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
                 updatedAtMs: Math.max(0, parseInteger(seedSession.updatedAtMs, Date.now())),
+                lastSeenAtMs: getTimerLastSeenAt(seedSession),
+                modalOpen: seedSessionRunning ? !!seedSession.modalOpen : false,
                 ownerId: String(seedSession.ownerId || timerInstanceId)
             };
         } else {
@@ -2275,6 +2411,7 @@
         let totalSeconds = 0;
         let dayStartMs = 0;
         const now = Date.now();
+        const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(userData?.activeTimer, now);
         const explicitDailySeconds = Math.max(
             parseInteger(userData?.dailyStudyTime, 0),
             parseInteger(userData?.todayStudyTime, 0)
@@ -2283,7 +2420,7 @@
             parseInteger(userData?.weeklyStudyTime, 0),
             parseInteger(userData?.currentWeekSeconds, 0)
         );
-        const explicitSessionSeconds = userData?.isWorking ? parseInteger(userData?.currentSessionTime, 0) : 0;
+        const explicitSessionSeconds = hasVisibleActiveTimer ? parseInteger(userData?.currentSessionTime, 0) : 0;
 
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
@@ -2299,7 +2436,7 @@
         }
 
         const activeTimer = userData?.activeTimer;
-        if (activeTimer?.isRunning) {
+        if (hasVisibleActiveTimer) {
             const pendingInterval = getPendingTimerInterval(activeTimer, now);
 
             if (currentLeaderboardTab === "daily") {
@@ -2374,7 +2511,7 @@
         const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
             : seconds;
-        const isWorking = currentLeaderboardTab === "daily" && isTimerRecordRunning(data.activeTimer);
+        const isWorking = currentLeaderboardTab === "daily" && isTimerVisibleForLeaderboard(data.activeTimer);
         const hasVisibleStats = seconds > 0 || isWorking;
 
         if (!hasVisibleStats) return null;
@@ -2470,11 +2607,8 @@
                     : null;
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
 
-                const isWorking = currentLeaderboardTab === "daily" && (
-                    isTimerRecordRunning(data.activeTimer)
-                    || !!data.isWorking
-                    || parseInteger(data.currentSessionTime, 0) > 0
-                );
+                const isWorking = currentLeaderboardTab === "daily"
+                    && isTimerVisibleForLeaderboard(data.activeTimer);
 
                 if (!data.username) return null;
                 if (!(seconds > 0 || resolvedIsAdmin || isWorking)) return null;
@@ -4153,6 +4287,8 @@
             session.mode = mode;
             session.isRunning = true;
             session.startedAtMs = Date.now();
+            session.modalOpen = isTimerModalOpen();
+            session.lastSeenAtMs = Date.now();
 
             timerState.session = session;
             timerDrafts[mode] = { ...session };
@@ -4179,6 +4315,7 @@
             session.baseElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
+            session.modalOpen = false;
             timerState.session = session;
             timerDrafts[session.mode] = { ...session };
             isRunning = false;
@@ -4511,7 +4648,7 @@
         showPomodoroModal = (function(originalShowPomodoroModal) {
             return function() {
                 if (guardVerifiedAccess()) return;
-                timerState.lastModalSeenAt = Date.now();
+                touchTimerVisibility(Date.now(), { modalOpen: true, persist: !!timerState.session });
                 if (typeof originalShowPomodoroModal === "function") {
                     originalShowPomodoroModal();
                 } else {
@@ -4519,6 +4656,16 @@
                 }
                 ensureTimerModeUi();
                 setTimerMode(timerState.mode, { persist: false, keepSession: true });
+                if (timerState.session?.isRunning) {
+                    syncRealtimeTimer("modal-show", {
+                        activeSession: timerState.session,
+                        currentSessionTime: getTimerDisplaySeconds(timerState.session),
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }).catch(error => {
+                        console.error("Timer modal acilis senkronu basarisiz:", error);
+                    });
+                }
                 renderTimerUi();
                 if (typeof syncBodyModalLock === "function") syncBodyModalLock();
             };
@@ -4526,7 +4673,19 @@
 
         hidePomodoroModal = (function(originalHidePomodoroModal) {
             return function() {
-                syncRealtimeTimer("modal-hide");
+                if (timerState.session?.isRunning) {
+                    touchTimerVisibility(Date.now(), { modalOpen: false, persist: true });
+                    syncRealtimeTimer("modal-hide", {
+                        activeSession: timerState.session,
+                        currentSessionTime: 0,
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }).catch(error => {
+                        console.error("Timer modal kapanis senkronu basarisiz:", error);
+                    });
+                } else {
+                    syncRealtimeTimer("modal-hide");
+                }
                 if (typeof originalHidePomodoroModal === "function") {
                     originalHidePomodoroModal();
                 } else {
@@ -4929,7 +5088,25 @@
 
         document.addEventListener("visibilitychange", () => {
             if (document.hidden && timerState.session?.isRunning) {
-                syncRealtimeTimer("visibility-hidden");
+                touchTimerVisibility(Date.now(), { modalOpen: false, persist: true });
+                syncRealtimeTimer("visibility-hidden", {
+                    activeSession: timerState.session,
+                    currentSessionTime: 0,
+                    userTriggeredWrite: true,
+                    authorized: true
+                }).catch(error => {
+                    console.error("Gizli sekme timer senkronu basarisiz:", error);
+                });
+            } else if (!document.hidden && timerState.session?.isRunning && isTimerModalOpen()) {
+                touchTimerVisibility(Date.now(), { modalOpen: true, persist: true });
+                syncRealtimeTimer("visibility-visible", {
+                    activeSession: timerState.session,
+                    currentSessionTime: getTimerDisplaySeconds(timerState.session),
+                    userTriggeredWrite: true,
+                    authorized: true
+                }).catch(error => {
+                    console.error("Gorunur sekme timer senkronu basarisiz:", error);
+                });
             }
         });
 
