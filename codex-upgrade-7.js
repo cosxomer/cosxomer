@@ -41,6 +41,8 @@
     let currentUserSaveResolvers = [];
     let currentUserSaveAuthorized = false;
     let leaderboardCollectionSyncPromise = null;
+    let calendarBoundaryInterval = null;
+    let lastObservedCalendarMeta = null;
     let manualWriteDepth = 0;
     let immediateUserWriteIntent = false;
     let immediateUserWriteIntentTimer = null;
@@ -192,6 +194,59 @@
             weekKey: typeof getWeekKey === "function" ? getWeekKey(date) : "",
             dayIdx: (date.getDay() + 6) % 7
         };
+    }
+
+    function getMondayWeekStart(date = new Date()) {
+        const weekStart = new Date(date);
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+        return weekStart;
+    }
+
+    function handleCalendarBoundaryChange(previousMeta = null, referenceDate = new Date()) {
+        const nextMeta = getCurrentDayMeta(referenceDate);
+        const wasViewingCurrentWeek = Boolean(
+            previousMeta?.weekKey
+            && currentWeekStart instanceof Date
+            && typeof getWeekKey === "function"
+            && getWeekKey(currentWeekStart) === previousMeta.weekKey
+        );
+
+        if (wasViewingCurrentWeek) {
+            currentWeekStart = getMondayWeekStart(referenceDate);
+        }
+
+        if (wasViewingCurrentWeek && typeof renderSchedule === "function") {
+            renderSchedule();
+        } else {
+            refreshQuestionSummaryCounters();
+            updateLiveStudyPreview();
+        }
+
+        refreshLeaderboardOptimistically();
+        if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+            renderLiveLeaderboardFromDocs();
+        }
+
+        return nextMeta;
+    }
+
+    function ensureCalendarBoundaryWatcher() {
+        if (calendarBoundaryInterval) return;
+
+        lastObservedCalendarMeta = getCurrentDayMeta(new Date());
+        calendarBoundaryInterval = setInterval(() => {
+            const nowDate = new Date();
+            const nextMeta = getCurrentDayMeta(nowDate);
+            if (
+                !lastObservedCalendarMeta
+                || nextMeta.dateKey !== lastObservedCalendarMeta.dateKey
+                || nextMeta.weekKey !== lastObservedCalendarMeta.weekKey
+            ) {
+                const previousMeta = lastObservedCalendarMeta;
+                lastObservedCalendarMeta = handleCalendarBoundaryChange(previousMeta, nowDate);
+            }
+        }, 1000);
     }
 
     function normalizeAdminTimerReset(reset = null) {
@@ -4934,6 +4989,7 @@
         patchProtectedOpeners();
         patchRenderSchedule();
         attachRealtimeListeners();
+        ensureCalendarBoundaryWatcher();
 
         setTimerMode(timerState.mode, { persist: false, keepSession: true });
         if (!timerState.session) {

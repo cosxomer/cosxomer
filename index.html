@@ -5908,7 +5908,16 @@
 
         function getWeekKey(date) {
             const d = new Date(date);
-            return `${d.getFullYear()}-W${Math.ceil((((d - new Date(d.getFullYear(), 0, 1)) / 86400000) + new Date(d.getFullYear(), 0, 1).getDay() + 1) / 7)}`;
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+
+            const weekYear = d.getFullYear();
+            const firstThursday = new Date(weekYear, 0, 4);
+            firstThursday.setHours(0, 0, 0, 0);
+            firstThursday.setDate(firstThursday.getDate() + 3 - ((firstThursday.getDay() + 6) % 7));
+
+            const weekNumber = 1 + Math.round((d.getTime() - firstThursday.getTime()) / 604800000);
+            return `${weekYear}-W${weekNumber}`;
         }
 
         function renderSchedule() {
@@ -10782,7 +10791,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260329-0508"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260329-0508"></script>
+<script src="codex-upgrade-7.js?v=20260329-2330"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
