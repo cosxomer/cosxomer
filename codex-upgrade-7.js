@@ -3697,6 +3697,7 @@
                 const userRef = db.collection("users").doc(currentUser.uid);
                 await userRef.set(payload, { merge: true });
                 await syncPublicProfileSnapshot(payload);
+                await syncPublicQuestionCountersNow();
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
                 }
@@ -4585,6 +4586,7 @@
                 syncPublicProfileSnapshot(data).catch(error => {
                     console.error("Public profil senkronu basarisiz:", error);
                 });
+                syncPublicQuestionCountersNow();
             }).catch(error => {
                 console.error("Genişletilmiş kullanıcı verisi okunamadi:", error);
             });
