@@ -903,6 +903,14 @@
         };
     }
 
+    function createCommitSourceSession(session = timerState.session) {
+        if (!session) return null;
+        return {
+            ...serializeTimerSession(session),
+            ownerId: session.ownerId || timerInstanceId
+        };
+    }
+
     function persistTimerSessionLocally(session) {
         if (!session || !currentUser) {
             localStorage.removeItem(TIMER_STORAGE_KEY);
@@ -4009,10 +4017,21 @@
         };
 
         syncRealtimeTimer = async function(reason = "manual", options = {}) {
-            if (options.commitElapsed === true && timerState.session) {
-                const delta = applyPendingTimerDelta(timerState.session);
+            const commitSourceSession = options.commitSourceSession || timerState.session;
+            if (options.commitElapsed === true && commitSourceSession) {
+                const delta = applyPendingTimerDelta(commitSourceSession);
                 if (delta > 0) {
-                    timerState.session.lastPersistedElapsedSeconds = getTimerElapsedSeconds(timerState.session);
+                    const committedElapsedSeconds = Math.max(
+                        parseInteger(options.committedElapsedSeconds, 0),
+                        getTimerElapsedSeconds(commitSourceSession)
+                    );
+                    if (timerState.session) {
+                        timerState.session.lastPersistedElapsedSeconds = Math.max(
+                            parseInteger(timerState.session.lastPersistedElapsedSeconds, 0),
+                            committedElapsedSeconds
+                        );
+                        timerDrafts[timerState.session.mode] = { ...timerState.session };
+                    }
                 }
             }
 
@@ -4109,7 +4128,8 @@
             if (!timerState.session) return;
 
             const session = timerState.session;
-            const elapsed = getTimerElapsedSeconds(session);
+            const commitSourceSession = createCommitSourceSession(session);
+            const elapsed = getTimerElapsedSeconds(commitSourceSession);
             session.baseElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
@@ -4122,6 +4142,8 @@
                 currentSessionTime: 0,
                 clearActive: true,
                 commitElapsed: true,
+                commitSourceSession,
+                committedElapsedSeconds: elapsed,
                 userTriggeredWrite: true,
                 authorized: true
             });
@@ -4133,7 +4155,9 @@
             if (!timerState.session) return;
 
             const session = timerState.session;
-            session.baseElapsedSeconds = Math.max(parseInteger(session.targetDurationSeconds, 0), getTimerElapsedSeconds(session));
+            const commitSourceSession = createCommitSourceSession(session);
+            const elapsed = Math.max(parseInteger(session.targetDurationSeconds, 0), getTimerElapsedSeconds(commitSourceSession));
+            session.baseElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
             stopTimerLoops();
@@ -4142,9 +4166,18 @@
             timerState.session = session;
             timerDrafts.pomodoro = { ...session };
             persistTimerSessionLocally(session);
+            await syncRealtimeTimer("complete", {
+                activeSession: session,
+                currentSessionTime: 0,
+                commitElapsed: true,
+                commitSourceSession,
+                committedElapsedSeconds: elapsed,
+                userTriggeredWrite: true,
+                authorized: true
+            });
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
-            safeShowAlert("Pomodoro oturumu tamamlandi. Kaydet ve Kapat ile elle kaydedebilirsin.", "success");
+            safeShowAlert("Pomodoro oturumu tamamlandi ve sure kaydedildi.", "success");
         };
 
         resetRealtimeTimer = async function(resetInputs = true, silent = false) {
