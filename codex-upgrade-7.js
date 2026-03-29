@@ -40,6 +40,7 @@
     let currentUserSaveNoticePending = false;
     let currentUserSaveResolvers = [];
     let currentUserSaveAuthorized = false;
+    let leaderboardCollectionSyncPromise = null;
     let manualWriteDepth = 0;
     let immediateUserWriteIntent = false;
     let immediateUserWriteIntentTimer = null;
@@ -1629,18 +1630,32 @@
         return { updatedCount };
     }
 
-    async function maybeAutoSyncLeaderboardCollection() {
-        if (!(typeof isCurrentAdmin === "function" && isCurrentAdmin())) return;
-        const lastRunAt = parseInteger(sessionStorage.getItem(LEADERBOARD_AUTOSYNC_KEY), 0);
-        if (lastRunAt > 0 && (Date.now() - lastRunAt) < 600000) return;
+    async function maybeAutoSyncLeaderboardCollection(options = {}) {
+        if (!currentUser?.uid) return { skipped: true, reason: "no-user" };
+        if (leaderboardCollectionSyncPromise) return leaderboardCollectionSyncPromise;
 
-        sessionStorage.setItem(LEADERBOARD_AUTOSYNC_KEY, String(Date.now()));
-        try {
-            const result = await syncLeaderboardCollectionFromUsers();
-            console.info(`Leaderboard koleksiyonu ${result.updatedCount || 0} kullanici icin senkronlandi.`);
-        } catch (error) {
-            console.error("Leaderboard koleksiyonu toplu senkronu basarisiz:", error);
+        const force = options.force === true;
+        const throttleMs = force ? 12000 : 90000;
+        const lastRunAt = parseInteger(localStorage.getItem(LEADERBOARD_AUTOSYNC_KEY), 0);
+        if (!force && lastRunAt > 0 && (Date.now() - lastRunAt) < throttleMs) {
+            return { skipped: true, reason: "throttled" };
         }
+
+        localStorage.setItem(LEADERBOARD_AUTOSYNC_KEY, String(Date.now()));
+        leaderboardCollectionSyncPromise = syncLeaderboardCollectionFromUsers()
+            .then(result => {
+                console.info(`Leaderboard koleksiyonu ${result.updatedCount || 0} kullanici icin senkronlandi.`);
+                return result;
+            })
+            .catch(error => {
+                console.error("Leaderboard koleksiyonu toplu senkronu basarisiz:", error);
+                return { skipped: false, error };
+            })
+            .finally(() => {
+                leaderboardCollectionSyncPromise = null;
+            });
+
+        return leaderboardCollectionSyncPromise;
     }
 
     window.syncLeaderboardCollectionFromUsers = async function() {
@@ -2520,7 +2535,7 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
+        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(snapshot => {
             leaderboardRealtimeDocs = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
             if (currentUser?.uid) {
                 const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
@@ -3748,6 +3763,7 @@
                         }),
                         { merge: true }
                     );
+                    maybeAutoSyncLeaderboardCollection({ force: true });
                     await credential.user.sendEmailVerification();
                     localStorage.setItem(VERIFY_EMAIL_KEY, email);
                     localStorage.setItem(VERIFY_COOLDOWN_KEY, String(Date.now() + VERIFY_COOLDOWN_MS));
@@ -3840,6 +3856,7 @@
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncLeaderboardSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncPublicQuestionCountersNow();
+            maybeAutoSyncLeaderboardCollection({ force: true });
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             input.value = "";
@@ -3870,6 +3887,7 @@
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncLeaderboardSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncPublicQuestionCountersNow();
+            maybeAutoSyncLeaderboardCollection({ force: true });
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             renderSchedule();
@@ -3911,6 +3929,7 @@
                 await syncPublicProfileSnapshot(payload);
                 await syncLeaderboardSnapshot(payload);
                 await syncPublicQuestionCountersNow();
+                await maybeAutoSyncLeaderboardCollection();
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
                 }
@@ -4015,6 +4034,7 @@
                             ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
                             ...payload
                         });
+                        await maybeAutoSyncLeaderboardCollection();
                     }));
                 } catch (error) {
                     console.error("Gercek zamanli sure senkronu basarisiz:", error);

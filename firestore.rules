@@ -18,8 +18,8 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow create: if isOwner(uid);
-      allow get, update, delete: if isOwner(uid) || isAdmin();
-      allow list: if isAdmin();
+      allow get, list: if signedIn();
+      allow update, delete: if isOwner(uid) || isAdmin();
     }
 
     match /publicProfiles/{uid} {
@@ -31,7 +31,7 @@ service cloud.firestore {
 
     match /leaderboard/{uid} {
       allow get, list: if signedIn();
-      allow create, update, delete: if isOwner(uid) || isAdmin();
+      allow create, update, delete: if signedIn();
     }
 
     match /supportMessages/{messageId} {
