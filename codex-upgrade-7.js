@@ -4111,7 +4111,6 @@
             const session = timerState.session;
             const elapsed = getTimerElapsedSeconds(session);
             session.baseElapsedSeconds = elapsed;
-            session.lastPersistedElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
             timerState.session = session;
