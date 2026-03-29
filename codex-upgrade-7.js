@@ -1352,10 +1352,18 @@
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
+        const resolvedUsername = String(
+            currentUsername
+            || basePayload.username
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || basePayload.email?.split?.("@")?.[0]
+            || ""
+        ).trim();
 
         return {
             uid: currentUser?.uid || basePayload.uid || "",
-            username: currentUsername || basePayload.username || "Kullanici",
+            username: resolvedUsername || "Kullanici",
             about: currentProfileAbout || basePayload.about || "",
             profileImage: currentProfileImage || basePayload.profileImage || "",
             accountCreatedAt: currentAccountCreatedAt || basePayload.accountCreatedAt || "",
@@ -1387,7 +1395,8 @@
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
-            isWorking: !!basePayload.isWorking,
+            activeTimer: basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null),
+            isWorking: !!basePayload.isWorking || isTimerRecordRunning(basePayload.activeTimer) || isTimerRecordRunning(timerState.session),
             lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
             notes: publicNotes,
             ...questionCounters
@@ -1822,18 +1831,49 @@
         if (adminTimerReset) {
             writeHandledAdminTimerResetSignature(adminTimerReset);
         }
-
-        clearLegacyPomodoroStorage();
-        localStorage.removeItem(TIMER_STORAGE_KEY);
         stopTimerLoops();
         releaseTimerOwnership();
         isRunning = false;
+        const storedSession = readStoredTimerSession();
+        const storedSessionMatchesUser = !!storedSession
+            && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
+        const remoteSession = userData?.activeTimer && isTimerRecordRunning(userData.activeTimer)
+            ? userData.activeTimer
+            : null;
+        const seedSession = storedSessionMatchesUser ? storedSession : (remoteSession || null);
 
-        timerState.session = createEmptyTimerSession(timerState.mode);
-        if (timerState.mode === "pomodoro") {
-            timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
+        if (seedSession?.mode) {
+            timerState.mode = seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro";
+            try {
+                localStorage.setItem(TIMER_MODE_KEY, timerState.mode);
+            } catch (error) {
+                console.error("Timer modu kaydedilemedi:", error);
+            }
         }
+
+        if (seedSession) {
+            timerState.session = {
+                mode: seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro",
+                isRunning: !!seedSession.isRunning,
+                baseElapsedSeconds: Math.max(0, parseInteger(seedSession.baseElapsedSeconds, 0)),
+                lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
+                targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
+                startedAtMs: seedSession.isRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
+                updatedAtMs: Math.max(0, parseInteger(seedSession.updatedAtMs, Date.now())),
+                ownerId: String(seedSession.ownerId || timerInstanceId)
+            };
+        } else {
+            timerState.session = createEmptyTimerSession(timerState.mode);
+            if (timerState.mode === "pomodoro") {
+                timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
+            }
+        }
+
         timerDrafts[timerState.mode] = { ...timerState.session };
+        if (timerState.session?.isRunning) {
+            isRunning = true;
+            startTimerLoops();
+        }
         renderTimerUi();
     }
 
@@ -2104,7 +2144,11 @@
                     : null;
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
 
-                const isWorking = currentLeaderboardTab === "daily" && isTimerRecordRunning(data.activeTimer);
+                const isWorking = currentLeaderboardTab === "daily" && (
+                    isTimerRecordRunning(data.activeTimer)
+                    || !!data.isWorking
+                    || parseInteger(data.currentSessionTime, 0) > 0
+                );
 
                 if (!data.username) return null;
                 if (!(seconds > 0 || questions > 0 || resolvedIsAdmin || isWorking)) return null;
@@ -3275,7 +3319,15 @@
         const safeData = userData && typeof userData === "object" ? userData : {};
         clearLoadedUserData();
 
-        if (typeof currentUsername !== "undefined") currentUsername = String(safeData.username || "").trim();
+        if (typeof currentUsername !== "undefined") {
+            currentUsername = String(
+                safeData.username
+                || currentUser?.displayName
+                || currentUser?.email?.split("@")[0]
+                || safeData.email?.split?.("@")?.[0]
+                || ""
+            ).trim();
+        }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
         if (typeof currentAccountCreatedAt !== "undefined") currentAccountCreatedAt = String(safeData.accountCreatedAt || "");
