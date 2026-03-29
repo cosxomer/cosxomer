@@ -1410,6 +1410,12 @@
         return db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set(publicPayload, { merge: true });
     }
 
+    function syncPublicProfileSnapshotSafely(basePayload = null) {
+        return syncPublicProfileSnapshot(basePayload).catch(error => {
+            console.error("Public profil anlik senkronu basarisiz:", error);
+        });
+    }
+
     function applyStudyDelta(deltaSeconds, date = new Date()) {
         if (!deltaSeconds) return;
         const { weekKey, dayIdx } = getCurrentDayMeta(date);
@@ -3591,6 +3597,7 @@
                 : totalQuestionsAllTime;
 
             saveData({ authorized: true, immediate: true });
+            syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             input.value = "";
@@ -3618,6 +3625,7 @@
                 ? calculateTotalQuestionsFromSchedule(scheduleData)
                 : totalQuestionsAllTime;
             saveData({ authorized: true, immediate: true });
+            syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             renderSchedule();
