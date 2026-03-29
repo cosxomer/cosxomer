@@ -1416,6 +1416,36 @@
         });
     }
 
+    function syncPublicQuestionCountersNow() {
+        if (!currentUser?.uid) return Promise.resolve();
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        refreshCurrentTotals();
+
+        const dailyQuestions = getCurrentDayQuestionsFromSchedule(scheduleData);
+        const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(scheduleData);
+        const resolvedUsername = String(
+            currentUsername
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || ""
+        ).trim();
+
+        return db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set({
+            uid: currentUser.uid,
+            username: resolvedUsername || "Kullanici",
+            daily: dailyQuestions,
+            weekly: weeklyQuestions,
+            dailyQuestions,
+            weeklyQuestions,
+            dailyQuestionCount: dailyQuestions,
+            weeklyQuestionCount: weeklyQuestions,
+            totalQuestionsAllTime: totalQuestionsAllTime || 0,
+            lastTimerSyncAt: Date.now()
+        }, { merge: true }).catch(error => {
+            console.error("Public soru sayisi senkronu basarisiz:", error);
+        });
+    }
+
     function applyStudyDelta(deltaSeconds, date = new Date()) {
         if (!deltaSeconds) return;
         const { weekKey, dayIdx } = getCurrentDayMeta(date);
@@ -3598,6 +3628,7 @@
 
             saveData({ authorized: true, immediate: true });
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
+            syncPublicQuestionCountersNow();
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             input.value = "";
@@ -3626,6 +3657,7 @@
                 : totalQuestionsAllTime;
             saveData({ authorized: true, immediate: true });
             syncPublicProfileSnapshotSafely(typeof buildUserPayload === "function" ? buildUserPayload() : null);
+            syncPublicQuestionCountersNow();
             syncQuestionCountersAfterInput(dayIdx, dayData.questions);
             refreshLeaderboardOptimistically();
             renderSchedule();
