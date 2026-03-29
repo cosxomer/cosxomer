@@ -4396,22 +4396,25 @@
                 timerState.transitioning = true;
 
                 try {
-                if (timerState.session?.isRunning) {
-                    await pauseRealtimeTimer();
-                } else {
-                    await syncRealtimeTimer("manual-save", {
+                    if (timerState.session?.isRunning) {
+                        await pauseRealtimeTimer();
+                    }
+
+                    await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
                         activeSession: null,
                         currentSessionTime: 0,
-                        clearActive: true
-                    });
-                }
+                        clearActive: true,
+                        commitElapsed: true,
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }));
 
-                timerState.session = null;
-                persistTimerSessionLocally(null);
-                releaseTimerOwnership();
-                renderTimerUi();
-                safeShowAlert("Süre kaydedildi ve durduruldu.", "success");
-                hidePomodoroModal();
+                    timerState.session = null;
+                    persistTimerSessionLocally(null);
+                    releaseTimerOwnership();
+                    renderTimerUi();
+                    safeShowAlert("Süre kaydedildi ve durduruldu.", "success");
+                    hidePomodoroModal();
                 } finally {
                     timerState.transitioning = false;
                 }
