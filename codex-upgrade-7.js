@@ -1579,6 +1579,8 @@
             username: resolvedUsername || "Kullanici",
             daily: dailyQuestions,
             weekly: weeklyQuestions,
+            leaderboardDailyQuestions: dailyQuestions,
+            leaderboardWeeklyQuestions: weeklyQuestions,
             dailyQuestions,
             weeklyQuestions,
             dailyQuestionCount: dailyQuestions,
@@ -2269,11 +2271,11 @@
         const safeSchedule = sanitizeScheduleData(userData?.schedule || {});
         const dailyQuestions = Math.max(
             getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
-            getExplicitQuestionCounterValue(userData || {}, ["dailyQuestionCount", "dailyQuestions", "daily"])
+            getExplicitQuestionCounterValue(userData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
         );
         const weeklyQuestions = Math.max(
             getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
-            getExplicitQuestionCounterValue(userData || {}, ["weeklyQuestionCount", "weeklyQuestions", "weekly"])
+            getExplicitQuestionCounterValue(userData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"])
         );
 
         return {
