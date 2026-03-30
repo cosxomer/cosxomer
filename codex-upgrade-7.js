@@ -854,6 +854,7 @@
             totalStudyTime: 0,
             totalQuestionsAllTime: 0,
             dailyStudyTime: 0,
+            dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
             currentSessionTime: 0,
             activeTimer: null,
             isWorking: false,
@@ -1524,6 +1525,42 @@
         return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, Date.now());
     }
 
+    function isDailyStudySnapshotFresh(userData = {}, referenceDate = new Date()) {
+        const currentMeta = getCurrentDayMeta(referenceDate);
+        const explicitDateKey = String(
+            userData?.dailyStudyDateKey
+            || userData?.todayDateKey
+            || ""
+        ).trim();
+        if (explicitDateKey) {
+            return explicitDateKey === currentMeta.dateKey;
+        }
+
+        const lastTimerSyncAt = Math.max(
+            parseInteger(userData?.lastTimerSyncAt, 0),
+            parseInteger(userData?.updatedAtMs, 0),
+            parseInteger(userData?.updatedAt, 0)
+        );
+        if (lastTimerSyncAt <= 0) return false;
+
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        return lastTimerSyncAt >= dayStart.getTime();
+    }
+
+    function getFreshDailyStudySeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
+        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(schedule || {}, referenceDate);
+        if (!isDailyStudySnapshotFresh(userData, referenceDate)) {
+            return scheduleSeconds;
+        }
+
+        return Math.max(
+            scheduleSeconds,
+            parseInteger(userData?.dailyStudyTime, 0),
+            parseInteger(userData?.todayStudyTime, 0)
+        );
+    }
+
     function getFirstNonEmptyArray(...sources) {
         for (const source of sources) {
             if (Array.isArray(source) && source.length) return [...source];
@@ -1915,6 +1952,7 @@
 
     function buildPublicProfilePayload(basePayload = {}) {
         const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
+        const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
@@ -1961,7 +1999,11 @@
                     ? calculateTotalQuestionsFromSchedule(safeSchedule)
                     : 0
             ),
-            dailyStudyTime: Math.max(parseInteger(basePayload.dailyStudyTime, 0), getCurrentDayWorkedSeconds()),
+            dailyStudyTime: Math.max(
+                getFreshDailyStudySeconds(basePayload, safeSchedule),
+                getCurrentDayWorkedSeconds()
+            ),
+            dailyStudyDateKey: currentDayMeta.dateKey,
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
@@ -1977,6 +2019,7 @@
     function buildLeaderboardDocumentPayload(basePayload = {}) {
         const isCurrentUserTarget = isCurrentUserPayloadTarget(basePayload);
         const safeSchedule = sanitizeScheduleData(basePayload.schedule || (isCurrentUserTarget ? (scheduleData || {}) : {}));
+        const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedEmail = String(
             (isCurrentUserTarget ? (currentUser?.email || "") : "")
@@ -2010,7 +2053,7 @@
         const resolvedRole = basePayload.role || (resolvedIsAdmin ? "admin" : "user");
         const resolvedAdminTitle = basePayload.adminTitle || (resolvedIsAdmin ? (derivedAdminMeta?.adminTitle || "Kurucu Admin") : "");
         const dailyStudyTime = Math.max(
-            parseInteger(basePayload.dailyStudyTime, 0),
+            getFreshDailyStudySeconds(basePayload, safeSchedule),
             isCurrentUserTarget ? getCurrentDayWorkedSeconds() : getCurrentDayWorkedSecondsFromSchedule(safeSchedule)
         );
         const weeklyStudyTime = Math.max(
@@ -2059,6 +2102,7 @@
             studyTrack: resolvedStudyTrack,
             selectedSubjects: resolvedSelectedSubjects,
             dailyStudyTime,
+            dailyStudyDateKey: currentDayMeta.dateKey,
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime,
@@ -2253,6 +2297,7 @@
         scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
 
+        const currentDayMeta = getCurrentDayMeta(new Date());
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
         const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
@@ -2265,6 +2310,7 @@
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
             ...questionCounters,
             dailyStudyTime: currentDayWorkedSeconds,
+            dailyStudyDateKey: currentDayMeta.dateKey,
             currentSessionTime: options.currentSessionTime === undefined
                 ? (isTimerVisibleForLeaderboard(activeTimerRecord) ? getTimerElapsedSeconds(activeSession) : 0)
                 : options.currentSessionTime,
@@ -2778,10 +2824,7 @@
         let dayStartMs = 0;
         const now = Date.now();
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(userData?.activeTimer, now);
-        const explicitDailySeconds = Math.max(
-            parseInteger(userData?.dailyStudyTime, 0),
-            parseInteger(userData?.todayStudyTime, 0)
-        );
+        const explicitDailySeconds = getFreshDailyStudySeconds(userData, userData?.schedule || {}, currentDate);
         const explicitWeeklySeconds = Math.max(
             parseInteger(userData?.weeklyStudyTime, 0),
             parseInteger(userData?.currentWeekSeconds, 0)
@@ -5372,6 +5415,7 @@
                 totalQuestionsAllTime: totalQuestionsAllTime || 0,
                 ...questionCounters,
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
+                dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
                 activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
                 isWorking: isTimerRecordRunning(timerState.session),
@@ -5388,6 +5432,7 @@
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
                     dailyStudyTime: getCurrentDayWorkedSeconds(),
+                    dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                     currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
                     activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
                     emailVerified: !!currentUser?.emailVerified
