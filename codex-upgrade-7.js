@@ -4,7 +4,7 @@
     const VERIFY_COOLDOWN_MS = 30000;
     const TIMER_SYNC_MS = 12000;
     const TIMER_OWNER_TTL_MS = 15000;
-    const TIMER_AUTO_STOP_MS = 24 * 60 * 60 * 1000;
+    const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS * 3, 45000);
     const USER_SAVE_DEBOUNCE_MS = 180;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
@@ -1236,7 +1236,7 @@
 
             releaseTimerOwnership();
             renderTimerUi();
-            safeShowAlert("Timer uzun sure arka planda kaldigi icin otomatik durduruldu.", "info");
+            safeShowAlert("Timer 3 saat sonunda otomatik durduruldu.", "info");
             return true;
         } finally {
             timerState.transitioning = false;
@@ -1312,8 +1312,8 @@
         const note = document.getElementById("timer-mode-note");
         if (note) {
             note.innerHTML = normalizedMode === "stopwatch"
-                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar."
-                : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur.";
+                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 3 saat sonunda otomatik durur."
+                : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 3 saat sonunda otomatik durur.";
         }
 
         if (!options.keepSession) {
