@@ -4,7 +4,7 @@
     const VERIFY_COOLDOWN_MS = 30000;
     const TIMER_SYNC_MS = 12000;
     const TIMER_OWNER_TTL_MS = 15000;
-    const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
+    const TIMER_AUTO_STOP_MS = 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS * 3, 45000);
     const USER_SAVE_DEBOUNCE_MS = 180;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
@@ -332,12 +332,10 @@
 
     function getFreshForeignActiveTimer(userData = currentUserLiveDoc, now = Date.now()) {
         const activeTimer = userData?.activeTimer;
-        if (!isTimerVisibleForLeaderboard(activeTimer, now)) return null;
+        if (!isTimerRecordRunning(activeTimer, now)) return null;
 
         const ownerId = String(activeTimer.ownerId || "").trim();
-        const updatedAtMs = parseInteger(activeTimer.updatedAtMs, 0);
-        if (!ownerId || ownerId === timerInstanceId || !updatedAtMs) return null;
-        if ((now - updatedAtMs) > REMOTE_TIMER_STALE_MS) return null;
+        if (!ownerId || ownerId === timerInstanceId) return null;
 
         return activeTimer;
     }
@@ -980,9 +978,7 @@
     }
 
     function isTimerVisibleForLeaderboard(timerRecord, now = Date.now()) {
-        const updatedAtMs = Math.max(0, parseInteger(timerRecord?.updatedAtMs, 0));
-        const hasFreshHeartbeat = updatedAtMs > 0 && (now - updatedAtMs) <= REMOTE_TIMER_STALE_MS;
-        return isTimerRecordRunning(timerRecord, now) && hasFreshHeartbeat;
+        return isTimerRecordRunning(timerRecord, now);
     }
 
     function serializeTimerSession(session) {
@@ -1240,7 +1236,7 @@
 
             releaseTimerOwnership();
             renderTimerUi();
-            safeShowAlert("Timer 3 saat boyunca acik kalmadigi icin otomatik durduruldu.", "info");
+            safeShowAlert("Timer uzun sure arka planda kaldigi icin otomatik durduruldu.", "info");
             return true;
         } finally {
             timerState.transitioning = false;
@@ -2407,25 +2403,17 @@
             parseInteger(userData?.weeklyStudyTime, 0),
             parseInteger(userData?.currentWeekSeconds, 0)
         );
-        const explicitSessionSeconds = hasVisibleActiveTimer
-            ? Math.max(
-                0,
-                parseInteger(userData?.currentSessionTime, 0)
-                - parseInteger(userData?.activeTimer?.lastPersistedElapsedSeconds, 0)
-            )
-            : 0;
-
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
             dayStartMs = dayStart.getTime();
             totalSeconds = clampWorkedSecondsForDisplay(userData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
-            totalSeconds = Math.max(totalSeconds, explicitDailySeconds + explicitSessionSeconds);
+            totalSeconds = Math.max(totalSeconds, explicitDailySeconds);
         } else {
             totalSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
                 ? getCurrentWeekTotalsFromSchedule(userData?.schedule || {}).seconds
                 : getRollingSevenDayTotalsFromSchedule(userData?.schedule || {}, currentDate).seconds;
-            totalSeconds = Math.max(totalSeconds, explicitWeeklySeconds + explicitSessionSeconds);
+            totalSeconds = Math.max(totalSeconds, explicitWeeklySeconds);
         }
 
         const activeTimer = userData?.activeTimer;
