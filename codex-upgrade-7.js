@@ -1524,6 +1524,389 @@
         return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, Date.now());
     }
 
+    function getFirstNonEmptyArray(...sources) {
+        for (const source of sources) {
+            if (Array.isArray(source) && source.length) return [...source];
+        }
+        return [];
+    }
+
+    function getMostInformativeProfileSchedule(...scheduleCandidates) {
+        let fallbackSchedule = {};
+
+        for (const candidate of scheduleCandidates) {
+            const safeSchedule = sanitizeScheduleData(candidate || {});
+            if (!Object.keys(fallbackSchedule).length) {
+                fallbackSchedule = safeSchedule;
+            }
+            if (hasAnyScheduleEntries(safeSchedule)) {
+                return safeSchedule;
+            }
+        }
+
+        return fallbackSchedule;
+    }
+
+    function getProfileQuestionSummary(profileData = {}, referenceDate = new Date()) {
+        const safeSchedule = sanitizeScheduleData(profileData?.schedule || {});
+        const dailyQuestions = Math.max(
+            getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
+        );
+        const weeklyQuestions = Math.max(
+            getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"]),
+            dailyQuestions
+        );
+        const totalQuestionsAllTime = Math.max(
+            getExplicitQuestionCounterValue(profileData || {}, ["totalQuestionsAllTime", "totalQuestions", "questionCount", "total"]),
+            dailyQuestions,
+            weeklyQuestions,
+            typeof calculateTotalQuestionsFromSchedule === "function"
+                ? calculateTotalQuestionsFromSchedule(safeSchedule)
+                : 0
+        );
+
+        return {
+            schedule: safeSchedule,
+            dailyQuestions,
+            weeklyQuestions,
+            totalQuestionsAllTime,
+            daily: dailyQuestions,
+            weekly: weeklyQuestions,
+            total: totalQuestionsAllTime,
+            dailyQuestionCount: dailyQuestions,
+            weeklyQuestionCount: weeklyQuestions
+        };
+    }
+
+    function buildProfileModalPayload({
+        uid = "",
+        baseProfile = {},
+        userProfile = {},
+        publicProfile = {},
+        cachedProfile = {},
+        editable = false,
+        referenceDate = new Date()
+    } = {}) {
+        const safeBase = baseProfile && typeof baseProfile === "object" ? baseProfile : {};
+        const safeUser = userProfile && typeof userProfile === "object" ? userProfile : {};
+        const safePublic = publicProfile && typeof publicProfile === "object" ? publicProfile : {};
+        const safeCached = cachedProfile && typeof cachedProfile === "object" ? cachedProfile : {};
+        const resolvedSchedule = editable
+            ? getMostInformativeProfileSchedule(
+                scheduleData,
+                safeBase.schedule,
+                safeUser.schedule,
+                safePublic.schedule,
+                safeCached.schedule
+            )
+            : getMostInformativeProfileSchedule(
+                safeUser.schedule,
+                safePublic.schedule,
+                safeCached.schedule,
+                safeBase.schedule
+            );
+        const questionSummary = getProfileQuestionSummary({
+            schedule: resolvedSchedule,
+            leaderboardDailyQuestions: Math.max(
+                parseInteger(safeBase.leaderboardDailyQuestions, 0),
+                parseInteger(safeUser.leaderboardDailyQuestions, 0),
+                parseInteger(safePublic.leaderboardDailyQuestions, 0),
+                parseInteger(safeCached.leaderboardDailyQuestions, 0)
+            ),
+            dailyQuestionCount: Math.max(
+                parseInteger(safeBase.dailyQuestionCount, 0),
+                parseInteger(safeUser.dailyQuestionCount, 0),
+                parseInteger(safePublic.dailyQuestionCount, 0),
+                parseInteger(safeCached.dailyQuestionCount, 0)
+            ),
+            dailyQuestions: Math.max(
+                parseInteger(safeBase.dailyQuestions, 0),
+                parseInteger(safeUser.dailyQuestions, 0),
+                parseInteger(safePublic.dailyQuestions, 0),
+                parseInteger(safeCached.dailyQuestions, 0),
+                editable ? getCurrentDayQuestionsFromSchedule(scheduleData || {}, referenceDate) : 0
+            ),
+            daily: Math.max(
+                parseInteger(safeBase.daily, 0),
+                parseInteger(safeUser.daily, 0),
+                parseInteger(safePublic.daily, 0),
+                parseInteger(safeCached.daily, 0)
+            ),
+            leaderboardWeeklyQuestions: Math.max(
+                parseInteger(safeBase.leaderboardWeeklyQuestions, 0),
+                parseInteger(safeUser.leaderboardWeeklyQuestions, 0),
+                parseInteger(safePublic.leaderboardWeeklyQuestions, 0),
+                parseInteger(safeCached.leaderboardWeeklyQuestions, 0)
+            ),
+            weeklyQuestionCount: Math.max(
+                parseInteger(safeBase.weeklyQuestionCount, 0),
+                parseInteger(safeUser.weeklyQuestionCount, 0),
+                parseInteger(safePublic.weeklyQuestionCount, 0),
+                parseInteger(safeCached.weeklyQuestionCount, 0)
+            ),
+            weeklyQuestions: Math.max(
+                parseInteger(safeBase.weeklyQuestions, 0),
+                parseInteger(safeUser.weeklyQuestions, 0),
+                parseInteger(safePublic.weeklyQuestions, 0),
+                parseInteger(safeCached.weeklyQuestions, 0),
+                editable && typeof getCurrentWeekQuestionsFromSchedule === "function"
+                    ? getCurrentWeekQuestionsFromSchedule(scheduleData || {}, referenceDate)
+                    : 0
+            ),
+            weekly: Math.max(
+                parseInteger(safeBase.weekly, 0),
+                parseInteger(safeUser.weekly, 0),
+                parseInteger(safePublic.weekly, 0),
+                parseInteger(safeCached.weekly, 0)
+            ),
+            totalQuestionsAllTime: Math.max(
+                parseInteger(safeBase.totalQuestionsAllTime, 0),
+                parseInteger(safeUser.totalQuestionsAllTime, 0),
+                parseInteger(safePublic.totalQuestionsAllTime, 0),
+                parseInteger(safeCached.totalQuestionsAllTime, 0),
+                editable ? parseInteger(totalQuestionsAllTime, 0) : 0
+            ),
+            totalQuestions: Math.max(
+                parseInteger(safeBase.totalQuestions, 0),
+                parseInteger(safeUser.totalQuestions, 0),
+                parseInteger(safePublic.totalQuestions, 0),
+                parseInteger(safeCached.totalQuestions, 0)
+            ),
+            questionCount: Math.max(
+                parseInteger(safeBase.questionCount, 0),
+                parseInteger(safeUser.questionCount, 0),
+                parseInteger(safePublic.questionCount, 0),
+                parseInteger(safeCached.questionCount, 0)
+            ),
+            total: Math.max(
+                parseInteger(safeBase.total, 0),
+                parseInteger(safeUser.total, 0),
+                parseInteger(safePublic.total, 0),
+                parseInteger(safeCached.total, 0)
+            )
+        }, referenceDate);
+        const resolvedUsername = String(
+            safeBase.username
+            || safeUser.username
+            || safePublic.username
+            || safeCached.username
+            || (editable ? currentUsername : "")
+            || safeBase.email?.split?.("@")?.[0]
+            || safeUser.email?.split?.("@")?.[0]
+            || safePublic.email?.split?.("@")?.[0]
+            || safeCached.email?.split?.("@")?.[0]
+            || ""
+        ).trim();
+        const resolvedEmail = String(
+            safeBase.email
+            || safeUser.email
+            || safePublic.email
+            || safeCached.email
+            || (editable ? (currentUser?.email || "") : "")
+            || ""
+        ).trim();
+        const resolvedStudyTrack = String(
+            safeBase.studyTrack
+            || safeUser.studyTrack
+            || safePublic.studyTrack
+            || safeCached.studyTrack
+            || (editable ? studyTrack : "")
+            || ""
+        ).trim();
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(
+                resolvedStudyTrack,
+                getFirstNonEmptyArray(
+                    safeBase.selectedSubjects,
+                    safeUser.selectedSubjects,
+                    safePublic.selectedSubjects,
+                    safeCached.selectedSubjects,
+                    editable ? selectedSubjects : []
+                )
+            )
+            : getFirstNonEmptyArray(
+                safeBase.selectedSubjects,
+                safeUser.selectedSubjects,
+                safePublic.selectedSubjects,
+                safeCached.selectedSubjects,
+                editable ? selectedSubjects : []
+            );
+        const totalWorkedSeconds = Math.max(
+            parseInteger(safeBase.totalWorkedSeconds, 0),
+            parseInteger(safeBase.totalStudyTime, 0),
+            parseInteger(safeUser.totalWorkedSeconds, 0),
+            parseInteger(safeUser.totalStudyTime, 0),
+            parseInteger(safePublic.totalWorkedSeconds, 0),
+            parseInteger(safePublic.totalStudyTime, 0),
+            parseInteger(safeCached.totalWorkedSeconds, 0),
+            parseInteger(safeCached.totalStudyTime, 0),
+            editable ? parseInteger(totalWorkedSecondsAllTime, 0) : 0,
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
+                : 0
+        );
+        const currentWeekSeconds = Math.max(
+            parseInteger(safeBase.currentWeekSeconds, 0),
+            parseInteger(safeBase.weeklyStudyTime, 0),
+            parseInteger(safeUser.currentWeekSeconds, 0),
+            parseInteger(safeUser.weeklyStudyTime, 0),
+            parseInteger(safePublic.currentWeekSeconds, 0),
+            parseInteger(safePublic.weeklyStudyTime, 0),
+            parseInteger(safeCached.currentWeekSeconds, 0),
+            parseInteger(safeCached.weeklyStudyTime, 0),
+            editable && typeof getCurrentWeekTotalsFromSchedule === "function"
+                ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds
+                : 0,
+            typeof getCurrentWeekTotalsFromSchedule === "function"
+                ? getCurrentWeekTotalsFromSchedule(resolvedSchedule).seconds
+                : 0
+        );
+        const resolvedNotesSource = editable
+            ? (safeBase.notes || safeUser.notes || userNotes || [])
+            : (safeBase.notes || safePublic.notes || safeCached.notes || safeUser.notes || []);
+        const resolvedIsAdmin = typeof safeBase.isAdmin === "boolean"
+            ? safeBase.isAdmin
+            : !!safeUser.isAdmin
+                || !!safePublic.isAdmin
+                || !!safeCached.isAdmin
+                || (typeof isAdminIdentity === "function" && isAdminIdentity(resolvedUsername || "", resolvedEmail || ""));
+
+        return {
+            uid: String(uid || safeBase.uid || safeUser.uid || safePublic.uid || safeCached.uid || (editable ? (currentUser?.uid || "") : "")),
+            username: resolvedUsername || "Kullanici",
+            email: resolvedEmail,
+            isAdmin: resolvedIsAdmin,
+            about: String(
+                safeBase.about
+                || safeUser.about
+                || safePublic.about
+                || safeCached.about
+                || (editable ? currentProfileAbout : "")
+                || ""
+            ).trim(),
+            profileImage: safeBase.profileImage
+                || safeUser.profileImage
+                || safePublic.profileImage
+                || safeCached.profileImage
+                || (editable ? currentProfileImage : "")
+                || "",
+            accountCreatedAt: safeBase.accountCreatedAt
+                || safeUser.accountCreatedAt
+                || safePublic.accountCreatedAt
+                || safeCached.accountCreatedAt
+                || (editable ? currentAccountCreatedAt : "")
+                || "",
+            studyTrack: resolvedStudyTrack,
+            selectedSubjects: resolvedSelectedSubjects,
+            schedule: resolvedSchedule,
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            currentWeekSeconds,
+            weeklyStudyTime: currentWeekSeconds,
+            notes: editable
+                ? (typeof normalizeUserNotes === "function" ? normalizeUserNotes(resolvedNotesSource) : resolvedNotesSource)
+                : (typeof getPublicUserNotes === "function" ? getPublicUserNotes(resolvedNotesSource) : []),
+            titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
+                ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
+                : null,
+            ...questionSummary
+        };
+    }
+
+    function ensureProfileQuestionStatCards() {
+        const grid = document.querySelector("#profile-modal .profile-stats-grid");
+        if (!grid) return;
+
+        [
+            { id: "profile-daily-questions", label: "Bugün Çözülen" },
+            { id: "profile-weekly-questions", label: "Bu Hafta Çözülen" }
+        ].forEach(cardConfig => {
+            if (document.getElementById(cardConfig.id)) return;
+
+            const card = document.createElement("div");
+            card.className = "profile-stat-card";
+            card.innerHTML = `<span>${cardConfig.label}</span><strong id="${cardConfig.id}">0</strong>`;
+            grid.appendChild(card);
+        });
+    }
+
+    function applyProfileStatsToModal(profileData = {}) {
+        ensureProfileQuestionStatCards();
+
+        const questionSummary = getProfileQuestionSummary(profileData);
+        const totalWorkedSeconds = Math.max(
+            parseInteger(profileData.totalWorkedSeconds, 0),
+            parseInteger(profileData.totalStudyTime, 0),
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(profileData.schedule || {})
+                : 0
+        );
+        const titleInfo = profileData.titleInfo
+            || (typeof getCurrentTitleInfoFromSeconds === "function"
+                ? getCurrentTitleInfoFromSeconds(profileData.currentWeekSeconds || 0)
+                : null);
+
+        const totalWorkNode = document.getElementById("profile-total-work");
+        if (totalWorkNode) {
+            totalWorkNode.innerText = typeof formatSeconds === "function"
+                ? formatSeconds(totalWorkedSeconds)
+                : String(totalWorkedSeconds);
+        }
+
+        const totalQuestionsNode = document.getElementById("profile-total-questions");
+        if (totalQuestionsNode) totalQuestionsNode.innerText = questionSummary.totalQuestionsAllTime || 0;
+
+        const dailyQuestionsNode = document.getElementById("profile-daily-questions");
+        if (dailyQuestionsNode) dailyQuestionsNode.innerText = questionSummary.dailyQuestions || 0;
+
+        const weeklyQuestionsNode = document.getElementById("profile-weekly-questions");
+        if (weeklyQuestionsNode) weeklyQuestionsNode.innerText = questionSummary.weeklyQuestions || 0;
+
+        const titleWrapper = document.getElementById("profile-title-wrapper");
+        if (titleWrapper && titleInfo && typeof getTitleBadgeHtml === "function") {
+            titleWrapper.innerHTML = `${getTitleBadgeHtml(titleInfo)}<span class="profile-title-meta">Haftalık günlük ortalama: ${(Number(titleInfo.avgHours) || 0).toFixed(1)} saat</span>`;
+        }
+
+        return {
+            ...profileData,
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            titleInfo,
+            ...questionSummary
+        };
+    }
+
+    function refreshVisibleProfileModalFromLiveData() {
+        const modal = document.getElementById("profile-modal");
+        if (!modal || modal.style.display !== "flex" || !currentProfileModalData) return;
+
+        const currentUid = String(currentProfileModalData.uid || "");
+        const resolvedProfile = currentProfileModalEditable
+            ? buildProfileModalPayload({
+                uid: currentUid,
+                baseProfile: currentProfileModalData || {},
+                userProfile: currentUserLiveDoc || {},
+                editable: true
+            })
+            : buildProfileModalPayload({
+                uid: currentUid,
+                baseProfile: currentProfileModalData || {},
+                cachedProfile: currentUid ? (leaderboardUserProfiles[currentUid] || {}) : {},
+                editable: false
+            });
+        const syncedProfile = applyProfileStatsToModal(resolvedProfile);
+
+        if (typeof currentProfileModalData !== "undefined") {
+            currentProfileModalData = {
+                ...(currentProfileModalData || {}),
+                ...syncedProfile,
+                notes: resolvedProfile.notes
+            };
+        }
+    }
+
     function isCurrentUserPayloadTarget(basePayload = {}) {
         const targetUid = String(basePayload?.uid || "");
         if (!currentUser?.uid) return !targetUid;
@@ -2513,6 +2896,7 @@
             titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
                 ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
                 : null,
+            schedule: sanitizeScheduleData(data.schedule || {}),
             competitionScore: seconds,
             seconds,
             questions,
@@ -2606,6 +2990,7 @@
                     selectedSubjects: typeof normalizeSelectedSubjects === "function"
                         ? normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || [])
                         : (data.selectedSubjects || []),
+                    schedule: sanitizeScheduleData(data.schedule || {}),
                     currentWeekSeconds: currentWeekTotals,
                     titleInfo,
                     competitionScore: seconds,
@@ -3790,6 +4175,15 @@
     }
 
     function patchProfileCopy() {
+        if (typeof renderLiveLeaderboardFromDocs === "function") {
+            const originalRenderLiveLeaderboardFromDocs = renderLiveLeaderboardFromDocs;
+            renderLiveLeaderboardFromDocs = function(...args) {
+                const result = originalRenderLiveLeaderboardFromDocs.apply(this, args);
+                refreshVisibleProfileModalFromLiveData();
+                return result;
+            };
+        }
+
         if (typeof renderProfileTitles === "function") {
             renderProfileTitles = function(profileData) {
                 const list = document.getElementById("profile-titles-list");
@@ -3845,8 +4239,16 @@
 
         if (typeof showProfileModal === "function") {
             const originalShowProfileModal = showProfileModal;
-            showProfileModal = function(...args) {
-                const result = originalShowProfileModal.apply(this, args);
+            showProfileModal = function(profileData = {}, editable = false) {
+                const resolvedProfile = buildProfileModalPayload({
+                    uid: profileData?.uid || "",
+                    baseProfile: profileData || {},
+                    userProfile: editable ? (currentUserLiveDoc || {}) : {},
+                    cachedProfile: !editable && profileData?.uid ? (leaderboardUserProfiles[profileData.uid] || {}) : {},
+                    editable: !!editable
+                });
+                const result = originalShowProfileModal.call(this, resolvedProfile, editable);
+                const syncedProfile = applyProfileStatsToModal(resolvedProfile);
                 const titleWrapper = document.getElementById("profile-title-wrapper");
                 if (titleWrapper) {
                     titleWrapper.innerHTML = titleWrapper.innerHTML
@@ -3855,9 +4257,88 @@
                 }
                 const titlesLabel = document.getElementById("profile-titles-label");
                 if (titlesLabel) titlesLabel.innerText = "Ünvanlar";
+                if (typeof currentProfileModalData !== "undefined") {
+                    currentProfileModalData = {
+                        ...(currentProfileModalData || {}),
+                        ...syncedProfile,
+                        notes: resolvedProfile.notes
+                    };
+                }
                 return result;
             };
         }
+
+        openProfileModal = function() {
+            refreshCurrentTotals();
+            const resolvedProfile = buildProfileModalPayload({
+                uid: currentUser?.uid || "",
+                editable: true,
+                userProfile: currentUserLiveDoc || {},
+                baseProfile: {
+                    username: currentUsername,
+                    email: currentUser?.email || "",
+                    isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : false,
+                    about: currentProfileAbout,
+                    profileImage: currentProfileImage,
+                    totalWorkedSeconds: totalWorkedSecondsAllTime,
+                    totalStudyTime: totalWorkedSecondsAllTime,
+                    totalQuestionsAllTime: totalQuestionsAllTime,
+                    accountCreatedAt: currentAccountCreatedAt,
+                    studyTrack: studyTrack,
+                    selectedSubjects: selectedSubjects,
+                    notes: normalizeUserNotes(userNotes),
+                    schedule: scheduleData
+                }
+            });
+            showProfileModal(resolvedProfile, true);
+        };
+
+        openLeaderboardProfile = async function(uid) {
+            if (currentUser && currentUser.uid === uid) {
+                openProfileModal();
+                return;
+            }
+
+            const cachedProfile = leaderboardUserProfiles[uid];
+            if (!cachedProfile && !uid) return;
+
+            try {
+                const [userDoc, profileDoc] = await Promise.all([
+                    db.collection("users").doc(uid).get().catch(() => null),
+                    db.collection(PUBLIC_PROFILE_COLLECTION).doc(uid).get().catch(() => null)
+                ]);
+                const userData = userDoc?.exists ? (userDoc.data() || {}) : {};
+                const publicData = profileDoc?.exists ? (profileDoc.data() || {}) : {};
+                const hasRemoteData = !!(userDoc?.exists || profileDoc?.exists);
+
+                if (!hasRemoteData && !cachedProfile) return;
+
+                const resolvedProfile = buildProfileModalPayload({
+                    uid,
+                    userProfile: userData,
+                    publicProfile: publicData,
+                    cachedProfile: cachedProfile || {},
+                    editable: false
+                });
+
+                leaderboardUserProfiles[uid] = {
+                    ...(cachedProfile || {}),
+                    ...resolvedProfile
+                };
+                showProfileModal(resolvedProfile, false);
+            } catch (error) {
+                console.error("Profil verisi yuklenirken hata:", error);
+                if (cachedProfile) {
+                    showProfileModal(buildProfileModalPayload({
+                        uid,
+                        cachedProfile,
+                        editable: false
+                    }), false);
+                    return;
+                }
+                safeShowAlert("Profil yuklenemedi.");
+            }
+        };
     }
 
     function patchAuthFlows() {
@@ -4971,6 +5452,7 @@
             refreshQuestionSummaryCounters();
             renderQuestionTrackingEnhancements();
             updateLiveStudyPreview();
+            refreshVisibleProfileModalFromLiveData();
         };
     }
 
