@@ -982,7 +982,7 @@
     function isTimerVisibleForLeaderboard(timerRecord, now = Date.now()) {
         const updatedAtMs = Math.max(0, parseInteger(timerRecord?.updatedAtMs, 0));
         const hasFreshHeartbeat = updatedAtMs > 0 && (now - updatedAtMs) <= REMOTE_TIMER_STALE_MS;
-        return isTimerRecordRunning(timerRecord, now) && !!timerRecord?.modalOpen && hasFreshHeartbeat;
+        return isTimerRecordRunning(timerRecord, now) && hasFreshHeartbeat;
     }
 
     function serializeTimerSession(session) {
@@ -1182,13 +1182,7 @@
         if (!content) return;
 
         if (timerState.session?.isRunning) {
-            if (isTimerModalOpen()) {
-                touchTimerVisibility(Date.now(), { modalOpen: true });
-            } else {
-                maybeAutoStopHiddenTimer().catch(error => {
-                    console.error("Gizli timer otomatik durdurulamadi:", error);
-                });
-            }
+            touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen() });
         }
 
         content.classList.toggle("is-stopwatch-mode", timerState.mode === "stopwatch");
@@ -1370,21 +1364,14 @@
         timerSyncInterval = setInterval(() => {
             if (!timerState.session?.isRunning || timerState.transitioning) return;
 
-            if (isTimerModalOpen()) {
-                touchTimerVisibility(Date.now(), { modalOpen: true });
-                syncRealtimeTimer("heartbeat", {
-                    activeSession: timerState.session,
-                    currentSessionTime: getTimerDisplaySeconds(timerState.session),
-                    userTriggeredWrite: true,
-                    authorized: true
-                }).catch(error => {
-                    console.error("Timer heartbeat senkronu basarisiz:", error);
-                });
-                return;
-            }
-
-            maybeAutoStopHiddenTimer().catch(error => {
-                console.error("Gizli timer heartbeat'i durdurulamadi:", error);
+            touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+            syncRealtimeTimer("heartbeat", {
+                activeSession: timerState.session,
+                currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                userTriggeredWrite: true,
+                authorized: true
+            }).catch(error => {
+                console.error("Timer heartbeat senkronu basarisiz:", error);
             });
         }, TIMER_SYNC_MS);
     }
@@ -2420,7 +2407,13 @@
             parseInteger(userData?.weeklyStudyTime, 0),
             parseInteger(userData?.currentWeekSeconds, 0)
         );
-        const explicitSessionSeconds = hasVisibleActiveTimer ? parseInteger(userData?.currentSessionTime, 0) : 0;
+        const explicitSessionSeconds = hasVisibleActiveTimer
+            ? Math.max(
+                0,
+                parseInteger(userData?.currentSessionTime, 0)
+                - parseInteger(userData?.activeTimer?.lastPersistedElapsedSeconds, 0)
+            )
+            : 0;
 
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
@@ -4300,7 +4293,7 @@
             refreshLeaderboardOptimistically();
             await syncRealtimeTimer("start", {
                 activeSession: session,
-                currentSessionTime: getTimerDisplaySeconds(session),
+                currentSessionTime: getTimerElapsedSeconds(session),
                 userTriggeredWrite: true,
                 authorized: true
             });
@@ -4659,7 +4652,7 @@
                 if (timerState.session?.isRunning) {
                     syncRealtimeTimer("modal-show", {
                         activeSession: timerState.session,
-                        currentSessionTime: getTimerDisplaySeconds(timerState.session),
+                        currentSessionTime: getTimerElapsedSeconds(timerState.session),
                         userTriggeredWrite: true,
                         authorized: true
                     }).catch(error => {
@@ -4677,7 +4670,7 @@
                     touchTimerVisibility(Date.now(), { modalOpen: false, persist: true });
                     syncRealtimeTimer("modal-hide", {
                         activeSession: timerState.session,
-                        currentSessionTime: 0,
+                        currentSessionTime: getTimerElapsedSeconds(timerState.session),
                         userTriggeredWrite: true,
                         authorized: true
                     }).catch(error => {
@@ -5088,10 +5081,10 @@
 
         document.addEventListener("visibilitychange", () => {
             if (document.hidden && timerState.session?.isRunning) {
-                touchTimerVisibility(Date.now(), { modalOpen: false, persist: true });
+                touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
                 syncRealtimeTimer("visibility-hidden", {
                     activeSession: timerState.session,
-                    currentSessionTime: 0,
+                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
                     userTriggeredWrite: true,
                     authorized: true
                 }).catch(error => {
@@ -5101,7 +5094,7 @@
                 touchTimerVisibility(Date.now(), { modalOpen: true, persist: true });
                 syncRealtimeTimer("visibility-visible", {
                     activeSession: timerState.session,
-                    currentSessionTime: getTimerDisplaySeconds(timerState.session),
+                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
                     userTriggeredWrite: true,
                     authorized: true
                 }).catch(error => {
