@@ -8,6 +8,7 @@
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS * 3, 45000);
     const USER_SAVE_DEBOUNCE_MS = 180;
+    const TIMER_ACTION_TIMEOUT_MS = 3500;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
     const TIMER_OWNER_AT_KEY = "codexTimerOwnerAtV1";
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
@@ -1123,6 +1124,49 @@
             console.error("Timer kurtarma verisi silinemedi:", error);
             return false;
         }
+    }
+
+    function monitorTimerSyncPromise(promise, options = {}) {
+        const label = String(options.label || "timer-sync");
+        const timeoutMs = Math.max(500, parseInteger(options.timeoutMs, TIMER_ACTION_TIMEOUT_MS));
+        const failureMessage = String(options.failureMessage || "");
+        const timeoutMessage = String(options.timeoutMessage || "");
+        const failureType = String(options.failureType || "info");
+        const timeoutType = String(options.timeoutType || failureType);
+        let finished = false;
+        let timeoutNoticeShown = false;
+        let timeoutId = null;
+
+        if (timeoutMessage) {
+            timeoutId = setTimeout(() => {
+                if (finished) return;
+                timeoutNoticeShown = true;
+                safeShowAlert(timeoutMessage, timeoutType);
+            }, timeoutMs);
+        }
+
+        Promise.resolve(promise).then(() => {
+            finished = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (typeof options.onSuccess === "function") {
+                options.onSuccess();
+            }
+        }).catch(error => {
+            finished = true;
+            if (timeoutId) clearTimeout(timeoutId);
+            if (options.persistRecovery !== false) {
+                persistTimerRecoverySnapshot();
+            }
+            console.error(`${label} senkronu basarisiz:`, error);
+            if (failureMessage && (!timeoutNoticeShown || failureMessage !== timeoutMessage)) {
+                safeShowAlert(failureMessage, failureType);
+            }
+            if (typeof options.onFailure === "function") {
+                options.onFailure(error);
+            }
+        });
+
+        return promise;
     }
 
     function mergeTimerRecoveryScheduleIntoLocalState() {
@@ -5924,11 +5968,14 @@
             startTimerLoops();
             renderTimerUi();
             refreshLeaderboardOptimistically();
-            await syncRealtimeTimer("start", {
+            monitorTimerSyncPromise(syncRealtimeTimer("start", {
                 activeSession: session,
                 currentSessionTime: getTimerElapsedSeconds(session),
                 userTriggeredWrite: true,
                 authorized: true
+            }), {
+                label: "timer-start",
+                failureMessage: "Canli senkron gecikti. Sure cihazda korunuyor."
             });
         };
 
@@ -5946,28 +5993,23 @@
             timerDrafts[session.mode] = { ...session };
             isRunning = false;
             stopTimerLoops();
-            let syncSucceeded = true;
-            try {
-                await syncRealtimeTimer("pause", {
-                    activeSession: null,
-                    currentSessionTime: 0,
-                    clearActive: true,
-                    commitElapsed: true,
-                    commitSourceSession,
-                    committedElapsedSeconds: elapsed,
-                    userTriggeredWrite: true,
-                    authorized: true
-                });
-            } catch (error) {
-                syncSucceeded = false;
-                console.error("Zamanlayici duraklatilirken bulut senkronu basarisiz:", error);
-                if (!options.silentWriteFailure) {
-                    safeShowAlert("Süre cihazda korundu. Baglanti duzelince tekrar kaydetmeyi dene.", "info");
-                }
-            }
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
-            return syncSucceeded;
+            monitorTimerSyncPromise(syncRealtimeTimer("pause", {
+                activeSession: null,
+                currentSessionTime: 0,
+                clearActive: true,
+                commitElapsed: true,
+                commitSourceSession,
+                committedElapsedSeconds: elapsed,
+                userTriggeredWrite: true,
+                authorized: true
+            }), {
+                label: "timer-pause",
+                timeoutMessage: options.silentWriteFailure ? "" : "Duraklatma alindi. Bulut senkronu arkada suruyor.",
+                failureMessage: options.silentWriteFailure ? "" : "Sure cihazda korundu. Baglanti duzelince tekrar kaydetmeyi dene."
+            });
+            return true;
         };
 
         completePomodoroSession = async function() {
@@ -5985,7 +6027,9 @@
             timerState.session = session;
             timerDrafts.pomodoro = { ...session };
             persistTimerSessionLocally(session);
-            await syncRealtimeTimer("complete", {
+            refreshLeaderboardOptimistically(null);
+            renderTimerUi();
+            monitorTimerSyncPromise(syncRealtimeTimer("complete", {
                 activeSession: session,
                 currentSessionTime: 0,
                 commitElapsed: true,
@@ -5993,9 +6037,10 @@
                 committedElapsedSeconds: elapsed,
                 userTriggeredWrite: true,
                 authorized: true
+            }), {
+                label: "timer-complete",
+                failureMessage: "Pomodoro tamamlandi. Sure cihazda korundu ve tekrar gonderilecek."
             });
-            refreshLeaderboardOptimistically(null);
-            renderTimerUi();
             safeShowAlert("Pomodoro oturumu tamamlandi ve sure kaydedildi.", "success");
         };
 
@@ -6021,16 +6066,19 @@
             }
             timerDrafts[timerState.mode] = { ...timerState.session };
 
-            await syncRealtimeTimer("reset", {
+            refreshLeaderboardOptimistically(null);
+            renderTimerUi();
+            monitorTimerSyncPromise(syncRealtimeTimer("reset", {
                 activeSession: null,
                 currentSessionTime: 0,
                 clearActive: true,
                 userTriggeredWrite: true,
                 authorized: true
+            }), {
+                label: "timer-reset",
+                timeoutMessage: "Sifirlama cihazda tamamlandi. Bulut guncellemesi arkada suruyor.",
+                failureMessage: "Sifirlama cihazda tamamlandi. Bulut baglantisi gelince tekrar esitlecek."
             });
-
-            refreshLeaderboardOptimistically(null);
-            renderTimerUi();
             if (!silent) {
                 safeShowAlert("Zamanlayici sifirlandi.");
             }
@@ -6054,56 +6102,6 @@
             if (typeof originalPatchTimerControls === "function") {
                 originalPatchTimerControls();
             }
-
-        saveWorkSession = function() {
-            const finishAndClose = async () => {
-                if (timerState.transitioning) return;
-                timerState.transitioning = true;
-
-                let pauseSynced = true;
-                let saveSynced = true;
-
-                try {
-                    if (timerState.session?.isRunning) {
-                        pauseSynced = await pauseRealtimeTimer({ silentWriteFailure: true });
-                    }
-
-                    try {
-                        await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
-                            activeSession: null,
-                            currentSessionTime: 0,
-                            clearActive: true,
-                            commitElapsed: true,
-                            userTriggeredWrite: true,
-                            authorized: true
-                        }));
-                    } catch (error) {
-                        saveSynced = false;
-                        console.error("Manual timer save senkronu basarisiz:", error);
-                        persistTimerRecoverySnapshot();
-                    }
-
-                    timerState.session = null;
-                    persistTimerSessionLocally(null);
-                    releaseTimerOwnership();
-                    renderTimerUi();
-                    hidePomodoroModal();
-                    safeShowAlert(
-                        pauseSynced && saveSynced
-                            ? "Sure kaydedildi ve durduruldu."
-                            : "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene.",
-                        pauseSynced && saveSynced ? "success" : "info"
-                    );
-                } finally {
-                    timerState.transitioning = false;
-                }
-            };
-
-                finishAndClose().catch(error => {
-                    console.error("Sure kaydedilip durdurulamadi:", error);
-                    safeShowAlert("Sure kaydedilirken bir hata olustu.");
-                });
-            };
 
             hidePomodoroModal = (function(originalHidePomodoroModal) {
                 return function() {
@@ -6276,40 +6274,46 @@
                 if (timerState.transitioning) return;
                 timerState.transitioning = true;
 
-                let pauseSynced = true;
-                let saveSynced = true;
-
                 try {
-                    if (timerState.session?.isRunning) {
-                        pauseSynced = await pauseRealtimeTimer({ silentWriteFailure: true });
+                    const activeSession = timerState.session ? { ...timerState.session } : null;
+                    const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
+                    const committedElapsedSeconds = commitSourceSession
+                        ? getTimerElapsedSeconds(commitSourceSession)
+                        : 0;
+
+                    if (activeSession) {
+                        activeSession.baseElapsedSeconds = committedElapsedSeconds;
+                        activeSession.isRunning = false;
+                        activeSession.startedAtMs = 0;
+                        activeSession.modalOpen = false;
+                        timerDrafts[activeSession.mode] = { ...activeSession };
+                        isRunning = false;
+                        stopTimerLoops();
                     }
 
-                    try {
-                        await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
-                            activeSession: null,
-                            currentSessionTime: 0,
-                            clearActive: true,
-                            commitElapsed: true,
-                            userTriggeredWrite: true,
-                            authorized: true
-                        }));
-                    } catch (error) {
-                        saveSynced = false;
-                        console.error("Manual timer save senkronu basarisiz:", error);
-                        persistTimerRecoverySnapshot();
-                    }
+                    const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
+                        activeSession: null,
+                        currentSessionTime: 0,
+                        clearActive: true,
+                        commitElapsed: !!commitSourceSession,
+                        commitSourceSession,
+                        committedElapsedSeconds,
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }));
 
                     timerState.session = null;
                     persistTimerSessionLocally(null);
                     releaseTimerOwnership();
+                    refreshLeaderboardOptimistically(null);
                     renderTimerUi();
                     hidePomodoroModal();
-                    safeShowAlert(
-                        pauseSynced && saveSynced
-                            ? "Süre kaydedildi ve durduruldu."
-                            : "Süre cihazda korundu. Bağlantı gelince tekrar kaydetmeyi dene.",
-                        pauseSynced && saveSynced ? "success" : "info"
-                    );
+                    safeShowAlert("Süre durduruldu. Senkron arka planda tamamlanıyor.", "success");
+                    monitorTimerSyncPromise(syncPromise, {
+                        label: "timer-save",
+                        timeoutMessage: "Kayit alindi. Bulut senkronu arkada suruyor.",
+                        failureMessage: "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene."
+                    });
                 } finally {
                     timerState.transitioning = false;
                 }
@@ -6671,21 +6675,47 @@
     }
 
     function publishTimerBridge() {
-        const showModalHandler = typeof showPomodoroModal === "function" ? showPomodoroModal : null;
-        const hideModalHandler = typeof hidePomodoroModal === "function" ? hidePomodoroModal : null;
-        const updateInputsHandler = typeof updateTimerFromInputsAndReset === "function" ? updateTimerFromInputsAndReset : null;
-        const toggleHandler = typeof toggleTimer === "function" ? toggleTimer : null;
-        const saveHandler = typeof saveWorkSession === "function" ? saveWorkSession : null;
-        const resetHandler = typeof resetTimer === "function" ? resetTimer : null;
-
         window.codexTimerBridge = {
-            showModal: (...args) => showModalHandler ? showModalHandler.apply(window, args) : undefined,
-            hideModal: (...args) => hideModalHandler ? hideModalHandler.apply(window, args) : undefined,
-            updateInputs: (...args) => updateInputsHandler ? updateInputsHandler.apply(window, args) : undefined,
-            toggle: (...args) => toggleHandler ? toggleHandler.apply(window, args) : undefined,
-            save: (...args) => saveHandler ? saveHandler.apply(window, args) : undefined,
-            reset: (...args) => resetHandler ? resetHandler.apply(window, args) : undefined
+            showModal: (...args) => typeof showPomodoroModal === "function" ? showPomodoroModal.apply(window, args) : undefined,
+            hideModal: (...args) => typeof hidePomodoroModal === "function" ? hidePomodoroModal.apply(window, args) : undefined,
+            updateInputs: (...args) => typeof updateTimerFromInputsAndReset === "function" ? updateTimerFromInputsAndReset.apply(window, args) : undefined,
+            toggle: (...args) => typeof toggleTimer === "function" ? toggleTimer.apply(window, args) : undefined,
+            save: (...args) => typeof saveWorkSession === "function" ? saveWorkSession.apply(window, args) : undefined,
+            reset: (...args) => typeof resetTimer === "function" ? resetTimer.apply(window, args) : undefined
         };
+    }
+
+    function bindTimerModalControls() {
+        const modal = document.getElementById("pomodoro-modal");
+        if (!modal || modal.dataset.codexTimerControlsBound === "true") return;
+
+        const bindAction = (selector, eventName, action, ...args) => {
+            const node = modal.querySelector(selector);
+            if (!node) return;
+            node.removeAttribute("onclick");
+            if (node.tagName === "BUTTON" && !node.getAttribute("type")) {
+                node.setAttribute("type", "button");
+            }
+            node.addEventListener(eventName, event => {
+                event.preventDefault();
+                event.stopPropagation();
+                const bridge = window.codexTimerBridge || {};
+                const handler = typeof bridge[action] === "function" ? bridge[action] : null;
+                if (handler) {
+                    handler.apply(window, args);
+                }
+            });
+        };
+
+        bindAction(".pomodoro-close-btn", "click", "hideModal");
+        bindAction("#start-pause-btn", "click", "toggle");
+        bindAction("#save-btn", "click", "save");
+        bindAction("#reset-btn", "click", "reset", true, true);
+        bindAction("#study-hours", "input", "updateInputs");
+        bindAction("#study-minutes", "input", "updateInputs");
+        bindAction("#study-seconds", "input", "updateInputs");
+
+        modal.dataset.codexTimerControlsBound = "true";
     }
 
     function patchSignOutPreservation() {
@@ -6902,6 +6932,7 @@
         patchTimerControls();
         patchSignOutPreservation();
         publishTimerBridge();
+        bindTimerModalControls();
         patchProfileCopy();
         patchLeaderboardRealtime();
         patchProtectedOpeners();
