@@ -5411,7 +5411,15 @@
                 : `${primarySubject.label} dersi için henüz çalışma kaydı görünmüyor. İstersen görev ekleyip başlayabilirsin.`;
 
             if (overdueSubjects.length > 1) {
-                message += ` Ayrıca ${overdueSubjects.length - 1} ders daha bekliyor.`;
+                const remainingLabels = overdueSubjects.slice(1).map(item => item.label).filter(Boolean);
+                if (remainingLabels.length === 1) {
+                    message += ` Ayrıca bekleyen ders: ${remainingLabels[0]}.`;
+                } else if (remainingLabels.length > 1) {
+                    const listedLabels = remainingLabels.length === 2
+                        ? `${remainingLabels[0]} ve ${remainingLabels[1]}`
+                        : `${remainingLabels.slice(0, -1).join(", ")} ve ${remainingLabels[remainingLabels.length - 1]}`;
+                    message += ` Ayrıca bekleyen diğer dersler: ${listedLabels}.`;
+                }
             }
 
             document.getElementById('subject-reminder-title').innerText = `${primarySubject.label} için hatırlatma`;
@@ -6439,7 +6447,15 @@
                 : `${primarySubject.label} dersi için henüz çalışma kaydı görünmüyor. İstersen görev ekleyip başlayabilirsin.`;
 
             if (overdueSubjects.length > 1) {
-                message += ` Ayrıca ${overdueSubjects.length - 1} ders daha bekliyor.`;
+                const remainingLabels = overdueSubjects.slice(1).map(item => item.label).filter(Boolean);
+                if (remainingLabels.length === 1) {
+                    message += ` Ayrıca bekleyen ders: ${remainingLabels[0]}.`;
+                } else if (remainingLabels.length > 1) {
+                    const listedLabels = remainingLabels.length === 2
+                        ? `${remainingLabels[0]} ve ${remainingLabels[1]}`
+                        : `${remainingLabels.slice(0, -1).join(", ")} ve ${remainingLabels[remainingLabels.length - 1]}`;
+                    message += ` Ayrıca bekleyen diğer dersler: ${listedLabels}.`;
+                }
             }
 
             document.getElementById('subject-reminder-title').innerText = `${primarySubject.label} için hatırlatma`;
