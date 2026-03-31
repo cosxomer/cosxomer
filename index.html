@@ -3544,7 +3544,7 @@
                         <i class="fas fa-spider"></i>
                     </button>
                 </div>
-                <button class="pomodoro-btn" onclick="showPomodoroModal()" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; padding: 12px 20px;">
+                <button class="pomodoro-btn" onclick="runCodexTimerAction('showModal')" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; padding: 12px 20px;">
                     <i class="fas fa-clock"></i> Pomodoro Başlat
                 </button>
                 <button id="my-notes-btn" class="notes-launch-btn" onclick="openMyNotesModal()" style="background-color: var(--accent-color); color: var(--header-text); font-size: 1.05em; padding: 12px 20px;">
@@ -3694,29 +3694,29 @@
 
     <div id="pomodoro-modal" class="modal-overlay">
         <div class="pomodoro-content">
-            <button class="pomodoro-close-btn" onclick="hidePomodoroModal()" type="button" title="Pomodoro ekranını gizle" aria-label="Pomodoro ekranını gizle">
+            <button class="pomodoro-close-btn" onclick="runCodexTimerAction('hideModal')" type="button" title="Pomodoro ekranını gizle" aria-label="Pomodoro ekranını gizle">
                 <i class="fas fa-times"></i>
             </button>
             <h2 style="color: var(--pomodoro-accent); margin-bottom: 25px; font-size: 2em; text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);">ODAK ZAMANI</h2>
             <div class="pomodoro-time-inputs">
-                <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="updateTimerFromInputsAndReset()">
+                <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="runCodexTimerAction('updateInputs')">
                 <span>:</span>
-                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="updateTimerFromInputsAndReset()">
+                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="runCodexTimerAction('updateInputs')">
                 <span>:</span>
-                <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="updateTimerFromInputsAndReset()">
+                <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="runCodexTimerAction('updateInputs')">
             </div>
             <div class="timer-display" id="timer-display" role="timer" aria-live="polite" aria-label="Pomodoro sayaci">00:25:00</div>
             <p id="timer-status" style="font-size: 1.1em; font-weight: 700; color: var(--accent-color); margin-bottom: 30px;"></p>
             <div class="timer-controls">
                 <div>
-                    <button id="start-pause-btn" onclick="toggleTimer()" style="background-color: var(--accent-color); color: var(--header-text);">
+                    <button id="start-pause-btn" onclick="runCodexTimerAction('toggle')" style="background-color: var(--accent-color); color: var(--header-text);">
                         <i class="fas fa-play"></i> Başlat
                     </button>
                 </div>
-                <button id="save-btn" onclick="saveWorkSession()" style="background-color: var(--countdown-fill); color: var(--header-text);">
+                <button id="save-btn" onclick="runCodexTimerAction('save')" style="background-color: var(--countdown-fill); color: var(--header-text);">
                     <i class="fas fa-save"></i> Kaydet ve Kapat
                 </button>
-                <button id="reset-btn" onclick="resetTimer(true, true)" style="background-color: var(--button-bg); color: var(--header-text);">
+                <button id="reset-btn" onclick="runCodexTimerAction('reset', true, true)" style="background-color: var(--button-bg); color: var(--header-text);">
                     <i class="fas fa-undo"></i> Sıfırla
                 </button>
             </div>
@@ -6165,6 +6165,25 @@
                 clearInterval(studyInsightInterval);
                 studyInsightInterval = null;
             }
+        }
+
+        function runCodexTimerAction(action) {
+            const args = Array.prototype.slice.call(arguments, 1);
+            const bridge = window.codexTimerBridge || {};
+            const fallbackMap = {
+                showModal: typeof showPomodoroModal === 'function' ? showPomodoroModal : null,
+                hideModal: typeof hidePomodoroModal === 'function' ? hidePomodoroModal : null,
+                updateInputs: typeof updateTimerFromInputsAndReset === 'function' ? updateTimerFromInputsAndReset : null,
+                toggle: typeof toggleTimer === 'function' ? toggleTimer : null,
+                save: typeof saveWorkSession === 'function' ? saveWorkSession : null,
+                reset: typeof resetTimer === 'function' ? resetTimer : null
+            };
+
+            const handler = typeof bridge[action] === 'function' ? bridge[action] : fallbackMap[action];
+            if (typeof handler === 'function') {
+                return handler.apply(window, args);
+            }
+            return undefined;
         }
 
         function showPomodoroModal() { 
@@ -10807,7 +10826,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260329-0508"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260331-0545"></script>
+<script src="codex-upgrade-7.js?v=20260331-0615"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

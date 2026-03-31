@@ -996,7 +996,7 @@
             parseInteger(timerState.lastModalSeenAt, 0)
         );
         return {
-            uid: currentUser?.uid || "",
+            uid: String(session.uid || currentUser?.uid || ""),
             mode: session.mode,
             isRunning: !!session.isRunning,
             baseElapsedSeconds: Math.max(0, parseInteger(session.baseElapsedSeconds, 0)),
@@ -1019,11 +1019,15 @@
     }
 
     function persistTimerSessionLocally(session) {
-        if (!session || !currentUser) {
+        const sessionUid = String(session?.uid || currentUser?.uid || "");
+        if (!session || !sessionUid) {
             localStorage.removeItem(TIMER_STORAGE_KEY);
             return;
         }
-        localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(serializeTimerSession(session)));
+        localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(serializeTimerSession({
+            ...session,
+            uid: sessionUid
+        })));
     }
 
     function readStoredTimerSession() {
@@ -1035,6 +1039,37 @@
             console.error("Timer local verisi okunamadi:", error);
             return null;
         }
+    }
+
+    function preserveTimerStateForRecovery(session = timerState.session, options = {}) {
+        if (!session) return false;
+
+        const uid = String(
+            options.uid
+            || session.uid
+            || currentUser?.uid
+            || currentUserLiveDoc?.uid
+            || ""
+        );
+
+        if (!uid) return false;
+
+        const snapshot = {
+            ...session,
+            uid,
+            modalOpen: options.modalOpen === undefined ? !!session.modalOpen : !!options.modalOpen,
+            lastSeenAtMs: Math.max(
+                getTimerLastSeenAt(session),
+                parseInteger(options.lastSeenAtMs, 0),
+                Date.now()
+            )
+        };
+
+        persistTimerSessionLocally(snapshot);
+        if (options.includeRecovery !== false && currentUser?.uid === uid) {
+            persistTimerRecoverySnapshot();
+        }
+        return true;
     }
 
     function buildTimerRecoverySnapshot() {
@@ -6097,6 +6132,14 @@
                 }
 
                 if (!user) {
+                    const hadSession = !!timerState.session;
+                    if (hadSession) {
+                        preserveTimerStateForRecovery(timerState.session, {
+                            modalOpen: false,
+                            includeRecovery: true
+                        });
+                    }
+
                     currentUser = null;
                     currentUserLiveDoc = null;
                     currentUserWriteChain = Promise.resolve();
@@ -6113,10 +6156,11 @@
                     currentUserSaveResolvers = [];
                     stopTimerLoops();
                     timerState.session = null;
-                    persistTimerSessionLocally(null);
+                    if (!hadSession) {
+                        persistTimerSessionLocally(null);
+                    }
                     releaseTimerOwnership();
                     clearLegacyPomodoroStorage();
-                    localStorage.removeItem(TIMER_STORAGE_KEY);
                     hideVerificationGate();
                     renderTimerUi();
                     return;
@@ -6169,7 +6213,14 @@
             });
 
             window.addEventListener("beforeunload", () => {
-                localStorage.removeItem(TIMER_STORAGE_KEY);
+                if (timerState.session) {
+                    preserveTimerStateForRecovery(timerState.session, {
+                        modalOpen: isTimerModalOpen(),
+                        includeRecovery: getPendingTimerDelta(timerState.session) > 0
+                    });
+                } else {
+                    localStorage.removeItem(TIMER_STORAGE_KEY);
+                }
                 clearLegacyPomodoroStorage();
                 releaseTimerOwnership();
             });
@@ -6619,6 +6670,42 @@
         isRunning = false;
     }
 
+    function publishTimerBridge() {
+        const showModalHandler = typeof showPomodoroModal === "function" ? showPomodoroModal : null;
+        const hideModalHandler = typeof hidePomodoroModal === "function" ? hidePomodoroModal : null;
+        const updateInputsHandler = typeof updateTimerFromInputsAndReset === "function" ? updateTimerFromInputsAndReset : null;
+        const toggleHandler = typeof toggleTimer === "function" ? toggleTimer : null;
+        const saveHandler = typeof saveWorkSession === "function" ? saveWorkSession : null;
+        const resetHandler = typeof resetTimer === "function" ? resetTimer : null;
+
+        window.codexTimerBridge = {
+            showModal: (...args) => showModalHandler ? showModalHandler.apply(window, args) : undefined,
+            hideModal: (...args) => hideModalHandler ? hideModalHandler.apply(window, args) : undefined,
+            updateInputs: (...args) => updateInputsHandler ? updateInputsHandler.apply(window, args) : undefined,
+            toggle: (...args) => toggleHandler ? toggleHandler.apply(window, args) : undefined,
+            save: (...args) => saveHandler ? saveHandler.apply(window, args) : undefined,
+            reset: (...args) => resetHandler ? resetHandler.apply(window, args) : undefined
+        };
+    }
+
+    function patchSignOutPreservation() {
+        const originalSignOutUser = typeof signOutUser === "function" ? signOutUser : null;
+        if (!originalSignOutUser || originalSignOutUser.__codexTimerPatched) return;
+
+        const wrappedSignOutUser = function(...args) {
+            if (timerState.session) {
+                preserveTimerStateForRecovery(timerState.session, {
+                    modalOpen: false,
+                    includeRecovery: true
+                });
+            }
+            return originalSignOutUser.apply(this, args);
+        };
+
+        wrappedSignOutUser.__codexTimerPatched = true;
+        signOutUser = wrappedSignOutUser;
+    }
+
     function patchProtectedOpeners() {
         ["openProfileModal", "openMyNotesModal", "openSupportModal", "openTitlesModal"].forEach(functionName => {
             const original = typeof window[functionName] === "function" ? window[functionName] : null;
@@ -6813,6 +6900,8 @@
         patchTaskInteractions();
         patchNotesFolders();
         patchTimerControls();
+        patchSignOutPreservation();
+        publishTimerBridge();
         patchProfileCopy();
         patchLeaderboardRealtime();
         patchProtectedOpeners();
