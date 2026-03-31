@@ -477,6 +477,7 @@
 
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
         currentUserLiveDoc = userData || {};
+        mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
@@ -3101,6 +3102,39 @@
         return dayData ? (ensureDayObject(dayData).workedSeconds || 0) : 0;
     }
 
+    function mergeFreshDailySnapshotIntoLocalSchedule(userData = {}, referenceDate = new Date()) {
+        const remoteSchedule = sanitizeScheduleData(userData?.schedule || {});
+        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
+        const localDayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
+        const remoteDayData = ensureDayObject(remoteSchedule?.[weekKey]?.[dayIdx] || {});
+        const explicitDailySeconds = getFreshDailyStudySeconds(userData, remoteSchedule, referenceDate);
+        const currentStoredSeconds = Math.max(
+            parseInteger(localDayData.workedSeconds, 0),
+            parseInteger(remoteDayData.workedSeconds, 0)
+        );
+        const nextWorkedSeconds = Math.max(currentStoredSeconds, explicitDailySeconds);
+
+        if (nextWorkedSeconds <= currentStoredSeconds) {
+            return false;
+        }
+
+        if (!scheduleData || typeof scheduleData !== "object") {
+            scheduleData = sanitizeScheduleData(remoteSchedule);
+        }
+        if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
+
+        scheduleData[weekKey][dayIdx] = ensureDayObject({
+            ...remoteDayData,
+            ...localDayData,
+            workedSeconds: nextWorkedSeconds
+        });
+
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+        return true;
+    }
+
     function buildRealtimeStudyPayload(options = {}) {
         scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
@@ -5053,6 +5087,7 @@
         noteFolders = normalizeNoteFolders(safeData.noteFolders || []);
         userNotes = normalizeUserNotes(safeData.notes || []);
         scheduleData = sanitizeScheduleData(safeData.schedule || {});
+        mergeFreshDailySnapshotIntoLocalSchedule(safeData);
         totalWorkedSecondsAllTime = Math.max(parseInteger(safeData.totalWorkedSeconds, 0), parseInteger(safeData.totalStudyTime, 0), typeof calculateTotalWorkedSecondsFromSchedule === "function" ? calculateTotalWorkedSecondsFromSchedule(scheduleData) : 0);
         totalQuestionsAllTime = Math.max(parseInteger(safeData.totalQuestionsAllTime, 0), typeof calculateTotalQuestionsFromSchedule === "function" ? calculateTotalQuestionsFromSchedule(scheduleData) : 0);
         renderNoteFolderControls();
