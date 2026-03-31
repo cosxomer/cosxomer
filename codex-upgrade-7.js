@@ -5,6 +5,7 @@
     const TIMER_SYNC_MS = 12000;
     const TIMER_OWNER_TTL_MS = 15000;
     const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
+    const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS * 3, 45000);
     const USER_SAVE_DEBOUNCE_MS = 180;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
@@ -853,6 +854,8 @@
             totalWorkedSeconds: 0,
             totalStudyTime: 0,
             totalQuestionsAllTime: 0,
+            selectedTitleId: "",
+            titleAwards: {},
             dailyStudyTime: 0,
             dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
             currentSessionTime: 0,
@@ -1477,6 +1480,623 @@
         return { seconds, questions };
     }
 
+    function formatTitleRequirementLabel(minAvgHours = 0) {
+        if (Math.abs(Number(minAvgHours) - 0.5) < 0.001) return "30 dk";
+        if (Number.isInteger(minAvgHours)) return `${minAvgHours} saat`;
+        return `${String(minAvgHours).replace(".", ",")} saat`;
+    }
+
+    function buildModernTitleLevels() {
+        return [
+            {
+                id: "bronze1",
+                minAvgHours: 0.5,
+                label: "Bronz I",
+                icon: "◈",
+                className: "title-bronze-1",
+                description: "Düzeni kurdun. Şimdi mesele başlamak değil, bunu her gün yeniden yapabilmek."
+            },
+            {
+                id: "bronze2",
+                minAvgHours: 1,
+                label: "Bronz II",
+                icon: "✦",
+                className: "title-bronze-2",
+                description: "Temelin oturuyor. Küçük görünen bu tempo, büyük sıçramaların habercisi."
+            },
+            {
+                id: "silver1",
+                minAvgHours: 2,
+                label: "Gümüş I",
+                icon: "◆",
+                className: "title-silver-1",
+                description: "Çalışma artık ciddiye bindi. Hedefin uzakta değil, her gün biraz daha yakındasın."
+            },
+            {
+                id: "silver2",
+                minAvgHours: 3,
+                label: "Gümüş II",
+                icon: "⬢",
+                className: "title-silver-2",
+                description: "Ritmin güçlendi. Yorulsan da kopmuyor, masaya oturduğunda farkını hissettiriyorsun."
+            },
+            {
+                id: "gold1",
+                minAvgHours: 4,
+                label: "Altın I",
+                icon: "✧",
+                className: "title-gold-1",
+                description: "Bu seviye emekle alınır. Disiplinin görünmeye başladı, rakiplerine fark açıyorsun."
+            },
+            {
+                id: "gold2",
+                minAvgHours: 5,
+                label: "Altın II",
+                icon: "✶",
+                className: "title-gold-2",
+                description: "İstikrarın artık seni taşıyor. Bugünü değil, sonucu değiştirecek seviyeye geldin."
+            },
+            {
+                id: "diamond1",
+                minAvgHours: 6,
+                label: "Elmas I",
+                icon: "✹",
+                className: "title-diamond-1",
+                description: "Baskı arttığında dağılan değil sertleşen taraftasın. Güçlü öğrenciler burada ayrılır."
+            },
+            {
+                id: "diamond2",
+                minAvgHours: 7,
+                label: "Elmas II",
+                icon: "✺",
+                className: "title-diamond-2",
+                description: "Süre, sabır ve odak aynı çizgide buluştu. Artık sıradan tempo seni anlatmıyor."
+            },
+            {
+                id: "crown1",
+                minAvgHours: 8,
+                label: "Taç I",
+                icon: "♛",
+                className: "title-crown-1",
+                description: "Yüksek tempoyu yönetebilen az kişiden birisin. Ciddiyetin artık sadece hissedilmiyor, görülüyor."
+            },
+            {
+                id: "crown2",
+                minAvgHours: 9,
+                label: "Taç II",
+                icon: "♕",
+                className: "title-crown-2",
+                description: "Zirvenin kapısındasın. Bu seviyeye çıkanlar yarışa katılmaz, yarışın şeklini değiştirir."
+            },
+            {
+                id: "fatih",
+                minAvgHours: 10,
+                label: "Fatih",
+                icon: "♔",
+                className: "title-fatih",
+                description: "En üst mertebe. Sen artık sadece hedefin peşinden giden değil, onu fetheden kişisin. Bu ünvan, masaya hükmedenlerin ünvanı."
+            }
+        ].map(level => ({
+            ...level,
+            requirement: `2 günlük ortalama ${formatTitleRequirementLabel(level.minAvgHours)}`
+        }));
+    }
+
+    function ensureRollingTwoDayTitleConfig() {
+        const nextLevels = buildModernTitleLevels();
+        if (typeof TITLE_LEVELS !== "undefined" && Array.isArray(TITLE_LEVELS)) {
+            TITLE_LEVELS.splice(0, TITLE_LEVELS.length, ...nextLevels.map(level => ({ ...level })));
+            return TITLE_LEVELS;
+        }
+        return nextLevels;
+    }
+
+    function getRollingDayTotalsFromSchedule(schedule, dayCount = 2, nowDate = new Date()) {
+        const sourceSchedule = schedule || {};
+        const safeDayCount = Math.max(1, parseInteger(dayCount, 2));
+        const nowMs = nowDate.getTime();
+        const todayStart = new Date(nowDate);
+        todayStart.setHours(0, 0, 0, 0);
+        let seconds = 0;
+        let questions = 0;
+
+        for (let offset = 0; offset < safeDayCount; offset += 1) {
+            const dayDate = new Date(todayStart);
+            dayDate.setDate(dayDate.getDate() - offset);
+            const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
+            const dayData = sourceSchedule?.[weekKey]?.[dayIdx];
+            if (!dayData) continue;
+
+            seconds += clampWorkedSecondsForDisplay(dayData.workedSeconds, dayDate, nowMs);
+            questions += parseInteger(dayData.questions, 0);
+        }
+
+        return {
+            seconds,
+            questions,
+            dayCount: safeDayCount
+        };
+    }
+
+    function getStoredSelectedTitleId(...sources) {
+        for (const source of sources) {
+            const nextId = String(
+                source?.selectedTitleId
+                || source?.selectedTitle
+                || source?.preferredTitleId
+                || source?.titleInfo?.selectedTitleId
+                || ""
+            ).trim();
+            if (nextId) return nextId;
+        }
+        return "";
+    }
+
+    function parseTimestampMs(value, fallback = 0) {
+        if (!value) return fallback;
+        if (typeof value?.toMillis === "function") {
+            return Math.max(0, parseInteger(value.toMillis(), fallback));
+        }
+        if (typeof value?.seconds === "number") {
+            return Math.max(0, parseInteger(value.seconds * 1000, fallback));
+        }
+
+        const numericValue = Number(value);
+        if (Number.isFinite(numericValue) && numericValue > 0) {
+            return Math.max(0, parseInteger(numericValue, fallback));
+        }
+
+        const parsedDate = Date.parse(String(value));
+        return Number.isFinite(parsedDate) && parsedDate > 0 ? parsedDate : fallback;
+    }
+
+    function orderTitleAwardMap(awardMap = {}) {
+        const orderedMap = {};
+        ensureRollingTwoDayTitleConfig().forEach(level => {
+            if (!awardMap?.[level.id]) return;
+            orderedMap[level.id] = awardMap[level.id];
+        });
+        return orderedMap;
+    }
+
+    function normalizeTitleAwards(rawAwards = {}) {
+        const knownIds = new Set(ensureRollingTwoDayTitleConfig().map(level => level.id));
+        const normalizedAwards = {};
+
+        Object.entries(rawAwards || {}).forEach(([titleId, rawValue]) => {
+            if (!knownIds.has(titleId) || !rawValue || typeof rawValue !== "object") return;
+
+            const awardedAtMs = parseTimestampMs(
+                rawValue.awardedAtMs
+                || rawValue.awardedAt
+                || rawValue.grantedAtMs
+                || rawValue.grantedAt,
+                0
+            );
+            const expiresAtMs = parseTimestampMs(
+                rawValue.expiresAtMs
+                || rawValue.expiresAt
+                || rawValue.validUntilMs
+                || rawValue.validUntil,
+                0
+            );
+
+            if (!expiresAtMs) return;
+
+            normalizedAwards[titleId] = {
+                awardedAtMs: awardedAtMs || Math.max(0, expiresAtMs - TITLE_VALIDITY_MS),
+                expiresAtMs
+            };
+        });
+
+        return orderTitleAwardMap(normalizedAwards);
+    }
+
+    function mergeTitleAwardMaps(...awardSources) {
+        const mergedAwards = {};
+
+        awardSources.forEach(source => {
+            const normalizedSource = normalizeTitleAwards(source || {});
+            Object.entries(normalizedSource).forEach(([titleId, award]) => {
+                const existingAward = mergedAwards[titleId];
+                if (!existingAward) {
+                    mergedAwards[titleId] = { ...award };
+                    return;
+                }
+
+                mergedAwards[titleId] = {
+                    awardedAtMs: existingAward.awardedAtMs && award.awardedAtMs
+                        ? Math.min(existingAward.awardedAtMs, award.awardedAtMs)
+                        : Math.max(existingAward.awardedAtMs || 0, award.awardedAtMs || 0),
+                    expiresAtMs: Math.max(existingAward.expiresAtMs || 0, award.expiresAtMs || 0)
+                };
+            });
+        });
+
+        return orderTitleAwardMap(mergedAwards);
+    }
+
+    function getStoredTitleAwards(...sources) {
+        const collectedAwards = [];
+
+        sources.forEach(source => {
+            if (!source || typeof source !== "object") return;
+            if (source.titleAwards) collectedAwards.push(source.titleAwards);
+            if (source.titleInfo?.titleAwards) collectedAwards.push(source.titleInfo.titleAwards);
+        });
+
+        return mergeTitleAwardMaps(...collectedAwards);
+    }
+
+    function areTitleAwardMapsEqual(left = {}, right = {}) {
+        const normalizedLeft = normalizeTitleAwards(left);
+        const normalizedRight = normalizeTitleAwards(right);
+        const leftKeys = Object.keys(normalizedLeft);
+        const rightKeys = Object.keys(normalizedRight);
+
+        if (leftKeys.length !== rightKeys.length) return false;
+
+        return leftKeys.every(titleId => (
+            normalizedLeft[titleId]?.awardedAtMs === normalizedRight[titleId]?.awardedAtMs
+            && normalizedLeft[titleId]?.expiresAtMs === normalizedRight[titleId]?.expiresAtMs
+        ));
+    }
+
+    function getActiveTitleAwardRecord(source, titleId, referenceMs = Date.now()) {
+        if (!titleId) return null;
+        const normalizedAwards = source?.titleAwards
+            ? normalizeTitleAwards(source.titleAwards)
+            : normalizeTitleAwards(source || {});
+        const awardRecord = normalizedAwards[titleId];
+        return awardRecord?.expiresAtMs > referenceMs ? awardRecord : null;
+    }
+
+    function getRemainingTitleLifetimeText(source, titleId, referenceMs = Date.now()) {
+        const awardRecord = getActiveTitleAwardRecord(source, titleId, referenceMs);
+        if (!awardRecord) return "Açıldığında 7 gün aktif kalır";
+
+        const remainingMs = Math.max(0, awardRecord.expiresAtMs - referenceMs);
+        const totalHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+        const days = Math.floor(totalHours / 24);
+        const hours = totalHours % 24;
+
+        if (days >= 1) {
+            return hours ? `${days}g ${hours}s daha aktif` : `${days} gün daha aktif`;
+        }
+        if (totalHours >= 1) {
+            return `${totalHours} saat daha aktif`;
+        }
+
+        const minutes = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
+        return `${minutes} dk daha aktif`;
+    }
+
+    function resolveTitleTimerRecord(profileData = {}) {
+        if (profileData?.activeTimer) return profileData.activeTimer;
+
+        const targetUid = String(profileData?.uid || "");
+        if (currentUser?.uid && (!targetUid || targetUid === currentUser.uid) && timerState.session) {
+            return serializeTimerSession(timerState.session);
+        }
+
+        return null;
+    }
+
+    function buildResolvedTitleInfo(profileData = {}, referenceDate = new Date()) {
+        const titleLevels = ensureRollingTwoDayTitleConfig();
+        const safeSchedule = sanitizeScheduleData(profileData?.schedule || {});
+        const rollingTotals = getRollingDayTotalsFromSchedule(safeSchedule, 2, referenceDate);
+        let totalSeconds = rollingTotals.seconds;
+        const timerRecord = resolveTitleTimerRecord(profileData);
+        const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : Date.now();
+        const storedSelectedTitleId = getStoredSelectedTitleId(profileData, profileData?.titleInfo || {});
+        const storedAwards = getStoredTitleAwards(profileData, profileData?.titleInfo || {});
+
+        if (isTimerRecordRunning(timerRecord)) {
+            const interval = getPendingTimerInterval(timerRecord, referenceMs);
+            const windowStart = new Date(referenceDate);
+            windowStart.setHours(0, 0, 0, 0);
+            windowStart.setDate(windowStart.getDate() - 1);
+            totalSeconds += getWindowOverlapSeconds(interval, windowStart.getTime(), referenceMs);
+        }
+
+        const avgHours = totalSeconds / 3600 / rollingTotals.dayCount;
+        const qualifiedTitles = titleLevels.filter(level => avgHours >= level.minAvgHours);
+        const activeAwards = {};
+
+        Object.entries(storedAwards).forEach(([titleId, award]) => {
+            if ((award?.expiresAtMs || 0) > referenceMs) {
+                activeAwards[titleId] = { ...award };
+            }
+        });
+
+        qualifiedTitles.forEach(level => {
+            if (activeAwards[level.id]) return;
+            activeAwards[level.id] = {
+                awardedAtMs: referenceMs,
+                expiresAtMs: referenceMs + TITLE_VALIDITY_MS
+            };
+        });
+
+        const titleAwards = orderTitleAwardMap(activeAwards);
+        const unlockedTitles = titleLevels.filter(level => !!titleAwards[level.id]);
+        const defaultTitle = unlockedTitles.length ? unlockedTitles[unlockedTitles.length - 1] : null;
+        const selectedTitle = unlockedTitles.find(level => level.id === storedSelectedTitleId) || null;
+
+        return {
+            avgHours,
+            unlockedTitles,
+            qualifiedTitles,
+            defaultTitle,
+            currentTitle: selectedTitle || defaultTitle,
+            selectedTitleId: selectedTitle ? storedSelectedTitleId : "",
+            storedSelectedTitleId,
+            hasManualSelection: !!selectedTitle,
+            evaluationDays: rollingTotals.dayCount,
+            validityDays: 7,
+            totalSeconds,
+            titleAwards
+        };
+    }
+
+    function ensureTitleSelectionStyles() {
+        if (document.getElementById("codex-title-selection-styles")) return;
+
+        const style = document.createElement("style");
+        style.id = "codex-title-selection-styles";
+        style.textContent = `
+            .profile-title-toolbar {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                margin-bottom: 12px;
+                padding: 12px 14px;
+                border: 1px solid rgba(255,255,255,0.12);
+                border-radius: 16px;
+                background:
+                    linear-gradient(135deg, rgba(255,255,255,0.08), rgba(148,163,184,0.05)),
+                    rgba(15, 23, 42, 0.58);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 16px 36px rgba(2, 6, 23, 0.22);
+            }
+            .profile-title-toolbar-meta {
+                font-size: 0.92em;
+                opacity: 0.88;
+            }
+            .profile-title-toolbar-note {
+                display: block;
+                margin-top: 6px;
+                font-size: 0.76em;
+                color: rgba(226, 232, 240, 0.72);
+            }
+            .profile-title-select-btn {
+                border: 1px solid rgba(255,255,255,0.16);
+                border-radius: 999px;
+                padding: 7px 12px;
+                background: linear-gradient(135deg, rgba(255,255,255,0.12), rgba(148, 163, 184, 0.08));
+                color: #fff;
+                cursor: pointer;
+                font-size: 0.82em;
+                font-weight: 600;
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.16);
+                transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+            }
+            .profile-title-select-btn:hover {
+                transform: translateY(-1px);
+                background: rgba(96, 165, 250, 0.18);
+                border-color: rgba(96, 165, 250, 0.4);
+                box-shadow: 0 14px 28px rgba(30, 41, 59, 0.22);
+            }
+            .profile-title-select-btn.is-active {
+                background: linear-gradient(135deg, rgba(34, 197, 94, 0.28), rgba(16, 185, 129, 0.18));
+                border-color: rgba(34, 197, 94, 0.42);
+                cursor: default;
+                box-shadow: 0 12px 28px rgba(21, 128, 61, 0.18);
+            }
+            .profile-title-default-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                border-radius: 999px;
+                background: rgba(250, 204, 21, 0.16);
+                color: #fde68a;
+                border: 1px solid rgba(250, 204, 21, 0.28);
+                font-size: 0.75em;
+                font-weight: 700;
+            }
+            .profile-title-expiry-pill {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                padding: 5px 10px;
+                border-radius: 999px;
+                background: rgba(148, 163, 184, 0.14);
+                color: #dbeafe;
+                border: 1px solid rgba(148, 163, 184, 0.24);
+                font-size: 0.72em;
+                font-weight: 600;
+                letter-spacing: 0.01em;
+            }
+            .title-card {
+                position: relative;
+                overflow: hidden;
+                display: flex;
+                flex-direction: column;
+                justify-content: flex-start;
+                gap: 10px;
+                width: auto !important;
+                min-height: 252px !important;
+                height: auto !important;
+                aspect-ratio: auto !important;
+                padding: 18px 16px !important;
+                border-radius: 18px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background:
+                    radial-gradient(circle at top left, rgba(255,255,255,0.12), transparent 38%),
+                    linear-gradient(160deg, rgba(15, 23, 42, 0.82), rgba(30, 41, 59, 0.58));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.07), 0 20px 40px rgba(2, 6, 23, 0.18);
+                backdrop-filter: blur(16px);
+            }
+            .titles-grid {
+                grid-template-columns: repeat(auto-fit, minmax(228px, 1fr)) !important;
+                justify-content: stretch !important;
+                align-items: stretch !important;
+            }
+            .title-card-header {
+                align-items: flex-start;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .title-card-header .title-badge {
+                flex: 1 1 auto;
+                min-width: 0;
+            }
+            .title-card-header .profile-title-current-pill,
+            .title-card-header .profile-title-default-pill {
+                flex: 0 0 auto;
+                max-width: 100%;
+                padding: 4px 8px;
+                font-size: 0.64em;
+                line-height: 1.2;
+                letter-spacing: 0.02em;
+                white-space: normal;
+                text-transform: none;
+            }
+            .title-card.unlocked,
+            .profile-title-card.current {
+                border-color: rgba(255,255,255,0.18);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 44px rgba(15, 23, 42, 0.22);
+            }
+            .title-card.locked {
+                opacity: 0.74;
+                filter: saturate(0.76);
+            }
+            .title-card p,
+            .profile-title-card p {
+                margin: 0;
+                line-height: 1.62;
+                white-space: normal !important;
+                overflow: visible !important;
+                text-overflow: initial !important;
+                display: block !important;
+                -webkit-line-clamp: unset !important;
+                line-clamp: unset !important;
+                word-break: break-word;
+            }
+            .title-card p {
+                font-size: 0.84em !important;
+            }
+            .profile-title-card p {
+                font-size: 0.88em !important;
+            }
+            .title-card-meta,
+            .profile-title-expiry {
+                display: flex;
+                align-items: center;
+                flex-wrap: wrap;
+                gap: 7px;
+                margin-top: 10px;
+                color: rgba(226, 232, 240, 0.76);
+                font-size: 0.78em;
+            }
+            .profile-title-card {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                padding: 18px 16px !important;
+                border-radius: 18px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background:
+                    radial-gradient(circle at top right, rgba(255,255,255,0.08), transparent 34%),
+                    linear-gradient(160deg, rgba(15, 23, 42, 0.78), rgba(30, 41, 59, 0.56));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.06), 0 18px 34px rgba(2, 6, 23, 0.16);
+            }
+            .profile-title-expiry-pill {
+                white-space: normal;
+            }
+            @media (max-width: 720px) {
+                .titles-grid {
+                    grid-template-columns: 1fr !important;
+                }
+                .title-card {
+                    min-height: 0 !important;
+                }
+            }
+            .title-badge.title-bronze-1,
+            .title-badge.title-bronze-2,
+            .title-badge.title-silver-1,
+            .title-badge.title-silver-2,
+            .title-badge.title-gold-1,
+            .title-badge.title-gold-2,
+            .title-badge.title-diamond-1,
+            .title-badge.title-diamond-2,
+            .title-badge.title-crown-1,
+            .title-badge.title-crown-2,
+            .title-badge.title-fatih {
+                border-width: 1px;
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 10px 22px rgba(15, 23, 42, 0.18);
+            }
+            .title-badge.title-bronze-1 {
+                background: linear-gradient(135deg, rgba(205, 127, 50, 0.26), rgba(120, 53, 15, 0.12));
+                color: #f7c89a;
+                border-color: rgba(222, 163, 102, 0.34);
+            }
+            .title-badge.title-bronze-2 {
+                background: linear-gradient(135deg, rgba(191, 120, 78, 0.32), rgba(146, 64, 14, 0.18));
+                color: #ffd7b1;
+                border-color: rgba(234, 179, 125, 0.38);
+            }
+            .title-badge.title-silver-1 {
+                background: linear-gradient(135deg, rgba(226, 232, 240, 0.28), rgba(148, 163, 184, 0.16));
+                color: #f8fafc;
+                border-color: rgba(203, 213, 225, 0.38);
+            }
+            .title-badge.title-silver-2 {
+                background: linear-gradient(135deg, rgba(226, 232, 240, 0.34), rgba(148, 163, 184, 0.2));
+                color: #ffffff;
+                border-color: rgba(226, 232, 240, 0.42);
+            }
+            .title-badge.title-gold-1 {
+                background: linear-gradient(135deg, rgba(250, 204, 21, 0.24), rgba(180, 83, 9, 0.16));
+                color: #fde68a;
+                border-color: rgba(250, 204, 21, 0.34);
+            }
+            .title-badge.title-gold-2 {
+                background: linear-gradient(135deg, rgba(251, 191, 36, 0.3), rgba(217, 119, 6, 0.18));
+                color: #fef3c7;
+                border-color: rgba(252, 211, 77, 0.42);
+            }
+            .title-badge.title-diamond-1 {
+                background: linear-gradient(135deg, rgba(96, 165, 250, 0.28), rgba(14, 116, 144, 0.16));
+                color: #dbeafe;
+                border-color: rgba(125, 211, 252, 0.34);
+            }
+            .title-badge.title-diamond-2 {
+                background: linear-gradient(135deg, rgba(56, 189, 248, 0.3), rgba(37, 99, 235, 0.18));
+                color: #e0f2fe;
+                border-color: rgba(56, 189, 248, 0.4);
+            }
+            .title-badge.title-crown-1 {
+                background: linear-gradient(135deg, rgba(196, 181, 253, 0.28), rgba(124, 58, 237, 0.18));
+                color: #ede9fe;
+                border-color: rgba(196, 181, 253, 0.4);
+            }
+            .title-badge.title-crown-2 {
+                background: linear-gradient(135deg, rgba(232, 121, 249, 0.28), rgba(126, 34, 206, 0.18));
+                color: #fae8ff;
+                border-color: rgba(233, 213, 255, 0.42);
+            }
+            .title-badge.title-fatih {
+                background: linear-gradient(135deg, rgba(255, 215, 0, 0.34), rgba(220, 38, 38, 0.2), rgba(126, 34, 206, 0.22));
+                color: #fff7cc;
+                border-color: rgba(255, 215, 0, 0.5);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 14px 28px rgba(234, 179, 8, 0.18);
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
     function getCurrentWeekQuestionsFromSchedule(schedule, nowDate = new Date()) {
         const sourceSchedule = schedule || {};
         const currentWeekKey = typeof getWeekKey === "function" ? getWeekKey(nowDate) : "";
@@ -1803,15 +2423,42 @@
         const resolvedNotesSource = editable
             ? (safeBase.notes || safeUser.notes || userNotes || [])
             : (safeBase.notes || safePublic.notes || safeCached.notes || safeUser.notes || []);
+        const resolvedSelectedTitleId = getStoredSelectedTitleId(
+            safeBase,
+            safeUser,
+            safePublic,
+            safeCached,
+            editable ? (currentUserLiveDoc || {}) : {}
+        );
+        const resolvedTitleAwards = getStoredTitleAwards(
+            safeBase,
+            safeUser,
+            safePublic,
+            safeCached,
+            editable ? (currentUserLiveDoc || {}) : {}
+        );
+        const resolvedActiveTimer = safeBase.activeTimer
+            || safeUser.activeTimer
+            || safePublic.activeTimer
+            || safeCached.activeTimer
+            || (editable && timerState.session ? serializeTimerSession(timerState.session) : null);
         const resolvedIsAdmin = typeof safeBase.isAdmin === "boolean"
             ? safeBase.isAdmin
             : !!safeUser.isAdmin
                 || !!safePublic.isAdmin
                 || !!safeCached.isAdmin
                 || (typeof isAdminIdentity === "function" && isAdminIdentity(resolvedUsername || "", resolvedEmail || ""));
+        const resolvedUid = String(uid || safeBase.uid || safeUser.uid || safePublic.uid || safeCached.uid || (editable ? (currentUser?.uid || "") : ""));
+        const resolvedTitleInfo = buildResolvedTitleInfo({
+            uid: resolvedUid,
+            schedule: resolvedSchedule,
+            activeTimer: resolvedActiveTimer,
+            selectedTitleId: resolvedSelectedTitleId,
+            titleAwards: resolvedTitleAwards
+        }, referenceDate);
 
         return {
-            uid: String(uid || safeBase.uid || safeUser.uid || safePublic.uid || safeCached.uid || (editable ? (currentUser?.uid || "") : "")),
+            uid: resolvedUid,
             username: resolvedUsername || "Kullanici",
             email: resolvedEmail,
             isAdmin: resolvedIsAdmin,
@@ -1838,16 +2485,17 @@
             studyTrack: resolvedStudyTrack,
             selectedSubjects: resolvedSelectedSubjects,
             schedule: resolvedSchedule,
+            selectedTitleId: resolvedTitleInfo.selectedTitleId,
+            titleAwards: resolvedTitleInfo.titleAwards,
             totalWorkedSeconds,
             totalStudyTime: totalWorkedSeconds,
             currentWeekSeconds,
             weeklyStudyTime: currentWeekSeconds,
+            activeTimer: resolvedActiveTimer,
             notes: editable
                 ? (typeof normalizeUserNotes === "function" ? normalizeUserNotes(resolvedNotesSource) : resolvedNotesSource)
                 : (typeof getPublicUserNotes === "function" ? getPublicUserNotes(resolvedNotesSource) : []),
-            titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
-                ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
-                : null,
+            titleInfo: resolvedTitleInfo,
             ...questionSummary
         };
     }
@@ -1880,10 +2528,7 @@
                 ? calculateTotalWorkedSecondsFromSchedule(profileData.schedule || {})
                 : 0
         );
-        const titleInfo = profileData.titleInfo
-            || (typeof getCurrentTitleInfoFromSeconds === "function"
-                ? getCurrentTitleInfoFromSeconds(profileData.currentWeekSeconds || 0)
-                : null);
+        const titleInfo = profileData.titleInfo || buildResolvedTitleInfo(profileData);
 
         const totalWorkNode = document.getElementById("profile-total-work");
         if (totalWorkNode) {
@@ -1903,7 +2548,7 @@
 
         const titleWrapper = document.getElementById("profile-title-wrapper");
         if (titleWrapper && titleInfo && typeof getTitleBadgeHtml === "function") {
-            titleWrapper.innerHTML = `${getTitleBadgeHtml(titleInfo)}<span class="profile-title-meta">Haftalık günlük ortalama: ${(Number(titleInfo.avgHours) || 0).toFixed(1)} saat</span>`;
+            titleWrapper.innerHTML = `${getTitleBadgeHtml(titleInfo)}<span class="profile-title-meta">2 günlük ortalama: ${(Number(titleInfo.avgHours) || 0).toFixed(1)} saat • ünvanlar 7 gün aktif</span>`;
         }
 
         return {
@@ -1944,6 +2589,144 @@
         }
     }
 
+    function buildEditableProfilePayload(selectedTitleIdOverride) {
+        return buildProfileModalPayload({
+            uid: currentUser?.uid || "",
+            editable: true,
+            userProfile: currentUserLiveDoc || {},
+            baseProfile: {
+                ...(currentProfileModalData || {}),
+                username: currentUsername,
+                email: currentUser?.email || "",
+                isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : false,
+                about: currentProfileAbout,
+                profileImage: currentProfileImage,
+                totalWorkedSeconds: totalWorkedSecondsAllTime,
+                totalStudyTime: totalWorkedSecondsAllTime,
+                totalQuestionsAllTime: totalQuestionsAllTime,
+                accountCreatedAt: currentAccountCreatedAt,
+                studyTrack: studyTrack,
+                selectedSubjects: selectedSubjects,
+                notes: typeof normalizeUserNotes === "function" ? normalizeUserNotes(userNotes) : (userNotes || []),
+                schedule: scheduleData,
+                activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                selectedTitleId: selectedTitleIdOverride === undefined
+                    ? getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {})
+                    : selectedTitleIdOverride,
+                titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {})
+            }
+        });
+    }
+
+    function applyProfileTitleSelection(nextTitleId = "") {
+        if (!currentUser || !currentProfileModalEditable) return;
+
+        const normalizedTitleId = String(nextTitleId || "").trim();
+        const previewProfile = buildEditableProfilePayload(normalizedTitleId);
+        const unlockedIds = new Set((previewProfile.titleInfo?.unlockedTitles || []).map(level => level.id));
+        const resolvedTitleId = normalizedTitleId && unlockedIds.has(normalizedTitleId) ? normalizedTitleId : "";
+
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            selectedTitleId: resolvedTitleId,
+            titleAwards: previewProfile.titleInfo?.titleAwards || getStoredTitleAwards(currentUserLiveDoc || {})
+        };
+        if (typeof currentProfileModalData !== "undefined") {
+            currentProfileModalData = {
+                ...(currentProfileModalData || {}),
+                selectedTitleId: resolvedTitleId,
+                titleAwards: previewProfile.titleInfo?.titleAwards || getStoredTitleAwards(currentProfileModalData || {})
+            };
+        }
+
+        const refreshedProfile = buildEditableProfilePayload(resolvedTitleId);
+        showProfileModal(refreshedProfile, true);
+        refreshLeaderboardOptimistically();
+
+        const syncPayload = {
+            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+            selectedTitleId: resolvedTitleId,
+            titleAwards: refreshedProfile.titleInfo?.titleAwards || {},
+            schedule: scheduleData,
+            activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null
+        };
+
+        syncPublicProfileSnapshotSafely(syncPayload);
+        syncLeaderboardSnapshotSafely(syncPayload);
+        saveData({ authorized: true, immediate: true });
+
+        if (document.getElementById("titles-modal")?.style.display === "flex" && typeof renderTitlesModal === "function") {
+            renderTitlesModal();
+        }
+
+        safeShowAlert(
+            resolvedTitleId ? "Aktif ünvan güncellendi." : "Varsayılan ünvan yeniden kullanılıyor.",
+            "success"
+        );
+    }
+
+    window.selectProfileTitle = function(titleId) {
+        applyProfileTitleSelection(titleId);
+    };
+
+    window.resetProfileTitleSelection = function() {
+        applyProfileTitleSelection("");
+    };
+
+    function syncCurrentUserTitleAwardsIfNeeded(options = {}) {
+        if (!currentUser?.uid) return false;
+
+        const activeTimerRecord = timerState.session ? serializeTimerSession(timerState.session) : null;
+        const titleInfo = buildResolvedTitleInfo({
+            uid: currentUser.uid,
+            schedule: scheduleData || {},
+            activeTimer: activeTimerRecord,
+            selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}),
+            titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {})
+        });
+        const nextSelectedTitleId = titleInfo.selectedTitleId || "";
+        const nextTitleAwards = titleInfo.titleAwards || {};
+        const currentSelectedTitleId = getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {});
+        const currentTitleAwards = getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {});
+
+        if (
+            nextSelectedTitleId === currentSelectedTitleId
+            && areTitleAwardMapsEqual(nextTitleAwards, currentTitleAwards)
+        ) {
+            return false;
+        }
+
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            selectedTitleId: nextSelectedTitleId,
+            titleAwards: nextTitleAwards
+        };
+
+        if (currentProfileModalEditable && typeof currentProfileModalData !== "undefined") {
+            currentProfileModalData = {
+                ...(currentProfileModalData || {}),
+                selectedTitleId: nextSelectedTitleId,
+                titleAwards: nextTitleAwards,
+                titleInfo
+            };
+        }
+
+        if (options.persist === false) return true;
+
+        const syncPayload = {
+            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+            selectedTitleId: nextSelectedTitleId,
+            titleAwards: nextTitleAwards,
+            schedule: scheduleData,
+            activeTimer: activeTimerRecord
+        };
+
+        syncPublicProfileSnapshotSafely(syncPayload);
+        syncLeaderboardSnapshotSafely(syncPayload);
+        saveData({ authorized: true, immediate: true });
+        return true;
+    }
+
     function isCurrentUserPayloadTarget(basePayload = {}) {
         const targetUid = String(basePayload?.uid || "");
         if (!currentUser?.uid) return !targetUid;
@@ -1954,9 +2737,12 @@
         const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
+        const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, currentUserLiveDoc || {});
+        const resolvedTitleAwards = getStoredTitleAwards(basePayload, currentUserLiveDoc || {});
         const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
             : parseInteger(basePayload.currentWeekSeconds, 0);
+        const activeTimer = basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null);
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
@@ -1968,6 +2754,13 @@
             || basePayload.email?.split?.("@")?.[0]
             || ""
         ).trim();
+        const resolvedTitleInfo = buildResolvedTitleInfo({
+            uid: currentUser?.uid || basePayload.uid || "",
+            schedule: safeSchedule,
+            activeTimer,
+            selectedTitleId: resolvedSelectedTitleId,
+            titleAwards: resolvedTitleAwards
+        });
 
         return {
             uid: currentUser?.uid || basePayload.uid || "",
@@ -1979,6 +2772,8 @@
             selectedSubjects: typeof normalizeSelectedSubjects === "function"
                 ? normalizeSelectedSubjects(studyTrack || basePayload.studyTrack || "", selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || []))
                 : (selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || [])),
+            selectedTitleId: resolvedTitleInfo.selectedTitleId,
+            titleAwards: resolvedTitleInfo.titleAwards,
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!basePayload.isAdmin,
             role: basePayload.role || ((typeof isCurrentAdmin === "function" && isCurrentAdmin()) ? "admin" : "user"),
             adminTitle: basePayload.adminTitle || "",
@@ -2007,7 +2802,7 @@
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
-            activeTimer: basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null),
+            activeTimer,
             isWorking: isTimerVisibleForLeaderboard(basePayload.activeTimer)
                 || isTimerVisibleForLeaderboard(timerState.session),
             lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
@@ -2021,6 +2816,8 @@
         const safeSchedule = sanitizeScheduleData(basePayload.schedule || (isCurrentUserTarget ? (scheduleData || {}) : {}));
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
+        const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
+        const resolvedTitleAwards = getStoredTitleAwards(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
         const resolvedEmail = String(
             (isCurrentUserTarget ? (currentUser?.email || "") : "")
             || basePayload.email
@@ -2088,6 +2885,13 @@
                 (isCurrentUserTarget && Array.isArray(userNotes) && userNotes.length ? userNotes : (basePayload.notes || []))
             )
             : [];
+        const resolvedTitleInfo = buildResolvedTitleInfo({
+            uid: String(basePayload.uid || (isCurrentUserTarget ? (currentUser?.uid || "") : "")),
+            schedule: safeSchedule,
+            activeTimer,
+            selectedTitleId: resolvedSelectedTitleId,
+            titleAwards: resolvedTitleAwards
+        });
 
         return {
             uid: String(basePayload.uid || (isCurrentUserTarget ? (currentUser?.uid || "") : "")),
@@ -2101,6 +2905,8 @@
             accountCreatedAt: (isCurrentUserTarget ? (currentAccountCreatedAt || "") : "") || basePayload.accountCreatedAt || "",
             studyTrack: resolvedStudyTrack,
             selectedSubjects: resolvedSelectedSubjects,
+            selectedTitleId: resolvedTitleInfo.selectedTitleId,
+            titleAwards: resolvedTitleInfo.titleAwards,
             dailyStudyTime,
             dailyStudyDateKey: currentDayMeta.dateKey,
             weeklyStudyTime,
@@ -2188,6 +2994,8 @@
             schedule: scheduleData,
             totalQuestionsAllTime: totalQuestionsAllTime || 0
         };
+        questionPatch.selectedTitleId = userQuestionPatch.selectedTitleId || "";
+        questionPatch.titleAwards = userQuestionPatch.titleAwards || {};
         const leaderboardPayload = buildLeaderboardDocumentPayload({
             ...userQuestionPatch,
             ...questionPatch
@@ -2298,10 +3106,19 @@
         refreshCurrentTotals();
 
         const currentDayMeta = getCurrentDayMeta(new Date());
+        const resolvedSelectedTitleId = getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {});
+        const resolvedTitleAwards = getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {});
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
         const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
         const questionCounters = buildQuestionCounterPayload(scheduleData);
+        const resolvedTitleInfo = buildResolvedTitleInfo({
+            uid: currentUser?.uid || "",
+            schedule: scheduleData,
+            activeTimer: activeTimerRecord,
+            selectedTitleId: resolvedSelectedTitleId,
+            titleAwards: resolvedTitleAwards
+        });
 
         return {
             schedule: scheduleData,
@@ -2309,6 +3126,8 @@
             totalStudyTime: totalWorkedSecondsAllTime || 0,
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
             ...questionCounters,
+            selectedTitleId: resolvedTitleInfo.selectedTitleId,
+            titleAwards: resolvedTitleInfo.titleAwards,
             dailyStudyTime: currentDayWorkedSeconds,
             dailyStudyDateKey: currentDayMeta.dateKey,
             currentSessionTime: options.currentSessionTime === undefined
@@ -2330,6 +3149,8 @@
         const normalizedBaseSchedule = sanitizeScheduleData(baseData.schedule || {});
         const resolvedSchedule = hasAnyScheduleEntries(normalizedLocalSchedule) ? normalizedLocalSchedule : normalizedBaseSchedule;
         const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
+        const resolvedSelectedTitleId = getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, baseData);
+        const resolvedTitleAwards = getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, baseData);
         const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
             ? normalizeSelectedSubjects(
                 studyTrack || baseData.studyTrack || "",
@@ -2351,6 +3172,14 @@
                 ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
                 : 0
         );
+        const resolvedActiveTimer = activeSessionOverride === undefined ? (timerState.session ? serializeTimerSession(timerState.session) : null) : activeSessionOverride;
+        const resolvedTitleInfo = buildResolvedTitleInfo({
+            uid: currentUser?.uid || baseData.uid || "",
+            schedule: resolvedSchedule,
+            activeTimer: resolvedActiveTimer,
+            selectedTitleId: resolvedSelectedTitleId,
+            titleAwards: resolvedTitleAwards
+        });
 
         return {
             ...baseData,
@@ -2362,12 +3191,14 @@
             accountCreatedAt: currentAccountCreatedAt || baseData.accountCreatedAt || "",
             studyTrack: studyTrack || baseData.studyTrack || "",
             selectedSubjects: resolvedSelectedSubjects,
+            selectedTitleId: resolvedTitleInfo.selectedTitleId,
+            titleAwards: resolvedTitleInfo.titleAwards,
             schedule: resolvedSchedule,
             totalWorkedSeconds: resolvedTotalWorkedSeconds,
             totalStudyTime: resolvedTotalWorkedSeconds,
             totalQuestionsAllTime: resolvedTotalQuestions,
             ...questionCounters,
-            activeTimer: activeSessionOverride === undefined ? (timerState.session ? serializeTimerSession(timerState.session) : null) : activeSessionOverride,
+            activeTimer: resolvedActiveTimer,
             isWorking: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
             notes: typeof normalizeUserNotes === "function"
                 ? normalizeUserNotes((userNotes && userNotes.length) ? userNotes : (baseData.notes || []))
@@ -2920,6 +3751,13 @@
             : seconds;
         const isWorking = currentLeaderboardTab === "daily" && isTimerVisibleForLeaderboard(data.activeTimer);
         const hasVisibleStats = seconds > 0 || isWorking;
+        const titleInfo = buildResolvedTitleInfo({
+            uid: currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID,
+            schedule: sanitizeScheduleData(data.schedule || {}),
+            activeTimer: data.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null),
+            selectedTitleId: getStoredSelectedTitleId(data, currentUserLiveDoc || {}, currentProfileModalData || {}),
+            titleAwards: getStoredTitleAwards(data, currentUserLiveDoc || {}, currentProfileModalData || {})
+        });
 
         if (!hasVisibleStats) return null;
 
@@ -2935,11 +3773,12 @@
             selectedSubjects: typeof normalizeSelectedSubjects === "function"
                 ? normalizeSelectedSubjects(studyTrack || data.studyTrack || "", selectedSubjects && selectedSubjects.length ? selectedSubjects : (data.selectedSubjects || []))
                 : (selectedSubjects && selectedSubjects.length ? selectedSubjects : (data.selectedSubjects || [])),
+            selectedTitleId: titleInfo.selectedTitleId,
+            titleAwards: titleInfo.titleAwards,
             currentWeekSeconds,
-            titleInfo: typeof getCurrentTitleInfoFromSeconds === "function"
-                ? getCurrentTitleInfoFromSeconds(currentWeekSeconds)
-                : null,
             schedule: sanitizeScheduleData(data.schedule || {}),
+            activeTimer: data.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null),
+            titleInfo,
             competitionScore: seconds,
             seconds,
             questions,
@@ -3010,9 +3849,13 @@
                         ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
                         : seconds
                 );
-                const titleInfo = typeof getCurrentTitleInfoFromSeconds === "function"
-                    ? getCurrentTitleInfoFromSeconds(currentWeekTotals)
-                    : null;
+                const titleInfo = buildResolvedTitleInfo({
+                    uid: doc.id,
+                    schedule: sanitizeScheduleData(data.schedule || {}),
+                    activeTimer: data.activeTimer || null,
+                    selectedTitleId: getStoredSelectedTitleId(data),
+                    titleAwards: getStoredTitleAwards(data)
+                });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
 
                 const isWorking = currentLeaderboardTab === "daily"
@@ -3033,8 +3876,11 @@
                     selectedSubjects: typeof normalizeSelectedSubjects === "function"
                         ? normalizeSelectedSubjects(data.studyTrack || "", data.selectedSubjects || [])
                         : (data.selectedSubjects || []),
+                    selectedTitleId: titleInfo.selectedTitleId,
+                    titleAwards: titleInfo.titleAwards,
                     schedule: sanitizeScheduleData(data.schedule || {}),
                     currentWeekSeconds: currentWeekTotals,
+                    activeTimer: data.activeTimer || null,
                     titleInfo,
                     competitionScore: seconds,
                     seconds,
@@ -4218,12 +5064,56 @@
     }
 
     function patchProfileCopy() {
+        ensureRollingTwoDayTitleConfig();
+        ensureTitleSelectionStyles();
+
         if (typeof renderLiveLeaderboardFromDocs === "function") {
             const originalRenderLiveLeaderboardFromDocs = renderLiveLeaderboardFromDocs;
             renderLiveLeaderboardFromDocs = function(...args) {
                 const result = originalRenderLiveLeaderboardFromDocs.apply(this, args);
                 refreshVisibleProfileModalFromLiveData();
                 return result;
+            };
+        }
+
+        if (typeof renderTitlesModal === "function") {
+            renderTitlesModal = function() {
+                const titlesGrid = document.getElementById("titles-grid");
+                if (!titlesGrid) return;
+
+                const titleInfo = buildResolvedTitleInfo({
+                    uid: currentUser?.uid || "",
+                    schedule: scheduleData || {},
+                    activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                    selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}),
+                    titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {})
+                });
+                const currentTitleId = titleInfo.currentTitle?.id || "";
+                const defaultTitleId = titleInfo.defaultTitle?.id || "";
+
+                titlesGrid.innerHTML = ensureRollingTwoDayTitleConfig().map(level => {
+                    const isUnlocked = (titleInfo.unlockedTitles || []).some(item => item.id === level.id);
+                    const lifetimeText = getRemainingTitleLifetimeText(titleInfo, level.id);
+                    const statusPill = level.id === currentTitleId
+                        ? '<span class="profile-title-current-pill"><i class="fas fa-star"></i> Aktif</span>'
+                        : (level.id === defaultTitleId
+                            ? '<span class="profile-title-default-pill"><i class="fas fa-crown"></i> Varsayılan</span>'
+                            : "");
+
+                    return `
+                        <div class="title-card ${isUnlocked ? "unlocked" : "locked"}">
+                            <div class="title-card-header">
+                                <span class="title-badge ${level.className}"><span>${level.icon}</span><span>${level.label}</span></span>
+                                ${statusPill}
+                            </div>
+                            <p><strong>${level.requirement}</strong></p>
+                            <p>${level.description}</p>
+                            <div class="title-card-meta">
+                                <span class="profile-title-expiry-pill"><i class="fas fa-hourglass-half"></i> ${escapeHtml(lifetimeText)}</span>
+                            </div>
+                        </div>
+                    `;
+                }).join("");
             };
         }
 
@@ -4234,31 +5124,52 @@
                 const label = document.getElementById("profile-titles-label");
                 if (!list || !hint || !label) return;
 
-                const titleInfo = profileData?.titleInfo
-                    || (typeof getCurrentTitleInfoFromSeconds === "function"
-                        ? getCurrentTitleInfoFromSeconds(profileData?.currentWeekSeconds || 0)
-                        : { unlockedTitles: [], currentTitle: null });
+                const titleInfo = buildResolvedTitleInfo(profileData || {});
                 const unlockedTitles = titleInfo.unlockedTitles || [];
                 const currentTitleId = titleInfo.currentTitle?.id || "";
+                const defaultTitleId = titleInfo.defaultTitle?.id || "";
+                const manualSelectedTitleId = titleInfo.hasManualSelection ? (titleInfo.selectedTitleId || "") : "";
                 const profileName = profileData?.username || "Bu kullanıcı";
+                const isEditableProfile = !!currentProfileModalEditable
+                    && !!currentUser?.uid
+                    && String(profileData?.uid || currentUser.uid) === String(currentUser.uid);
 
                 label.innerText = "Ünvanlar";
                 hint.innerText = unlockedTitles.length
-                    ? `${profileName} için açılan ${unlockedTitles.length} ünvan listeleniyor.`
-                    : `${profileName} henüz ünvan açmadı.`;
+                    ? `${profileName} için açılan ${unlockedTitles.length} ünvan listeleniyor. 2 günlük ortalamaya göre açılıyor ve 7 gün aktif kalıyor.`
+                    : `${profileName} henüz ünvan açmadı. Ünvanlar 2 günlük ortalamaya göre açılır ve 7 gün aktif kalır.`;
 
                 if (!unlockedTitles.length) {
                     list.innerHTML = '<div class="profile-notes-empty">Henüz açılan ünvan bulunmuyor.</div>';
                     return;
                 }
 
-                list.innerHTML = unlockedTitles.map(level => `
+                const toolbarHtml = isEditableProfile
+                    ? `
+                        <div class="profile-title-toolbar">
+                            <span class="profile-title-toolbar-meta">Şu an kullanılan: <strong>${escapeHtml(titleInfo.currentTitle?.label || "Yok")}</strong><span class="profile-title-toolbar-note">Varsayılan seçim en yüksek aktif ünvandır. Her ünvan 7 gün boyunca açık kalır.</span></span>
+                            ${manualSelectedTitleId
+                                ? '<button type="button" class="profile-title-select-btn" onclick="resetProfileTitleSelection()">Varsayılanı Kullan</button>'
+                                : '<span class="profile-title-default-pill"><i class="fas fa-crown"></i> Varsayılan: En yüksek açılan ünvan</span>'}
+                        </div>
+                    `
+                    : "";
+
+                list.innerHTML = toolbarHtml + unlockedTitles.map(level => `
                     <article class="profile-title-card ${level.id === currentTitleId ? "current" : ""}">
                         <div class="title-inline-row">
                             <span class="title-badge ${level.className}"><span>${level.icon}</span><span>${level.label}</span></span>
-                            ${level.id === currentTitleId ? '<span class="profile-title-current-pill"><i class="fas fa-star"></i> Aktif Ünvan</span>' : ""}
+                            ${level.id === currentTitleId
+                                ? '<span class="profile-title-current-pill"><i class="fas fa-star"></i> Aktif Ünvan</span>'
+                                : (level.id === defaultTitleId
+                                    ? '<span class="profile-title-default-pill"><i class="fas fa-crown"></i> Varsayılan Ünvan</span>'
+                                    : "")}
                         </div>
                         <p><strong>${level.requirement}</strong><br>${level.description}</p>
+                        <div class="profile-title-expiry"><i class="fas fa-hourglass-half"></i> ${escapeHtml(getRemainingTitleLifetimeText(titleInfo, level.id))}</div>
+                        ${isEditableProfile
+                            ? `<button type="button" class="profile-title-select-btn ${level.id === currentTitleId ? "is-active" : ""}" ${level.id === currentTitleId ? "disabled" : `onclick="selectProfileTitle('${level.id}')"`}>${level.id === currentTitleId ? "Aktif" : "Seç"}</button>`
+                            : ""}
                     </article>
                 `).join("");
             };
@@ -4295,7 +5206,8 @@
                 const titleWrapper = document.getElementById("profile-title-wrapper");
                 if (titleWrapper) {
                     titleWrapper.innerHTML = titleWrapper.innerHTML
-                        .replace(/Haftalik gunluk ortalama/gi, "Haftalık günlük ortalama")
+                        .replace(/Haftalik gunluk ortalama/gi, "2 günlük ortalama")
+                        .replace(/Haftalık günlük ortalama/gi, "2 günlük ortalama")
                         .replace(/Aktif Unvan/gi, "Aktif Ünvan");
                 }
                 const titlesLabel = document.getElementById("profile-titles-label");
@@ -4330,7 +5242,9 @@
                     studyTrack: studyTrack,
                     selectedSubjects: selectedSubjects,
                     notes: normalizeUserNotes(userNotes),
-                    schedule: scheduleData
+                    schedule: scheduleData,
+                    selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}),
+                    titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {})
                 }
             });
             showProfileModal(resolvedProfile, true);
@@ -5391,6 +6305,14 @@
             const basePayload = originalBuildUserPayload ? originalBuildUserPayload() : {};
             const resolvedEmail = currentUser?.email || basePayload.email || "";
             const questionCounters = buildQuestionCounterPayload(scheduleData);
+            const activeTimerRecord = timerState.session ? serializeTimerSession(timerState.session) : null;
+            const titleInfo = buildResolvedTitleInfo({
+                uid: currentUser?.uid || basePayload.uid || "",
+                schedule: scheduleData,
+                activeTimer: activeTimerRecord,
+                selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload),
+                titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload)
+            });
             const adminProfile = typeof getAdminProfileMeta === "function"
                 ? getAdminProfileMeta(currentUsername, resolvedEmail)
                 : {
@@ -5414,10 +6336,12 @@
                 totalStudyTime: totalWorkedSecondsAllTime || 0,
                 totalQuestionsAllTime: totalQuestionsAllTime || 0,
                 ...questionCounters,
+                selectedTitleId: titleInfo.selectedTitleId,
+                titleAwards: titleInfo.titleAwards,
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
-                activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                activeTimer: activeTimerRecord,
                 isWorking: isTimerRecordRunning(timerState.session),
                 lastTimerSyncAt: Date.now()
             };
@@ -5427,10 +6351,19 @@
             const originalGetCurrentUserSeedData = getCurrentUserSeedData;
             getCurrentUserSeedData = function() {
                 const seed = originalGetCurrentUserSeedData();
+                const titleInfo = buildResolvedTitleInfo({
+                    uid: currentUser?.uid || seed.uid || "",
+                    schedule: scheduleData,
+                    activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                    selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, seed),
+                    titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, seed)
+                });
                 return {
                     ...seed,
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
+                    selectedTitleId: titleInfo.selectedTitleId,
+                    titleAwards: titleInfo.titleAwards,
                     dailyStudyTime: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                     currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
@@ -5498,6 +6431,7 @@
             renderQuestionTrackingEnhancements();
             updateLiveStudyPreview();
             refreshVisibleProfileModalFromLiveData();
+            syncCurrentUserTitleAwardsIfNeeded();
         };
     }
 
