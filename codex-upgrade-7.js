@@ -11,6 +11,7 @@
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
     const TIMER_OWNER_AT_KEY = "codexTimerOwnerAtV1";
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
+    const TIMER_RECOVERY_KEY = "codexRealtimeTimerRecoveryV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
     const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
     const VERIFY_EMAIL_KEY = "codexVerifyEmailV1";
@@ -1034,6 +1035,118 @@
             console.error("Timer local verisi okunamadi:", error);
             return null;
         }
+    }
+
+    function buildTimerRecoverySnapshot() {
+        if (!currentUser?.uid) return null;
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+        return {
+            uid: currentUser.uid,
+            schedule: scheduleData,
+            totalWorkedSecondsAllTime: totalWorkedSecondsAllTime || 0,
+            totalQuestionsAllTime: totalQuestionsAllTime || 0,
+            savedAt: Date.now()
+        };
+    }
+
+    function persistTimerRecoverySnapshot() {
+        const snapshot = buildTimerRecoverySnapshot();
+        if (!snapshot) return false;
+        try {
+            localStorage.setItem(TIMER_RECOVERY_KEY, JSON.stringify(snapshot));
+            return true;
+        } catch (error) {
+            console.error("Timer kurtarma verisi saklanamadi:", error);
+            return false;
+        }
+    }
+
+    function readTimerRecoverySnapshot() {
+        try {
+            const raw = localStorage.getItem(TIMER_RECOVERY_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (error) {
+            console.error("Timer kurtarma verisi okunamadi:", error);
+            return null;
+        }
+    }
+
+    function clearTimerRecoverySnapshot(expectedUid = currentUser?.uid || "") {
+        const snapshot = readTimerRecoverySnapshot();
+        if (!snapshot) return false;
+        if (expectedUid && snapshot.uid && snapshot.uid !== expectedUid) {
+            return false;
+        }
+        try {
+            localStorage.removeItem(TIMER_RECOVERY_KEY);
+            return true;
+        } catch (error) {
+            console.error("Timer kurtarma verisi silinemedi:", error);
+            return false;
+        }
+    }
+
+    function mergeTimerRecoveryScheduleIntoLocalState() {
+        const snapshot = readTimerRecoverySnapshot();
+        if (!snapshot || !currentUser?.uid || snapshot.uid !== currentUser.uid) {
+            return false;
+        }
+
+        const recoverySchedule = sanitizeScheduleData(snapshot.schedule || {});
+        if (!Object.keys(recoverySchedule).length) {
+            return false;
+        }
+
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        let changed = false;
+
+        Object.entries(recoverySchedule).forEach(([weekKey, weekData]) => {
+            if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
+
+            Object.entries(weekData || {}).forEach(([dayIdx, recoveryDay]) => {
+                const localDay = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
+                const recoveredDay = ensureDayObject(recoveryDay || {});
+                const mergedWorkedSeconds = Math.max(
+                    parseInteger(localDay.workedSeconds, 0),
+                    parseInteger(recoveredDay.workedSeconds, 0)
+                );
+                const mergedQuestions = Math.max(
+                    parseInteger(localDay.questions, 0),
+                    parseInteger(recoveredDay.questions, 0)
+                );
+                const mergedTasks = localDay.tasks?.length ? localDay.tasks : recoveredDay.tasks;
+                const mergedSubjectQuestions = Object.keys(localDay.subjectQuestions || {}).length
+                    ? localDay.subjectQuestions
+                    : recoveredDay.subjectQuestions;
+
+                if (
+                    mergedWorkedSeconds !== parseInteger(localDay.workedSeconds, 0)
+                    || mergedQuestions !== parseInteger(localDay.questions, 0)
+                    || mergedTasks !== localDay.tasks
+                    || mergedSubjectQuestions !== localDay.subjectQuestions
+                ) {
+                    changed = true;
+                }
+
+                scheduleData[weekKey][dayIdx] = ensureDayObject({
+                    ...recoveredDay,
+                    ...localDay,
+                    tasks: mergedTasks,
+                    subjectQuestions: mergedSubjectQuestions,
+                    workedSeconds: mergedWorkedSeconds,
+                    questions: mergedQuestions
+                });
+            });
+        });
+
+        if (changed && typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+        return changed;
     }
 
     function createEmptyTimerSession(mode = timerState.mode) {
@@ -5088,8 +5201,27 @@
         userNotes = normalizeUserNotes(safeData.notes || []);
         scheduleData = sanitizeScheduleData(safeData.schedule || {});
         mergeFreshDailySnapshotIntoLocalSchedule(safeData);
+        const restoredTimerRecovery = mergeTimerRecoveryScheduleIntoLocalState();
         totalWorkedSecondsAllTime = Math.max(parseInteger(safeData.totalWorkedSeconds, 0), parseInteger(safeData.totalStudyTime, 0), typeof calculateTotalWorkedSecondsFromSchedule === "function" ? calculateTotalWorkedSecondsFromSchedule(scheduleData) : 0);
         totalQuestionsAllTime = Math.max(parseInteger(safeData.totalQuestionsAllTime, 0), typeof calculateTotalQuestionsFromSchedule === "function" ? calculateTotalQuestionsFromSchedule(scheduleData) : 0);
+        if (restoredTimerRecovery && currentUser?.uid) {
+            currentUserLiveDoc = {
+                ...(currentUserLiveDoc || safeData || {}),
+                schedule: sanitizeScheduleData(scheduleData || {}),
+                totalWorkedSeconds: Math.max(
+                    parseInteger(currentUserLiveDoc?.totalWorkedSeconds, 0),
+                    totalWorkedSecondsAllTime || 0
+                ),
+                totalStudyTime: Math.max(
+                    parseInteger(currentUserLiveDoc?.totalStudyTime, 0),
+                    totalWorkedSecondsAllTime || 0
+                )
+            };
+            setTimeout(() => {
+                saveData({ authorized: true, immediate: true });
+            }, 0);
+            safeShowAlert("Kaydedilemeyen sure geri yüklendi. Buluta tekrar gonderiliyor.", "info");
+        }
         renderNoteFolderControls();
         restoreTimerFromPersistence(safeData);
         if (typeof updateProfileButton === "function") updateProfileButton();
@@ -5584,6 +5716,7 @@
                 await syncLeaderboardSnapshot(payload);
                 await syncPublicQuestionCountersNow();
                 await maybeAutoSyncLeaderboardCollection();
+                clearTimerRecoverySnapshot(currentUser.uid);
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
                 }
@@ -5655,6 +5788,7 @@
             if (options.commitElapsed === true && commitSourceSession) {
                 const delta = applyPendingTimerDelta(commitSourceSession);
                 if (delta > 0) {
+                    persistTimerRecoverySnapshot();
                     const committedElapsedSeconds = Math.max(
                         parseInteger(options.committedElapsedSeconds, 0),
                         getTimerElapsedSeconds(commitSourceSession)
@@ -5700,9 +5834,12 @@
                             ...payload
                         });
                         await maybeAutoSyncLeaderboardCollection();
+                        clearTimerRecoverySnapshot(currentUser.uid);
                     }));
                 } catch (error) {
+                    persistTimerRecoverySnapshot();
                     console.error("Gercek zamanli sure senkronu basarisiz:", error);
+                    throw error;
                 }
             }
 
