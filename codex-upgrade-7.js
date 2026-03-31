@@ -5897,8 +5897,8 @@
             });
         };
 
-        pauseRealtimeTimer = async function() {
-            if (!timerState.session) return;
+        pauseRealtimeTimer = async function(options = {}) {
+            if (!timerState.session) return true;
 
             const session = timerState.session;
             const commitSourceSession = createCommitSourceSession(session);
@@ -5911,18 +5911,28 @@
             timerDrafts[session.mode] = { ...session };
             isRunning = false;
             stopTimerLoops();
-            await syncRealtimeTimer("pause", {
-                activeSession: null,
-                currentSessionTime: 0,
-                clearActive: true,
-                commitElapsed: true,
-                commitSourceSession,
-                committedElapsedSeconds: elapsed,
-                userTriggeredWrite: true,
-                authorized: true
-            });
+            let syncSucceeded = true;
+            try {
+                await syncRealtimeTimer("pause", {
+                    activeSession: null,
+                    currentSessionTime: 0,
+                    clearActive: true,
+                    commitElapsed: true,
+                    commitSourceSession,
+                    committedElapsedSeconds: elapsed,
+                    userTriggeredWrite: true,
+                    authorized: true
+                });
+            } catch (error) {
+                syncSucceeded = false;
+                console.error("Zamanlayici duraklatilirken bulut senkronu basarisiz:", error);
+                if (!options.silentWriteFailure) {
+                    safeShowAlert("Süre cihazda korundu. Baglanti duzelince tekrar kaydetmeyi dene.", "info");
+                }
+            }
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
+            return syncSucceeded;
         };
 
         completePomodoroSession = async function() {
@@ -6010,16 +6020,20 @@
                 originalPatchTimerControls();
             }
 
-            saveWorkSession = function() {
-                const finishAndClose = async () => {
-                    if (timerState.transitioning) return;
-                    timerState.transitioning = true;
+        saveWorkSession = function() {
+            const finishAndClose = async () => {
+                if (timerState.transitioning) return;
+                timerState.transitioning = true;
+
+                let pauseSynced = true;
+                let saveSynced = true;
+
+                try {
+                    if (timerState.session?.isRunning) {
+                        pauseSynced = await pauseRealtimeTimer({ silentWriteFailure: true });
+                    }
 
                     try {
-                        if (timerState.session?.isRunning) {
-                            await pauseRealtimeTimer();
-                        }
-
                         await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
                             activeSession: null,
                             currentSessionTime: 0,
@@ -6028,17 +6042,27 @@
                             userTriggeredWrite: true,
                             authorized: true
                         }));
-
-                        timerState.session = null;
-                        persistTimerSessionLocally(null);
-                        releaseTimerOwnership();
-                        renderTimerUi();
-                        safeShowAlert("Sure kaydedildi ve durduruldu.", "success");
-                        hidePomodoroModal();
-                    } finally {
-                        timerState.transitioning = false;
+                    } catch (error) {
+                        saveSynced = false;
+                        console.error("Manual timer save senkronu basarisiz:", error);
+                        persistTimerRecoverySnapshot();
                     }
-                };
+
+                    timerState.session = null;
+                    persistTimerSessionLocally(null);
+                    releaseTimerOwnership();
+                    renderTimerUi();
+                    hidePomodoroModal();
+                    safeShowAlert(
+                        pauseSynced && saveSynced
+                            ? "Sure kaydedildi ve durduruldu."
+                            : "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene.",
+                        pauseSynced && saveSynced ? "success" : "info"
+                    );
+                } finally {
+                    timerState.transitioning = false;
+                }
+            };
 
                 finishAndClose().catch(error => {
                     console.error("Sure kaydedilip durdurulamadi:", error);
@@ -6201,26 +6225,40 @@
                 if (timerState.transitioning) return;
                 timerState.transitioning = true;
 
+                let pauseSynced = true;
+                let saveSynced = true;
+
                 try {
                     if (timerState.session?.isRunning) {
-                        await pauseRealtimeTimer();
+                        pauseSynced = await pauseRealtimeTimer({ silentWriteFailure: true });
                     }
 
-                    await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
-                        activeSession: null,
-                        currentSessionTime: 0,
-                        clearActive: true,
-                        commitElapsed: true,
-                        userTriggeredWrite: true,
-                        authorized: true
-                    }));
+                    try {
+                        await withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
+                            activeSession: null,
+                            currentSessionTime: 0,
+                            clearActive: true,
+                            commitElapsed: true,
+                            userTriggeredWrite: true,
+                            authorized: true
+                        }));
+                    } catch (error) {
+                        saveSynced = false;
+                        console.error("Manual timer save senkronu basarisiz:", error);
+                        persistTimerRecoverySnapshot();
+                    }
 
                     timerState.session = null;
                     persistTimerSessionLocally(null);
                     releaseTimerOwnership();
                     renderTimerUi();
-                    safeShowAlert("Süre kaydedildi ve durduruldu.", "success");
                     hidePomodoroModal();
+                    safeShowAlert(
+                        pauseSynced && saveSynced
+                            ? "Süre kaydedildi ve durduruldu."
+                            : "Süre cihazda korundu. Bağlantı gelince tekrar kaydetmeyi dene.",
+                        pauseSynced && saveSynced ? "success" : "info"
+                    );
                 } finally {
                     timerState.transitioning = false;
                 }
