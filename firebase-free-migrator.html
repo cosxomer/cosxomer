@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosxomer Ucretsiz Firestore Tasima Araci</title>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore-compat.js"></script>
+    <style>
+        :root {
+            --bg: #10131a;
+            --panel: #191f2b;
+            --panel-2: #222b3a;
+            --text: #eef2ff;
+            --muted: #9aa5c2;
+            --accent: #44d08a;
+            --accent-2: #4da3ff;
+            --warn: #ffb84d;
+            --danger: #ff6b6b;
+            --border: rgba(255, 255, 255, 0.08);
+            --shadow: 0 22px 44px rgba(0, 0, 0, 0.28);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(77, 163, 255, 0.18), transparent 34%),
+                radial-gradient(circle at top right, rgba(68, 208, 138, 0.12), transparent 30%),
+                linear-gradient(180deg, #0d1118 0%, #121826 100%);
+            color: var(--text);
+            padding: 28px 16px 40px;
+        }
+
+        .wrap {
+            max-width: 980px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            background: linear-gradient(145deg, rgba(25, 31, 43, 0.95), rgba(19, 24, 34, 0.94));
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 28px;
+            box-shadow: var(--shadow);
+            margin-bottom: 20px;
+        }
+
+        .hero h1 {
+            margin: 0 0 10px;
+            font-size: clamp(28px, 4vw, 42px);
+            line-height: 1.05;
+        }
+
+        .hero p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.65;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(25, 31, 43, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 22px;
+            box-shadow: var(--shadow);
+        }
+
+        .card h2 {
+            margin: 0 0 14px;
+            font-size: 20px;
+        }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .fields {
+            display: grid;
+            gap: 12px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        input {
+            width: 100%;
+            background: #111723;
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.11);
+            border-radius: 14px;
+            padding: 14px 15px;
+            outline: none;
+            font-size: 15px;
+        }
+
+        input:focus {
+            border-color: rgba(77, 163, 255, 0.8);
+            box-shadow: 0 0 0 3px rgba(77, 163, 255, 0.18);
+        }
+
+        .collections {
+            display: grid;
+            gap: 10px;
+            margin: 16px 0 18px;
+        }
+
+        .collection-item {
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 12px 13px;
+        }
+
+        .collection-item input[type="checkbox"] {
+            width: auto;
+            margin-top: 4px;
+            accent-color: var(--accent);
+        }
+
+        .collection-title {
+            font-weight: 700;
+            margin-bottom: 3px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 18px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 12px 18px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: transform 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-1px);
+        }
+
+        button:disabled {
+            cursor: wait;
+            opacity: 0.65;
+        }
+
+        .primary {
+            background: linear-gradient(135deg, var(--accent), #66e1a1);
+            color: #082414;
+            box-shadow: 0 10px 24px rgba(68, 208, 138, 0.24);
+        }
+
+        .secondary {
+            background: linear-gradient(135deg, var(--accent-2), #8dbeff);
+            color: #07172e;
+            box-shadow: 0 10px 24px rgba(77, 163, 255, 0.24);
+        }
+
+        .ghost {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .status-box {
+            display: grid;
+            gap: 10px;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .pill.ok {
+            background: rgba(68, 208, 138, 0.12);
+            color: #8af1b7;
+        }
+
+        .pill.warn {
+            background: rgba(255, 184, 77, 0.14);
+            color: #ffd28d;
+        }
+
+        .pill.idle {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--muted);
+        }
+
+        .log {
+            margin-top: 16px;
+            background: #0d121b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 18px;
+            padding: 14px;
+            min-height: 380px;
+            max-height: 580px;
+            overflow: auto;
+            white-space: pre-wrap;
+            line-height: 1.55;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 13px;
+        }
+
+        .step-list {
+            display: grid;
+            gap: 10px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .step-list li {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 14px;
+            padding: 12px 13px;
+            line-height: 1.55;
+        }
+
+        .hint {
+            margin-top: 12px;
+            padding: 12px 13px;
+            border-radius: 14px;
+            background: rgba(255, 184, 77, 0.08);
+            color: #ffd28d;
+            border: 1px solid rgba(255, 184, 77, 0.16);
+            line-height: 1.55;
+        }
+
+        @media (max-width: 860px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .hero,
+            .card {
+                padding: 18px;
+            }
+
+            .log {
+                min-height: 260px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <section class="hero">
+            <h1>Ucretsiz Firestore Tasima Araci</h1>
+            <p>
+                Bu sayfa eski <strong>cosxomer2</strong> projesindeki Firestore verilerini yeni
+                <strong>cosxomer3</strong> projesine tek seferde kopyalamak icin hazirlandi.
+                Eski veriyi silmez. Yeni projede ayni belge kimlikleriyle <strong>merge</strong> yazar.
+            </p>
+            <div class="hint" style="margin-top: 16px;">
+                Burada kullanman gereken hesap, Firebase Console'a girdigin Google hesabi degil;
+                sitenin <strong>Authentication &gt; Users</strong> listesindeki e-posta/sifre hesabidir.
+                En kolayi, eski projede kullandigin ayni site hesabini hem eski hem yeni proje alanlarina yazmaktir.
+            </div>
+        </section>
+
+        <div class="grid">
+            <section class="card">
+                <h2>1. Giris Bilgisi</h2>
+                <p class="muted">
+                    Eski ve yeni Firebase projelerine farkli hesaplarla baglanabilirsin.
+                    Eski proje icin eski admin ya da eski kullanici hesabini, yeni proje icin yeni proje hesabini gir.
+                </p>
+
+                <div class="fields">
+                    <div>
+                        <label for="old-email-input">Eski Proje E-postasi</label>
+                        <input id="old-email-input" type="email" autocomplete="username" placeholder="eski-proje@mail.com">
+                    </div>
+                    <div>
+                        <label for="old-password-input">Eski Proje Sifresi</label>
+                        <input id="old-password-input" type="password" autocomplete="current-password" placeholder="Eski proje sifresi">
+                    </div>
+                    <div>
+                        <label for="new-email-input">Yeni Proje E-postasi</label>
+                        <input id="new-email-input" type="email" autocomplete="username" placeholder="yeni-proje@mail.com">
+                    </div>
+                    <div>
+                        <label for="new-password-input">Yeni Proje Sifresi</label>
+                        <input id="new-password-input" type="password" autocomplete="current-password" placeholder="Yeni proje sifresi">
+                    </div>
+                </div>
+
+                <h2 style="margin-top: 22px;">2. Tasinacak Koleksiyonlar</h2>
+                <div class="collections">
+                    <label class="collection-item">
+                        <input type="checkbox" value="users" checked>
+                        <span>
+                            <div class="collection-title">users</div>
+                            <div class="muted">Kullanici profilleri, calisma sureleri, toplam soru ve ayarlar.</div>
+                        </span>
+                    </label>
+                    <label class="collection-item">
+                        <input type="checkbox" value="publicProfiles" checked>
+                        <span>
+                            <div class="collection-title">publicProfiles</div>
+                            <div class="muted">Profil karti ve herkese acik gorunen bilgiler.</div>
+                        </span>
+                    </label>
+                    <label class="collection-item">
+                        <input type="checkbox" value="leaderboard" checked>
+                        <span>
+                            <div class="collection-title">leaderboard</div>
+                            <div class="muted">Lider tabloya dusen canli ve toplu siralama belgeleri.</div>
+                        </span>
+                    </label>
+                    <label class="collection-item">
+                        <input type="checkbox" value="supportMessages" checked>
+                        <span>
+                            <div class="collection-title">supportMessages</div>
+                            <div class="muted">Admin destek mesajlari. Sadece admin hesabi ile okunabilir.</div>
+                        </span>
+                    </label>
+                </div>
+
+                <div class="actions">
+                    <button id="signin-btn" class="secondary" type="button">Iki Projeye Giris Yap</button>
+                    <button id="migrate-btn" class="primary" type="button" disabled>Secili Verileri Tasi</button>
+                    <button id="verify-btn" class="ghost" type="button" disabled>Yeni Projede Sayilari Kontrol Et</button>
+                </div>
+
+                <div class="hint">
+                    Bu arac verileri <strong>silmez</strong>. Ayni belge kimligini yeni projede varsa uzerine
+                    <strong>merge</strong> eder. Istesen tekrar calistirabilirsin.
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Durum</h2>
+                <div class="status-box">
+                    <div id="old-status" class="pill idle">Eski proje: bagli degil</div>
+                    <div id="new-status" class="pill idle">Yeni proje: bagli degil</div>
+                    <div id="run-status" class="pill idle">Tasima: bekliyor</div>
+                </div>
+
+                <h2 style="margin-top: 22px;">Kisa Yol</h2>
+                <ol class="step-list">
+                    <li>E-posta ve sifreyi gir.</li>
+                    <li><strong>Iki Projeye Giris Yap</strong> butonuna bas.</li>
+                    <li>Girisler basariliysa <strong>Secili Verileri Tasi</strong> butonuna bas.</li>
+                    <li>Log alaninda her koleksiyonun kac belge tasindigini izle.</li>
+                    <li>Sonunda <strong>Yeni Projede Sayilari Kontrol Et</strong> ile yazilan belge sayilarini gor.</li>
+                </ol>
+
+                <div class="log" id="log-output">Hazir. Once giris yapman gerekiyor.</div>
+            </section>
+        </div>
+    </div>
+
+    <script>
+        const OLD_PROJECT_CONFIG = {
+            apiKey: "AIzaSyC2z_TgyyQjqMNFZllb1CJ0bc1KfgC337U",
+            authDomain: "cosxomer2.firebaseapp.com",
+            projectId: "cosxomer2",
+            storageBucket: "cosxomer2.firebasestorage.app",
+            messagingSenderId: "306432305663",
+            appId: "1:306432305663:web:b799b0fd13315fdfb85fca",
+            measurementId: "G-D01T6J1VFZ"
+        };
+
+        const NEW_PROJECT_CONFIG = {
+            apiKey: "AIzaSyCZJR-ZJgsNF9iA3Hv1YqNWrKM5FFvasWw",
+            authDomain: "cosxomer3.firebaseapp.com",
+            projectId: "cosxomer3",
+            storageBucket: "cosxomer3.firebasestorage.app",
+            messagingSenderId: "611855250903",
+            appId: "1:611855250903:web:b01f0f5fe6cefeea3a4792",
+            measurementId: "G-866W2EQB2Y"
+        };
+
+        const MAX_BATCH_SIZE = 400;
+
+        const oldApp = firebase.initializeApp(OLD_PROJECT_CONFIG, "old-project-app");
+        const newApp = firebase.initializeApp(NEW_PROJECT_CONFIG, "new-project-app");
+        const oldAuth = oldApp.auth();
+        const newAuth = newApp.auth();
+        const oldDb = oldApp.firestore();
+        const newDb = newApp.firestore();
+
+        const oldEmailInput = document.getElementById("old-email-input");
+        const oldPasswordInput = document.getElementById("old-password-input");
+        const newEmailInput = document.getElementById("new-email-input");
+        const newPasswordInput = document.getElementById("new-password-input");
+        const signInBtn = document.getElementById("signin-btn");
+        const migrateBtn = document.getElementById("migrate-btn");
+        const verifyBtn = document.getElementById("verify-btn");
+        const oldStatus = document.getElementById("old-status");
+        const newStatus = document.getElementById("new-status");
+        const runStatus = document.getElementById("run-status");
+        const logOutput = document.getElementById("log-output");
+
+        let signedIntoBothProjects = false;
+
+        function setStatus(element, type, text) {
+            element.className = `pill ${type}`;
+            element.textContent = text;
+        }
+
+        function logLine(message) {
+            const timestamp = new Date().toLocaleTimeString("tr-TR");
+            logOutput.textContent += `\n[${timestamp}] ${message}`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+        }
+
+        function resetLog(message) {
+            logOutput.textContent = message;
+        }
+
+        function getSelectedCollections() {
+            return Array.from(document.querySelectorAll('.collection-item input[type="checkbox"]:checked'))
+                .map(input => input.value);
+        }
+
+        async function signIntoProject(auth, email, password, label) {
+            try {
+                await auth.setPersistence(firebase.auth.Auth.Persistence.SESSION);
+                const existingUser = auth.currentUser;
+                if (existingUser && existingUser.email === email) {
+                    logLine(`${label}: zaten giris yapilmis gorunuyor (${email}).`);
+                    return existingUser;
+                }
+                const credential = await auth.signInWithEmailAndPassword(email, password);
+                logLine(`${label}: giris basarili (${credential.user.email}).`);
+                return credential.user;
+            } catch (error) {
+                throw new Error(`${label} giris hatasi: ${error.message}`);
+            }
+        }
+
+        async function copyCollection(collectionName) {
+            logLine(`${collectionName}: eski projeden okunuyor...`);
+            const oldSnapshot = await oldDb.collection(collectionName).get();
+            logLine(`${collectionName}: ${oldSnapshot.size} belge bulundu.`);
+
+            if (oldSnapshot.empty) {
+                logLine(`${collectionName}: tasinacak belge yok.`);
+                return { copied: 0, total: 0 };
+            }
+
+            let batch = newDb.batch();
+            let pendingWrites = 0;
+            let copied = 0;
+
+            for (const doc of oldSnapshot.docs) {
+                batch.set(newDb.collection(collectionName).doc(doc.id), doc.data(), { merge: true });
+                pendingWrites += 1;
+                copied += 1;
+
+                if (pendingWrites >= MAX_BATCH_SIZE) {
+                    await batch.commit();
+                    logLine(`${collectionName}: ${copied}/${oldSnapshot.size} belge yazildi.`);
+                    batch = newDb.batch();
+                    pendingWrites = 0;
+                }
+            }
+
+            if (pendingWrites > 0) {
+                await batch.commit();
+            }
+
+            logLine(`${collectionName}: tasima tamamlandi. ${copied} belge yeni projeye yazildi.`);
+            return { copied, total: oldSnapshot.size };
+        }
+
+        async function verifyCollection(collectionName) {
+            const snapshot = await newDb.collection(collectionName).get();
+            logLine(`Dogrulama -> ${collectionName}: yeni projede ${snapshot.size} belge var.`);
+            return snapshot.size;
+        }
+
+        async function handleSignIn() {
+            const oldEmail = oldEmailInput.value.trim();
+            const oldPassword = oldPasswordInput.value;
+            const newEmail = newEmailInput.value.trim();
+            const newPassword = newPasswordInput.value;
+
+            if (!oldEmail || !oldPassword || !newEmail || !newPassword) {
+                alert("Eski ve yeni proje icin e-posta/sifre gerekli.");
+                return;
+            }
+
+            signInBtn.disabled = true;
+            migrateBtn.disabled = true;
+            verifyBtn.disabled = true;
+            setStatus(runStatus, "warn", "Tasima: giris yapiliyor");
+            resetLog("Giris baslatildi.");
+
+            try {
+                await signIntoProject(oldAuth, oldEmail, oldPassword, "Eski proje");
+                setStatus(oldStatus, "ok", `Eski proje: baglandi (${oldEmail})`);
+
+                await signIntoProject(newAuth, newEmail, newPassword, "Yeni proje");
+                setStatus(newStatus, "ok", `Yeni proje: baglandi (${newEmail})`);
+
+                signedIntoBothProjects = true;
+                migrateBtn.disabled = false;
+                verifyBtn.disabled = false;
+                setStatus(runStatus, "ok", "Tasima: hazir");
+                logLine("Iki projeye de basariyla baglanildi. Artik tasimayi baslatabilirsin.");
+            } catch (error) {
+                signedIntoBothProjects = false;
+                setStatus(runStatus, "warn", "Tasima: giris hatasi");
+                setStatus(oldStatus, "idle", "Eski proje: bagli degil");
+                setStatus(newStatus, "idle", "Yeni proje: bagli degil");
+                logLine(`Giris hatasi: ${error.message}`);
+                alert(`Giris basarisiz: ${error.message}`);
+            } finally {
+                signInBtn.disabled = false;
+            }
+        }
+
+        async function handleMigrate() {
+            if (!signedIntoBothProjects) {
+                alert("Once iki projeye de giris yap.");
+                return;
+            }
+
+            const selectedCollections = getSelectedCollections();
+            if (!selectedCollections.length) {
+                alert("En az bir koleksiyon sec.");
+                return;
+            }
+
+            migrateBtn.disabled = true;
+            verifyBtn.disabled = true;
+            signInBtn.disabled = true;
+            setStatus(runStatus, "warn", "Tasima: suruyor");
+            logLine(`Tasima basladi. Koleksiyonlar: ${selectedCollections.join(", ")}`);
+
+            const failedCollections = [];
+
+            try {
+                for (const collectionName of selectedCollections) {
+                    try {
+                        await copyCollection(collectionName);
+                    } catch (error) {
+                        failedCollections.push(collectionName);
+                        logLine(`${collectionName}: hata -> ${error.message}`);
+                    }
+                }
+
+                if (failedCollections.length) {
+                    setStatus(runStatus, "warn", "Tasima: kismi tamamlandi");
+                    logLine(`Kismi tamamlandi. Basarisiz koleksiyonlar: ${failedCollections.join(", ")}`);
+                } else {
+                    setStatus(runStatus, "ok", "Tasima: tamamlandi");
+                    logLine("Secili tum koleksiyonlar basariyla tasindi.");
+                }
+            } finally {
+                migrateBtn.disabled = false;
+                verifyBtn.disabled = false;
+                signInBtn.disabled = false;
+            }
+        }
+
+        async function handleVerify() {
+            if (!signedIntoBothProjects) {
+                alert("Once iki projeye de giris yap.");
+                return;
+            }
+
+            const selectedCollections = getSelectedCollections();
+            if (!selectedCollections.length) {
+                alert("En az bir koleksiyon sec.");
+                return;
+            }
+
+            verifyBtn.disabled = true;
+            logLine("Dogrulama basladi.");
+
+            try {
+                for (const collectionName of selectedCollections) {
+                    try {
+                        await verifyCollection(collectionName);
+                    } catch (error) {
+                        logLine(`Dogrulama hatasi -> ${collectionName}: ${error.message}`);
+                    }
+                }
+            } finally {
+                verifyBtn.disabled = false;
+            }
+        }
+
+        signInBtn.addEventListener("click", handleSignIn);
+        migrateBtn.addEventListener("click", handleMigrate);
+        verifyBtn.addEventListener("click", handleVerify);
+    </script>
+</body>
+</html>
