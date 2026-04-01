@@ -476,8 +476,10 @@
         };
         const sharedPatch = {
             uid,
+            name: userData.name || userData.username || '',
             totalWorkedSeconds,
             totalStudyTime: totalWorkedSeconds,
+            totalTime: Math.max(0, totalWorkedSeconds) * 1000,
             totalQuestionsAllTime,
             dailyStudyTime: normalizedSeconds,
             todayStudyTime: normalizedSeconds,
@@ -489,6 +491,8 @@
             currentSessionTime: 0,
             activeTimer: null,
             isWorking: false,
+            isRunning: false,
+            lastSyncTime: nowMs,
             lastTimerSyncAt: nowMs,
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
@@ -585,17 +589,22 @@
             const batch = db.batch();
             batch.set(userDoc.ref, patches.usersPatch, { merge: true });
             batch.set(db.collection('publicProfiles').doc(userDoc.id), patches.publicProfilePatch, { merge: true });
-            batch.set(db.collection('leaderboard').doc(userDoc.id), patches.leaderboardPatch, { merge: true });
             await batch.commit();
 
             if (currentUser.uid === userDoc.id) {
-                currentUserLiveDoc = {
-                    ...(currentUserLiveDoc || {}),
-                    ...(userData || {}),
-                    ...patches.usersPatch
-                };
-                scheduleData = patches.usersPatch.schedule || {};
-                totalWorkedSecondsAllTime = patches.usersPatch.totalWorkedSeconds || 0;
+                if (typeof globalThis.currentUserLiveDoc !== 'undefined') {
+                    globalThis.currentUserLiveDoc = {
+                        ...(globalThis.currentUserLiveDoc || {}),
+                        ...(userData || {}),
+                        ...patches.usersPatch
+                    };
+                }
+                if (typeof globalThis.scheduleData !== 'undefined') {
+                    globalThis.scheduleData = patches.usersPatch.schedule || {};
+                }
+                if (typeof globalThis.totalWorkedSecondsAllTime !== 'undefined') {
+                    globalThis.totalWorkedSecondsAllTime = patches.usersPatch.totalWorkedSeconds || 0;
+                }
                 try {
                     localStorage.removeItem('codexRealtimeTimerStateV1');
                     localStorage.removeItem('codexRealtimeTimerRecoveryV1');
