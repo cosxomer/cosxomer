@@ -334,6 +334,18 @@
                     <i class="fas fa-stopwatch"></i>
                     <span>Bugunku Sureleri Sifirla</span>
                 </button>
+                <div id="support-admin-time-adjust-panel" style="display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08);">
+                    <div style="font-weight:700;">Tek Kullanici Suresi Ayarla</div>
+                    <input id="support-admin-time-target" type="text" placeholder="Kullanici adi veya e-posta" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
+                    <div style="display:flex; gap:10px;">
+                        <input id="support-admin-time-hours" type="number" min="0" max="999" value="1" placeholder="Saat" style="flex:1; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
+                        <input id="support-admin-time-minutes" type="number" min="0" max="59" value="0" placeholder="Dakika" style="flex:1; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
+                    </div>
+                    <button id="support-admin-time-apply-btn" type="button" style="display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:11px 14px; border:none; border-radius:12px; background:linear-gradient(135deg, #2563eb, #0ea5e9); color:var(--header-text); font-weight:700; cursor:pointer;">
+                        <i class="fas fa-sliders-h"></i>
+                        <span>Bu Kullaniciya Sureyi Uygula</span>
+                    </button>
+                </div>
                 <div id="support-admin-reset-status" style="font-size:0.92rem; line-height:1.5; opacity:0.82;">
                     Bu islem, diger kullanicilarin sadece bugune ait calisma suresini sifirlar ve acik timerlarini kapatir.
                 </div>
@@ -349,6 +361,12 @@
             button.addEventListener('click', resetAllUsersTimersForToday);
         }
 
+        const applyButton = document.getElementById('support-admin-time-apply-btn');
+        if (applyButton && !applyButton.dataset.bound) {
+            applyButton.dataset.bound = '1';
+            applyButton.addEventListener('click', applyAdminTimeAdjustmentFromControls);
+        }
+
         return { panel, button, status };
     }
 
@@ -358,6 +376,278 @@
         controls.status.textContent = message;
         controls.status.style.color = isError ? '#fecaca' : '';
         controls.status.style.opacity = isError ? '1' : '0.82';
+    }
+
+    function parseAdminTimeValue(value, fallback = 0) {
+        const parsed = parseInt(value, 10);
+        return Number.isFinite(parsed) ? parsed : fallback;
+    }
+
+    function getAdminTimeAdjustmentControls() {
+        return {
+            targetInput: document.getElementById('support-admin-time-target'),
+            hoursInput: document.getElementById('support-admin-time-hours'),
+            minutesInput: document.getElementById('support-admin-time-minutes'),
+            applyButton: document.getElementById('support-admin-time-apply-btn')
+        };
+    }
+
+    function getAdminAdjustmentDateMeta(referenceDate = new Date()) {
+        const date = new Date(referenceDate);
+        const dayIdx = (date.getDay() + 6) % 7;
+        const weekStart = new Date(date);
+        weekStart.setHours(0, 0, 0, 0);
+        weekStart.setDate(weekStart.getDate() - dayIdx);
+        const weekKey = typeof getWeekKey === 'function'
+            ? getWeekKey(weekStart)
+            : `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, '0')}-${String(weekStart.getDate()).padStart(2, '0')}`;
+
+        return {
+            dateKey: date.toLocaleDateString('sv-SE'),
+            weekKey,
+            dayIdx
+        };
+    }
+
+    function buildAdjustedWorkedSchedule(existingSchedule = {}, targetSeconds = 0, referenceDate = new Date()) {
+        const nextSchedule = {};
+
+        Object.entries(existingSchedule || {}).forEach(([weekKey, weekData]) => {
+            nextSchedule[weekKey] = {};
+            Object.entries(weekData || {}).forEach(([dayIdx, rawDay]) => {
+                const baseDay = rawDay && typeof rawDay === 'object' ? { ...rawDay } : {};
+                nextSchedule[weekKey][dayIdx] = {
+                    ...baseDay,
+                    workedSeconds: 0
+                };
+            });
+        });
+
+        const currentMeta = getAdminAdjustmentDateMeta(referenceDate);
+        if (!nextSchedule[currentMeta.weekKey]) {
+            nextSchedule[currentMeta.weekKey] = {};
+        }
+
+        const currentDay = nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] && typeof nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] === 'object'
+            ? nextSchedule[currentMeta.weekKey][currentMeta.dayIdx]
+            : {};
+
+        nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] = {
+            ...currentDay,
+            workedSeconds: Math.max(0, targetSeconds)
+        };
+
+        return nextSchedule;
+    }
+
+    function buildAdminTimeAdjustmentPatches(uid, userData = {}, targetSeconds = 0, referenceDate = new Date()) {
+        const normalizedSeconds = Math.max(0, targetSeconds);
+        const currentMeta = getAdminAdjustmentDateMeta(referenceDate);
+        const nextSchedule = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, referenceDate);
+        const totalWorkedSeconds = typeof calculateTotalWorkedSecondsFromSchedule === 'function'
+            ? calculateTotalWorkedSecondsFromSchedule(nextSchedule)
+            : normalizedSeconds;
+        const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === 'function'
+            ? getCurrentWeekTotalsFromSchedule(nextSchedule).seconds
+            : normalizedSeconds;
+        const totalQuestionsAllTime = typeof calculateTotalQuestionsFromSchedule === 'function'
+            ? calculateTotalQuestionsFromSchedule(nextSchedule)
+            : Math.max(0, parseAdminTimeValue(userData.totalQuestionsAllTime, 0));
+        const dailyQuestions = typeof getCurrentDayQuestionsFromSchedule === 'function'
+            ? getCurrentDayQuestionsFromSchedule(nextSchedule, referenceDate)
+            : Math.max(0, parseAdminTimeValue(userData.dailyQuestionCount, 0));
+        const weeklyQuestions = typeof getCurrentWeekQuestionsFromSchedule === 'function'
+            ? getCurrentWeekQuestionsFromSchedule(nextSchedule, referenceDate)
+            : Math.max(dailyQuestions, parseAdminTimeValue(userData.weeklyQuestionCount, 0));
+        const nowMs = Date.now();
+        const identityPatch = {
+            username: userData.username || '',
+            email: userData.email || '',
+            about: userData.about || '',
+            profileImage: userData.profileImage || '',
+            accountCreatedAt: userData.accountCreatedAt || '',
+            studyTrack: userData.studyTrack || '',
+            selectedSubjects: Array.isArray(userData.selectedSubjects) ? userData.selectedSubjects : [],
+            selectedTitleId: userData.selectedTitleId || '',
+            titleAwards: userData.titleAwards || {},
+            role: userData.role || (userData.isAdmin ? 'admin' : 'user'),
+            isAdmin: !!userData.isAdmin,
+            adminTitle: userData.adminTitle || ''
+        };
+        const sharedPatch = {
+            uid,
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            totalQuestionsAllTime,
+            dailyStudyTime: normalizedSeconds,
+            todayStudyTime: normalizedSeconds,
+            todayWorkedSeconds: normalizedSeconds,
+            dailyStudyDateKey: currentMeta.dateKey,
+            todayDateKey: currentMeta.dateKey,
+            weeklyStudyTime,
+            currentWeekSeconds: weeklyStudyTime,
+            currentSessionTime: 0,
+            activeTimer: null,
+            isWorking: false,
+            lastTimerSyncAt: nowMs,
+            dailyQuestionCount: dailyQuestions,
+            weeklyQuestionCount: weeklyQuestions,
+            dailyQuestions,
+            weeklyQuestions,
+            daily: dailyQuestions,
+            weekly: weeklyQuestions,
+            total: totalQuestionsAllTime
+        };
+
+        return {
+            usersPatch: {
+                ...identityPatch,
+                ...sharedPatch,
+                schedule: nextSchedule
+            },
+            publicProfilePatch: {
+                ...identityPatch,
+                ...sharedPatch
+            },
+            leaderboardPatch: {
+                ...identityPatch,
+                ...sharedPatch,
+                schedule: nextSchedule
+            }
+        };
+    }
+
+    async function findAdminTimeAdjustmentUser(targetValue) {
+        const normalizedTarget = String(targetValue || '').trim();
+        if (!normalizedTarget) {
+            throw new Error('target-empty');
+        }
+
+        const usernameSnapshot = await db.collection('users').where('username', '==', normalizedTarget).limit(2).get();
+        if (!usernameSnapshot.empty) {
+            if (usernameSnapshot.size > 1) {
+                throw new Error('target-ambiguous');
+            }
+            return usernameSnapshot.docs[0];
+        }
+
+        const emailSnapshot = await db.collection('users').where('email', '==', normalizedTarget.toLowerCase()).limit(2).get();
+        if (!emailSnapshot.empty) {
+            if (emailSnapshot.size > 1) {
+                throw new Error('target-ambiguous');
+            }
+            return emailSnapshot.docs[0];
+        }
+
+        throw new Error('user-not-found');
+    }
+
+    async function applyAdminTimeAdjustmentByTarget(targetValue, targetSeconds) {
+        if (!currentUser || !isCurrentAdmin()) {
+            showAlert("Bu islem sadece admin hesabi icin aciktir.");
+            return false;
+        }
+
+        const normalizedTarget = String(targetValue || '').trim();
+        if (!normalizedTarget) {
+            setAdminTimerResetStatus("Lutfen kullanici adi veya e-posta gir.", true);
+            showAlert("Kullanici hedefi gerekli.");
+            return false;
+        }
+
+        const safeSeconds = Math.max(0, parseAdminTimeValue(targetSeconds, 0));
+        const controls = getAdminTimeAdjustmentControls();
+        const applyButton = controls.applyButton;
+        const originalLabel = applyButton ? applyButton.innerHTML : "";
+
+        if (applyButton) {
+            applyButton.disabled = true;
+            applyButton.style.opacity = '0.72';
+            applyButton.style.cursor = 'wait';
+            applyButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Sure guncelleniyor...</span>';
+        }
+
+        setAdminTimerResetStatus(`${normalizedTarget} icin sure guncelleniyor...`);
+
+        try {
+            const userDoc = await findAdminTimeAdjustmentUser(normalizedTarget);
+            const userData = userDoc.data() || {};
+            const patches = buildAdminTimeAdjustmentPatches(userDoc.id, userData, safeSeconds);
+
+            if (currentUser.uid === userDoc.id && typeof pauseRealtimeTimer === 'function') {
+                try {
+                    await pauseRealtimeTimer({ silentWriteFailure: true });
+                } catch (pauseError) {
+                    console.warn('Admin sure araci timer durduramadi:', pauseError);
+                }
+            }
+
+            const batch = db.batch();
+            batch.set(userDoc.ref, patches.usersPatch, { merge: true });
+            batch.set(db.collection('publicProfiles').doc(userDoc.id), patches.publicProfilePatch, { merge: true });
+            batch.set(db.collection('leaderboard').doc(userDoc.id), patches.leaderboardPatch, { merge: true });
+            await batch.commit();
+
+            if (currentUser.uid === userDoc.id) {
+                currentUserLiveDoc = {
+                    ...(currentUserLiveDoc || {}),
+                    ...(userData || {}),
+                    ...patches.usersPatch
+                };
+                scheduleData = patches.usersPatch.schedule || {};
+                totalWorkedSecondsAllTime = patches.usersPatch.totalWorkedSeconds || 0;
+                try {
+                    localStorage.removeItem('codexRealtimeTimerStateV1');
+                    localStorage.removeItem('codexRealtimeTimerRecoveryV1');
+                } catch (storageError) {
+                    console.warn('Admin sure araci local timer kaydini silemedi:', storageError);
+                }
+                if (typeof refreshCurrentTotals === 'function') refreshCurrentTotals();
+                if (typeof renderSchedule === 'function') renderSchedule();
+                if (typeof updateLiveStudyPreview === 'function') updateLiveStudyPreview();
+                if (typeof refreshLeaderboardOptimistically === 'function') refreshLeaderboardOptimistically(null);
+                if (typeof renderLiveLeaderboardFromDocs === 'function') renderLiveLeaderboardFromDocs();
+            }
+
+            const resolvedLabel = String(userData.username || userData.email || normalizedTarget);
+            const hourValue = Math.floor(safeSeconds / 3600);
+            const minuteValue = Math.floor((safeSeconds % 3600) / 60);
+            setAdminTimerResetStatus(`${resolvedLabel} suresi ${hourValue}s ${minuteValue}dk olarak guncellendi.`);
+            showAlert(`${resolvedLabel} suresi guncellendi.`, 'success');
+            return true;
+        } catch (error) {
+            console.error('Admin sure duzeltme basarisiz:', error);
+            const errorMessage = String(error?.message || '');
+            if (errorMessage === 'user-not-found') {
+                setAdminTimerResetStatus("Bu kullanici adi veya e-posta bulunamadi.", true);
+                showAlert("Kullanici bulunamadi.");
+            } else if (errorMessage === 'target-ambiguous') {
+                setAdminTimerResetStatus("Bu isimde birden fazla kullanici bulundu. E-posta ile dene.", true);
+                showAlert("Birden fazla kullanici bulundu.");
+            } else if (errorMessage === 'target-empty') {
+                setAdminTimerResetStatus("Lutfen kullanici adi veya e-posta gir.", true);
+                showAlert("Kullanici hedefi gerekli.");
+            } else {
+                setAdminTimerResetStatus("Sure duzeltilirken bir hata olustu. Lutfen tekrar dene.", true);
+                showAlert("Sure duzeltilemedi.");
+            }
+            return false;
+        } finally {
+            if (applyButton) {
+                applyButton.disabled = false;
+                applyButton.style.opacity = '1';
+                applyButton.style.cursor = 'pointer';
+                applyButton.innerHTML = originalLabel;
+            }
+        }
+    }
+
+    async function applyAdminTimeAdjustmentFromControls() {
+        const controls = getAdminTimeAdjustmentControls();
+        const targetValue = controls.targetInput?.value || '';
+        const hours = Math.max(0, parseAdminTimeValue(controls.hoursInput?.value, 0));
+        const minutes = Math.max(0, Math.min(59, parseAdminTimeValue(controls.minutesInput?.value, 0)));
+        await applyAdminTimeAdjustmentByTarget(targetValue, (hours * 3600) + (minutes * 60));
     }
 
     async function upsertSupportMessageInUserDoc(message) {

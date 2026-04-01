@@ -3436,6 +3436,9 @@
             selectedTitleId: resolvedSelectedTitleId,
             titleAwards: resolvedTitleAwards
         });
+        const currentWeekWorkedSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
+            ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds
+            : (totalWorkedSecondsAllTime || 0);
 
         return {
             schedule: scheduleData,
@@ -3447,6 +3450,8 @@
             titleAwards: resolvedTitleInfo.titleAwards,
             dailyStudyTime: currentDayWorkedSeconds,
             dailyStudyDateKey: currentDayMeta.dateKey,
+            weeklyStudyTime: currentWeekWorkedSeconds,
+            currentWeekSeconds: currentWeekWorkedSeconds,
             currentSessionTime: options.currentSessionTime === undefined
                 ? (isTimerVisibleForLeaderboard(activeTimerRecord) ? getTimerElapsedSeconds(activeSession) : 0)
                 : options.currentSessionTime,
@@ -6273,6 +6278,28 @@
         };
 
         syncRealtimeTimer = async function(reason = "manual", options = {}) {
+            const liveSyncSession = options.clearActive
+                ? null
+                : (options.activeSession === undefined ? timerState.session : options.activeSession);
+            if (liveSyncSession?.isRunning) {
+                const liveDelta = applyPendingTimerDelta(liveSyncSession);
+                if (liveDelta > 0) {
+                    const liveElapsedSeconds = getTimerElapsedSeconds(liveSyncSession);
+                    liveSyncSession.lastPersistedElapsedSeconds = Math.max(
+                        parseInteger(liveSyncSession.lastPersistedElapsedSeconds, 0),
+                        liveElapsedSeconds
+                    );
+
+                    if (timerState.session && (options.activeSession === undefined || liveSyncSession === timerState.session)) {
+                        timerState.session.lastPersistedElapsedSeconds = Math.max(
+                            parseInteger(timerState.session.lastPersistedElapsedSeconds, 0),
+                            liveElapsedSeconds
+                        );
+                        timerDrafts[timerState.session.mode] = { ...timerState.session };
+                    }
+                }
+            }
+
             const commitSourceSession = options.commitSourceSession || timerState.session;
             if (options.commitElapsed === true && commitSourceSession) {
                 const delta = applyPendingTimerDelta(commitSourceSession);
