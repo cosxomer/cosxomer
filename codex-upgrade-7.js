@@ -4308,7 +4308,7 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(snapshot => {
+        leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
             leaderboardRealtimeDocs = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
             if (currentUser?.uid) {
                 const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
