@@ -881,17 +881,92 @@
         if (node) node.textContent = message;
     }
 
+    function sanitizeUsernameInput(value = "") {
+        return String(value || "")
+            .replace(/\s+/g, " ")
+            .trim();
+    }
+
+    function normalizeUsernameLookup(value = "") {
+        return sanitizeUsernameInput(value)
+            .normalize("NFKC")
+            .toLocaleLowerCase("tr-TR");
+    }
+
+    async function findUsernameConflicts(username = "", options = {}) {
+        const normalizedUsername = normalizeUsernameLookup(username);
+        const excludeUid = String(options.excludeUid || "").trim();
+
+        if (!normalizedUsername) return [];
+
+        const snapshot = await db.collection("users").get();
+        return (snapshot.docs || []).filter(doc => {
+            if (excludeUid && doc.id === excludeUid) return false;
+
+            const data = doc.data() || {};
+            const candidates = [
+                data.normalizedUsername,
+                data.username,
+                data.name
+            ];
+
+            return candidates.some(candidate => normalizeUsernameLookup(candidate) === normalizedUsername);
+        });
+    }
+
+    async function ensureUsernameAvailable(username = "", options = {}) {
+        const cleanUsername = sanitizeUsernameInput(username);
+        const normalizedUsername = normalizeUsernameLookup(cleanUsername);
+
+        if (cleanUsername.length < 2) {
+            const error = new Error("username-too-short");
+            error.code = "username-too-short";
+            throw error;
+        }
+
+        const conflicts = await findUsernameConflicts(cleanUsername, options);
+        if (conflicts.length > 0) {
+            const error = new Error("username-already-in-use");
+            error.code = "username-already-in-use";
+            throw error;
+        }
+
+        return {
+            cleanUsername,
+            normalizedUsername
+        };
+    }
+
+    async function cleanupRejectedSignupUser(user = null) {
+        if (!user) return;
+
+        try {
+            await user.delete();
+        } catch (deleteError) {
+            console.error("Cakisan kayit auth hesabi silinemedi:", deleteError);
+        }
+
+        try {
+            await auth.signOut();
+        } catch (signOutError) {
+            console.error("Cakisan kayit sonrasi cikis yapilamadi:", signOutError);
+        }
+    }
+
     function createSignupPayload(username, email, accountCreatedAt) {
         const nowMs = Date.now();
+        const cleanUsername = sanitizeUsernameInput(username);
+        const normalizedUsername = normalizeUsernameLookup(cleanUsername);
         const adminProfile = typeof getAdminProfileMeta === "function"
-            ? getAdminProfileMeta(username, email)
+            ? getAdminProfileMeta(cleanUsername, email)
             : {
-                isAdmin: typeof isAdminIdentity === "function" ? isAdminIdentity(username, email) : false,
-                role: (typeof isAdminIdentity === "function" && isAdminIdentity(username, email)) ? "admin" : "user",
-                adminTitle: (typeof isAdminIdentity === "function" && isAdminIdentity(username, email)) ? "Kurucu Admin" : ""
+                isAdmin: typeof isAdminIdentity === "function" ? isAdminIdentity(cleanUsername, email) : false,
+                role: (typeof isAdminIdentity === "function" && isAdminIdentity(cleanUsername, email)) ? "admin" : "user",
+                adminTitle: (typeof isAdminIdentity === "function" && isAdminIdentity(cleanUsername, email)) ? "Kurucu Admin" : ""
             };
         return {
-            username,
+            username: cleanUsername,
+            normalizedUsername,
             email,
             emailVerified: false,
             requiresEmailVerification: true,
@@ -910,7 +985,7 @@
             totalQuestionsAllTime: 0,
             selectedTitleId: "",
             titleAwards: {},
-            name: username,
+            name: cleanUsername,
             isRunning: false,
             lastSyncTime: nowMs,
             totalTime: 0,
@@ -6333,7 +6408,7 @@
         };
 
         signUpWithEmailPasswordAndUsername = function() {
-            const username = document.getElementById("signup-username")?.value.trim() || "";
+            const username = sanitizeUsernameInput(document.getElementById("signup-username")?.value || "");
             const email = document.getElementById("signup-email")?.value.trim() || "";
             const password = document.getElementById("signup-password")?.value || "";
             const submitButton = document.querySelector("#signup-form button");
@@ -6352,10 +6427,17 @@
 
             auth.createUserWithEmailAndPassword(email, password)
                 .then(async credential => {
+                    try {
+                        await ensureUsernameAvailable(username, { excludeUid: credential.user.uid });
+                    } catch (usernameError) {
+                        await cleanupRejectedSignupUser(credential.user);
+                        throw usernameError;
+                    }
+
                     const signupPayload = createSignupPayload(username, email, accountCreatedAt);
                     await db.collection("users").doc(credential.user.uid).set(signupPayload, { merge: true });
                     currentUser = credential.user;
-                    currentUsername = username;
+                    currentUsername = signupPayload.username;
                     currentAccountCreatedAt = accountCreatedAt;
                     await db.collection(PUBLIC_PROFILE_COLLECTION).doc(credential.user.uid).set({
                         ...buildPublicProfilePayload(signupPayload),
@@ -6398,6 +6480,81 @@
                 .catch(error => {
                     setAuthErrorMessage(translateExtendedAuthError(error, "reset"));
                 });
+        };
+    }
+
+    function patchProfileSaveFlow() {
+        saveProfileChanges = async function() {
+            if (!currentUser) return;
+
+            const saveButton = document.getElementById("profile-save-btn");
+            const originalLabel = saveButton?.innerHTML || "";
+            const newUsername = sanitizeUsernameInput(document.getElementById("profile-username-input")?.value || "");
+            const newAbout = document.getElementById("profile-about-input")?.value.trim() || "";
+            const newTrack = document.getElementById("profile-track-select")?.value || "";
+            const newSubjects = newTrack === "free" ? [] : normalizeSelectedSubjects(newTrack, profileDraftSubjects);
+
+            if (newUsername.length < 2) return showAlert("Kullanıcı adı en az 2 karakter olmalı.");
+            if (!newTrack) return showAlert("Önce alanını seç.");
+            if (newTrack !== "free" && !newSubjects.length) return showAlert("En az bir ders seç.");
+
+            if (saveButton) {
+                saveButton.disabled = true;
+                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor';
+            }
+
+            try {
+                await ensureUsernameAvailable(newUsername, { excludeUid: currentUser.uid });
+
+                currentUsername = newUsername;
+                currentProfileAbout = newAbout;
+                studyTrack = newTrack;
+                selectedSubjects = newSubjects;
+
+                if (currentUserLiveDoc && typeof currentUserLiveDoc === "object") {
+                    currentUserLiveDoc = {
+                        ...currentUserLiveDoc,
+                        username: newUsername,
+                        normalizedUsername: normalizeUsernameLookup(newUsername),
+                        name: newUsername,
+                        about: newAbout,
+                        studyTrack: newTrack,
+                        selectedSubjects: newSubjects
+                    };
+                }
+
+                refreshCurrentTotals();
+                await saveData({ authorized: true, immediate: true });
+
+                const latestPayload = typeof buildUserPayload === "function" ? buildUserPayload() : null;
+                if (typeof syncPublicProfileSnapshotSafely === "function") {
+                    syncPublicProfileSnapshotSafely(latestPayload);
+                }
+                if (typeof refreshLeaderboardOptimistically === "function") {
+                    refreshLeaderboardOptimistically(null);
+                }
+                if (typeof renderLiveLeaderboardFromDocs === "function") {
+                    renderLiveLeaderboardFromDocs();
+                }
+
+                updateProfileButton();
+                renderSchedule();
+                closeProfileModal();
+                updateSubjectReminder();
+                showAlert("Profil güncellendi.", "success");
+            } catch (error) {
+                console.error("Profil kaydi basarisiz:", error);
+                if (String(error?.code || error?.message || "") === "username-already-in-use") {
+                    showAlert("Bu kullanıcı adı zaten kullanılıyor. Başka bir kullanıcı adı seç.");
+                } else {
+                    showAlert("Profil güncellenemedi. Lütfen tekrar dene.");
+                }
+            } finally {
+                if (saveButton) {
+                    saveButton.disabled = false;
+                    saveButton.innerHTML = originalLabel || '<i class="fas fa-save"></i> Profili Kaydet';
+                }
+            }
         };
     }
 
@@ -7310,6 +7467,8 @@
                 };
             return {
                 ...basePayload,
+                username: currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
+                normalizedUsername: normalizeUsernameLookup(currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici"),
                 name: currentUsername || basePayload.name || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
                 email: resolvedEmail,
                 ...adminProfile,
@@ -7353,6 +7512,8 @@
                 });
                 return {
                     ...seed,
+                    username: currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
+                    normalizedUsername: normalizeUsernameLookup(currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici"),
                     name: currentUsername || seed.name || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
@@ -7643,7 +7804,23 @@
         const existing = typeof translateAuthError === "function" ? translateAuthError(error, mode) : "";
         if (existing && existing !== "Bir hata olustu. Lutfen tekrar dene.") return existing;
 
+        const rawCode = String(error?.code || "").toLowerCase();
         const rawMessage = String(error?.message || "").toUpperCase();
+        if (rawCode === "username-already-in-use" || rawMessage.includes("USERNAME-ALREADY-IN-USE")) {
+            return "Bu kullanıcı adı zaten kullanılıyor. Başka bir kullanıcı adı seç.";
+        }
+        if (rawCode === "username-too-short") {
+            return "Kullanıcı adı en az 2 karakter olmalı.";
+        }
+        if (rawCode === "auth/email-already-in-use") {
+            return "Bu e-posta zaten kayıtlı. Giriş yapabilir veya şifre sıfırlayabilirsin.";
+        }
+        if (rawCode === "auth/invalid-email") {
+            return "Geçerli bir e-posta adresi yaz.";
+        }
+        if (rawCode === "auth/weak-password") {
+            return "Şifre çok zayıf. En az 6 karakter kullan.";
+        }
         if (rawMessage.includes("CONFIGURATION_NOT_FOUND") || rawMessage.includes("PASSWORD_LOGIN_DISABLED") || rawMessage.includes("OPERATION_NOT_ALLOWED")) {
             return "Firebase Authentication panelinde Email/Password girisini etkinlestir.";
         }
@@ -7677,6 +7854,7 @@
         patchPersistenceLayer();
         patchUserWritePipeline();
         patchAuthFlows();
+        patchProfileSaveFlow();
         patchQuestionTracking();
         patchTaskInteractions();
         patchNotesFolders();
