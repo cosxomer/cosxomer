@@ -540,20 +540,30 @@
 
         const token = String(adjustment.token || adjustment.requestedAt || "").trim();
         const dateKey = String(adjustment.dateKey || "").trim();
+        const weekKey = String(adjustment.weekKey || "").trim();
+        const scope = ["today", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
         const requestedAtMs = Math.max(
             parseInteger(adjustment.requestedAtMs, 0),
             parseInteger(adjustment.timestamp, 0),
             adjustment.requestedAt ? new Date(adjustment.requestedAt).getTime() : 0
         );
         const targetSeconds = Math.max(0, parseInteger(adjustment.targetSeconds, 0));
+        const appliedDaySeconds = Math.max(
+            0,
+            parseInteger(adjustment.appliedDaySeconds, 0),
+            targetSeconds
+        );
 
         if (!token || !dateKey || !requestedAtMs) return null;
 
         return {
             token,
             dateKey,
+            weekKey,
+            scope,
             requestedAtMs,
-            targetSeconds
+            targetSeconds,
+            appliedDaySeconds
         };
     }
 
@@ -3411,13 +3421,38 @@
 
     function mergeFreshDailySnapshotIntoLocalSchedule(userData = {}, referenceDate = new Date()) {
         const remoteSchedule = sanitizeScheduleData(userData?.schedule || {});
-        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
+        const { weekKey, dayIdx, dateKey } = getCurrentDayMeta(referenceDate);
         const localDayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
         const remoteDayData = ensureDayObject(remoteSchedule?.[weekKey]?.[dayIdx] || {});
         const explicitDailySeconds = getFreshDailyStudySeconds(userData, remoteSchedule, referenceDate);
         const adminTimeAdjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
         const shouldForceReplaceFromAdmin = !!adminTimeAdjustment
-            && adminTimeAdjustment.dateKey === getCurrentDayMeta(referenceDate).dateKey;
+            && adminTimeAdjustment.dateKey === dateKey;
+
+        if (shouldForceReplaceFromAdmin && adminTimeAdjustment.scope === "total") {
+            scheduleData = sanitizeScheduleData(remoteSchedule);
+            if (typeof refreshCurrentTotals === "function") {
+                refreshCurrentTotals();
+            }
+            return true;
+        }
+
+        if (
+            shouldForceReplaceFromAdmin
+            && adminTimeAdjustment.scope === "week"
+            && (!adminTimeAdjustment.weekKey || adminTimeAdjustment.weekKey === weekKey)
+        ) {
+            if (!scheduleData || typeof scheduleData !== "object") {
+                scheduleData = {};
+            }
+            scheduleData = sanitizeScheduleData(scheduleData);
+            scheduleData[weekKey] = sanitizeScheduleData(remoteSchedule)?.[weekKey] || {};
+            if (typeof refreshCurrentTotals === "function") {
+                refreshCurrentTotals();
+            }
+            return true;
+        }
+
         const currentStoredSeconds = Math.max(
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
@@ -3427,6 +3462,7 @@
                 0,
                 parseInteger(remoteDayData.workedSeconds, 0),
                 explicitDailySeconds,
+                adminTimeAdjustment.appliedDaySeconds,
                 adminTimeAdjustment.targetSeconds
             )
             : Math.max(currentStoredSeconds, explicitDailySeconds);

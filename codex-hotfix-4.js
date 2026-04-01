@@ -320,6 +320,156 @@
         }
     }
 
+    let adminTimeAdjustmentUserChoices = [];
+    let adminTimeAdjustmentUserChoicesPromise = null;
+
+    function escapeAdminTimeAdjustmentHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function normalizeAdminTimeAdjustmentScope(scope) {
+        return ['today', 'week', 'total'].includes(scope) ? scope : 'today';
+    }
+
+    function getAdminTimeAdjustmentScopeLabel(scope) {
+        switch (normalizeAdminTimeAdjustmentScope(scope)) {
+            case 'week':
+                return 'Haftalik';
+            case 'total':
+                return 'Toplam';
+            default:
+                return 'Bugun';
+        }
+    }
+
+    function formatAdminAdjustmentDuration(seconds = 0) {
+        const safeSeconds = Math.max(0, parseAdminTimeValue(seconds, 0));
+        const hours = Math.floor(safeSeconds / 3600);
+        const minutes = Math.floor((safeSeconds % 3600) / 60);
+        return `${hours}s ${minutes}dk`;
+    }
+
+    function cloneAdminScheduleData(existingSchedule = {}) {
+        const nextSchedule = {};
+
+        Object.entries(existingSchedule || {}).forEach(([weekKey, weekData]) => {
+            nextSchedule[weekKey] = {};
+            Object.entries(weekData || {}).forEach(([dayIdx, rawDay]) => {
+                nextSchedule[weekKey][String(dayIdx)] = rawDay && typeof rawDay === 'object'
+                    ? JSON.parse(JSON.stringify(rawDay))
+                    : {};
+            });
+        });
+
+        return nextSchedule;
+    }
+
+    function ensureAdminScheduleDay(schedule = {}, weekKey = '', dayIdx = 0) {
+        if (!schedule[weekKey] || typeof schedule[weekKey] !== 'object') {
+            schedule[weekKey] = {};
+        }
+
+        const dayKey = String(dayIdx);
+        const currentDay = schedule[weekKey][dayKey] && typeof schedule[weekKey][dayKey] === 'object'
+            ? schedule[weekKey][dayKey]
+            : {};
+
+        schedule[weekKey][dayKey] = {
+            ...currentDay,
+            workedSeconds: Math.max(0, parseAdminTimeValue(currentDay.workedSeconds, 0))
+        };
+
+        return schedule[weekKey][dayKey];
+    }
+
+    function getAdminScheduleDayWorkedSeconds(schedule = {}, weekKey = '', dayIdx = 0) {
+        return Math.max(0, parseAdminTimeValue(schedule?.[weekKey]?.[String(dayIdx)]?.workedSeconds, 0));
+    }
+
+    function getAdminScheduleWeekWorkedSeconds(schedule = {}, weekKey = '') {
+        return Object.values(schedule?.[weekKey] || {}).reduce((total, rawDay) => {
+            return total + Math.max(0, parseAdminTimeValue(rawDay?.workedSeconds, 0));
+        }, 0);
+    }
+
+    function collectAdminScheduleEntries(schedule = {}, predicate = null) {
+        const entries = [];
+
+        Object.entries(schedule || {}).forEach(([weekKey, weekData]) => {
+            Object.entries(weekData || {}).forEach(([dayIdx, rawDay]) => {
+                const entry = {
+                    weekKey,
+                    dayIdx: String(dayIdx),
+                    workedSeconds: Math.max(0, parseAdminTimeValue(rawDay?.workedSeconds, 0))
+                };
+
+                if (!predicate || predicate(entry)) {
+                    entries.push(entry);
+                }
+            });
+        });
+
+        return entries;
+    }
+
+    function redistributeWorkedSecondsAcrossEntries(schedule = {}, entries = [], targetSeconds = 0, fallbackMeta = {}) {
+        const safeTarget = Math.max(0, parseAdminTimeValue(targetSeconds, 0));
+        const normalizedEntries = Array.isArray(entries) ? [...entries] : [];
+
+        normalizedEntries.forEach(entry => {
+            ensureAdminScheduleDay(schedule, entry.weekKey, entry.dayIdx).workedSeconds = 0;
+        });
+
+        if (safeTarget === 0) {
+            return;
+        }
+
+        const fallbackWeekKey = String(fallbackMeta.weekKey || '');
+        const fallbackDayIdx = String(fallbackMeta.dayIdx ?? 0);
+        const totalBeforeScale = normalizedEntries.reduce((sum, entry) => sum + Math.max(0, parseAdminTimeValue(entry.workedSeconds, 0)), 0);
+
+        if (!normalizedEntries.length || totalBeforeScale <= 0) {
+            ensureAdminScheduleDay(schedule, fallbackWeekKey, fallbackDayIdx).workedSeconds = safeTarget;
+            return;
+        }
+
+        const scaledEntries = normalizedEntries.map((entry, index) => {
+            const exactValue = (Math.max(0, entry.workedSeconds) / totalBeforeScale) * safeTarget;
+            const baseValue = Math.floor(exactValue);
+            return {
+                ...entry,
+                index,
+                baseValue,
+                fraction: exactValue - baseValue
+            };
+        });
+
+        let remainingSeconds = safeTarget - scaledEntries.reduce((sum, entry) => sum + entry.baseValue, 0);
+
+        scaledEntries.sort((a, b) => {
+            const aIsFallback = a.weekKey === fallbackWeekKey && a.dayIdx === fallbackDayIdx ? 1 : 0;
+            const bIsFallback = b.weekKey === fallbackWeekKey && b.dayIdx === fallbackDayIdx ? 1 : 0;
+            if (b.fraction !== a.fraction) return b.fraction - a.fraction;
+            if (bIsFallback !== aIsFallback) return bIsFallback - aIsFallback;
+            if (b.workedSeconds !== a.workedSeconds) return b.workedSeconds - a.workedSeconds;
+            return a.index - b.index;
+        });
+
+        scaledEntries.forEach(entry => {
+            ensureAdminScheduleDay(schedule, entry.weekKey, entry.dayIdx).workedSeconds = entry.baseValue;
+        });
+
+        for (let index = 0; index < remainingSeconds; index += 1) {
+            const targetEntry = scaledEntries[index % scaledEntries.length];
+            ensureAdminScheduleDay(schedule, targetEntry.weekKey, targetEntry.dayIdx).workedSeconds += 1;
+        }
+    }
+
     function ensureAdminTimerResetControls() {
         const adminSummary = document.getElementById('support-admin-summary');
         if (!adminSummary) return { panel: null, button: null, status: null };
@@ -336,7 +486,15 @@
                 </button>
                 <div id="support-admin-time-adjust-panel" style="display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08);">
                     <div style="font-weight:700;">Tek Kullanici Suresi Ayarla</div>
+                    <div style="font-size:0.88rem; line-height:1.45; opacity:0.78;">Ayni isimli kullanicilari karistirmamak icin asagidaki listeden sec. Sureyi bugun, bu hafta veya toplam bazda ayarlayabilirsin.</div>
                     <input id="support-admin-time-target" type="text" placeholder="Kullanici adi veya e-posta" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
+                    <div id="support-admin-time-selected" style="display:none; padding:10px 12px; border-radius:12px; background:rgba(37,99,235,0.16); border:1px solid rgba(37,99,235,0.3); font-size:0.88rem; line-height:1.45;"></div>
+                    <div id="support-admin-time-user-results" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow:auto; padding-right:2px;"></div>
+                    <select id="support-admin-time-scope" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
+                        <option value="today">Bugun</option>
+                        <option value="week">Haftalik</option>
+                        <option value="total">Toplam</option>
+                    </select>
                     <div style="display:flex; gap:10px;">
                         <input id="support-admin-time-hours" type="number" min="0" max="999" value="1" placeholder="Saat" style="flex:1; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
                         <input id="support-admin-time-minutes" type="number" min="0" max="59" value="0" placeholder="Dakika" style="flex:1; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
@@ -367,6 +525,42 @@
             applyButton.addEventListener('click', applyAdminTimeAdjustmentFromControls);
         }
 
+        const targetInput = document.getElementById('support-admin-time-target');
+        if (targetInput && !targetInput.dataset.bound) {
+            targetInput.dataset.bound = '1';
+            targetInput.addEventListener('focus', () => {
+                renderAdminTimeAdjustmentUserMatches(targetInput.value).catch(error => {
+                    console.error('Admin kullanici listesi acilamadi:', error);
+                });
+            });
+            targetInput.addEventListener('input', () => {
+                clearAdminTimeAdjustmentSelection({ preserveInput: true });
+                renderAdminTimeAdjustmentUserMatches(targetInput.value).catch(error => {
+                    console.error('Admin kullanici aramasi basarisiz:', error);
+                });
+            });
+        }
+
+        const results = document.getElementById('support-admin-time-user-results');
+        if (results && !results.dataset.bound) {
+            results.dataset.bound = '1';
+            results.addEventListener('click', event => {
+                const choiceButton = event.target?.closest?.('[data-admin-time-user-uid]');
+                if (!choiceButton) return;
+
+                const selectedUid = String(choiceButton.dataset.adminTimeUserUid || '');
+                if (!selectedUid) return;
+
+                const selectedUser = adminTimeAdjustmentUserChoices.find(user => user.uid === selectedUid);
+                if (!selectedUser) return;
+
+                setAdminTimeAdjustmentSelection(selectedUser);
+                renderAdminTimeAdjustmentUserMatches(targetInput?.value || '').catch(error => {
+                    console.error('Admin secim listesi yenilenemedi:', error);
+                });
+            });
+        }
+
         return { panel, button, status };
     }
 
@@ -386,6 +580,9 @@
     function getAdminTimeAdjustmentControls() {
         return {
             targetInput: document.getElementById('support-admin-time-target'),
+            selectedMeta: document.getElementById('support-admin-time-selected'),
+            results: document.getElementById('support-admin-time-user-results'),
+            scopeSelect: document.getElementById('support-admin-time-scope'),
             hoursInput: document.getElementById('support-admin-time-hours'),
             minutesInput: document.getElementById('support-admin-time-minutes'),
             applyButton: document.getElementById('support-admin-time-apply-btn')
@@ -409,49 +606,235 @@
         };
     }
 
-    function buildAdjustedWorkedSchedule(existingSchedule = {}, targetSeconds = 0, referenceDate = new Date()) {
-        const nextSchedule = {};
-
-        Object.entries(existingSchedule || {}).forEach(([weekKey, weekData]) => {
-            nextSchedule[weekKey] = {};
-            Object.entries(weekData || {}).forEach(([dayIdx, rawDay]) => {
-                const baseDay = rawDay && typeof rawDay === 'object' ? { ...rawDay } : {};
-                nextSchedule[weekKey][dayIdx] = {
-                    ...baseDay,
-                    workedSeconds: 0
-                };
-            });
-        });
-
-        const currentMeta = getAdminAdjustmentDateMeta(referenceDate);
-        if (!nextSchedule[currentMeta.weekKey]) {
-            nextSchedule[currentMeta.weekKey] = {};
+    async function loadAdminTimeAdjustmentUserChoices(forceRefresh = false) {
+        if (!forceRefresh && adminTimeAdjustmentUserChoices.length) {
+            return adminTimeAdjustmentUserChoices;
         }
 
-        const currentDay = nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] && typeof nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] === 'object'
-            ? nextSchedule[currentMeta.weekKey][currentMeta.dayIdx]
-            : {};
+        if (!forceRefresh && adminTimeAdjustmentUserChoicesPromise) {
+            return adminTimeAdjustmentUserChoicesPromise;
+        }
 
-        nextSchedule[currentMeta.weekKey][currentMeta.dayIdx] = {
-            ...currentDay,
-            workedSeconds: Math.max(0, targetSeconds)
-        };
+        adminTimeAdjustmentUserChoicesPromise = db.collection('users').get()
+            .then(snapshot => {
+                adminTimeAdjustmentUserChoices = snapshot.docs
+                    .map(doc => {
+                        const data = doc.data() || {};
+                        const username = String(data.username || '').trim();
+                        const name = String(data.name || '').trim();
+                        const email = String(data.email || '').trim().toLowerCase();
+                        const emailPrefix = email ? email.split('@')[0] : '';
+                        const primaryLabel = username || name || emailPrefix || email || doc.id;
+                        const searchTokens = [
+                            username,
+                            name,
+                            email,
+                            emailPrefix,
+                            doc.id
+                        ].map(token => normalizeAdminLookupValue(token)).filter(Boolean);
 
-        return nextSchedule;
+                        return {
+                            uid: doc.id,
+                            username,
+                            name,
+                            email,
+                            emailPrefix,
+                            primaryLabel,
+                            preferredInput: email || username || primaryLabel || doc.id,
+                            secondaryLabel: [
+                                name && name !== primaryLabel ? `Ad: ${name}` : '',
+                                email,
+                                `UID: ${doc.id.slice(0, 8)}`
+                            ].filter(Boolean).join(' | '),
+                            searchTokens,
+                            searchText: normalizeAdminLookupValue(searchTokens.join(' ')),
+                            rawData: data
+                        };
+                    })
+                    .sort((a, b) => a.primaryLabel.localeCompare(b.primaryLabel, 'tr'));
+
+                adminTimeAdjustmentUserChoicesPromise = null;
+                return adminTimeAdjustmentUserChoices;
+            })
+            .catch(error => {
+                adminTimeAdjustmentUserChoicesPromise = null;
+                throw error;
+            });
+
+        return adminTimeAdjustmentUserChoicesPromise;
     }
 
-    function buildAdminTimeAdjustmentPatches(uid, userData = {}, targetSeconds = 0, referenceDate = new Date()) {
-        const normalizedSeconds = Math.max(0, targetSeconds);
+    function getFilteredAdminTimeAdjustmentUserChoices(userChoices = [], filterValue = '') {
+        const normalizedFilter = normalizeAdminLookupValue(filterValue);
+        if (!normalizedFilter) {
+            return userChoices.slice(0, 12);
+        }
+
+        const exactMatches = [];
+        const partialMatches = [];
+
+        userChoices.forEach(user => {
+            if (user.searchTokens.includes(normalizedFilter)) {
+                exactMatches.push(user);
+                return;
+            }
+
+            if (user.searchText.includes(normalizedFilter)) {
+                partialMatches.push(user);
+            }
+        });
+
+        return [...exactMatches, ...partialMatches].slice(0, 12);
+    }
+
+    function clearAdminTimeAdjustmentSelection(options = {}) {
+        const controls = getAdminTimeAdjustmentControls();
+        const targetInput = controls.targetInput;
+
+        if (targetInput) {
+            delete targetInput.dataset.selectedUid;
+            delete targetInput.dataset.selectedLabel;
+            if (!options.preserveInput) {
+                targetInput.value = '';
+            }
+        }
+
+        if (controls.selectedMeta) {
+            controls.selectedMeta.style.display = 'none';
+            controls.selectedMeta.innerHTML = '';
+        }
+    }
+
+    function setAdminTimeAdjustmentSelection(userChoice = null) {
+        const controls = getAdminTimeAdjustmentControls();
+        if (!controls.targetInput || !userChoice) return;
+
+        controls.targetInput.value = userChoice.preferredInput;
+        controls.targetInput.dataset.selectedUid = userChoice.uid;
+        controls.targetInput.dataset.selectedLabel = userChoice.preferredInput;
+
+        if (controls.selectedMeta) {
+            controls.selectedMeta.style.display = 'block';
+            controls.selectedMeta.innerHTML = `
+                <div style="font-weight:700; margin-bottom:4px;">Secilen kullanici: ${escapeAdminTimeAdjustmentHtml(userChoice.primaryLabel)}</div>
+                <div style="opacity:0.82;">${escapeAdminTimeAdjustmentHtml(userChoice.secondaryLabel || userChoice.uid)}</div>
+            `;
+        }
+    }
+
+    async function renderAdminTimeAdjustmentUserMatches(filterValue = '') {
+        const controls = getAdminTimeAdjustmentControls();
+        if (!controls.results) return [];
+
+        controls.results.innerHTML = `<div style="padding:10px 12px; border-radius:12px; background:rgba(15,23,42,0.38); font-size:0.88rem; opacity:0.78;">Kullanicilar yukleniyor...</div>`;
+
+        try {
+            const userChoices = await loadAdminTimeAdjustmentUserChoices();
+            const matches = getFilteredAdminTimeAdjustmentUserChoices(userChoices, filterValue);
+            const selectedUid = String(controls.targetInput?.dataset.selectedUid || '');
+
+            if (!matches.length) {
+                controls.results.innerHTML = `<div style="padding:10px 12px; border-radius:12px; background:rgba(15,23,42,0.38); font-size:0.88rem; opacity:0.78;">Bu aramayla eslesen kullanici bulunamadi.</div>`;
+                return [];
+            }
+
+            controls.results.innerHTML = matches.map(user => {
+                const isSelected = selectedUid === user.uid;
+                return `
+                    <button type="button" data-admin-time-user-uid="${escapeAdminTimeAdjustmentHtml(user.uid)}" style="display:flex; flex-direction:column; align-items:flex-start; gap:4px; width:100%; padding:11px 12px; border-radius:12px; border:1px solid ${isSelected ? 'rgba(59,130,246,0.65)' : 'rgba(255,255,255,0.08)'}; background:${isSelected ? 'rgba(37,99,235,0.16)' : 'rgba(15,23,42,0.44)'}; color:var(--header-text); cursor:pointer; text-align:left;">
+                        <span style="font-weight:700;">${escapeAdminTimeAdjustmentHtml(user.primaryLabel)}</span>
+                        <span style="font-size:0.82rem; opacity:0.78;">${escapeAdminTimeAdjustmentHtml(user.secondaryLabel || user.uid)}</span>
+                    </button>
+                `;
+            }).join('');
+
+            return matches;
+        } catch (error) {
+            controls.results.innerHTML = `<div style="padding:10px 12px; border-radius:12px; background:rgba(127,29,29,0.28); border:1px solid rgba(248,113,113,0.28); font-size:0.88rem;">Kullanici listesi yuklenemedi. Lutfen tekrar dene.</div>`;
+            throw error;
+        }
+    }
+
+    async function resolveAdminTimeAdjustmentUser(targetValue, selectedUid = '') {
+        const normalizedTarget = String(targetValue || '').trim();
+        const userChoices = await loadAdminTimeAdjustmentUserChoices();
+
+        if (selectedUid) {
+            const selectedChoice = userChoices.find(user => user.uid === selectedUid);
+            if (selectedChoice) {
+                const selectedDoc = await db.collection('users').doc(selectedChoice.uid).get();
+                if (selectedDoc.exists) {
+                    return { userDoc: selectedDoc, userChoice: selectedChoice };
+                }
+            }
+        }
+
+        if (!normalizedTarget) {
+            throw new Error('target-empty');
+        }
+
+        const normalizedLookup = normalizeAdminLookupValue(normalizedTarget);
+        const exactMatches = userChoices.filter(user => user.searchTokens.includes(normalizedLookup));
+
+        if (exactMatches.length === 1) {
+            const exactDoc = await db.collection('users').doc(exactMatches[0].uid).get();
+            if (exactDoc.exists) {
+                return { userDoc: exactDoc, userChoice: exactMatches[0] };
+            }
+        }
+        if (exactMatches.length > 1) {
+            throw new Error('target-ambiguous');
+        }
+
+        const partialMatches = userChoices.filter(user => user.searchText.includes(normalizedLookup));
+        if (partialMatches.length === 1) {
+            const partialDoc = await db.collection('users').doc(partialMatches[0].uid).get();
+            if (partialDoc.exists) {
+                return { userDoc: partialDoc, userChoice: partialMatches[0] };
+            }
+        }
+        if (partialMatches.length > 1) {
+            throw new Error('target-ambiguous');
+        }
+
+        throw new Error('user-not-found');
+    }
+
+    function buildAdjustedWorkedSchedule(existingSchedule = {}, targetSeconds = 0, scope = 'today', referenceDate = new Date()) {
         const currentMeta = getAdminAdjustmentDateMeta(referenceDate);
+        const normalizedScope = normalizeAdminTimeAdjustmentScope(scope);
+        const nextSchedule = cloneAdminScheduleData(existingSchedule || {});
+        const safeTargetSeconds = Math.max(0, parseAdminTimeValue(targetSeconds, 0));
+
+        if (normalizedScope === 'today') {
+            ensureAdminScheduleDay(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx).workedSeconds = safeTargetSeconds;
+        } else if (normalizedScope === 'week') {
+            const weekEntries = collectAdminScheduleEntries(nextSchedule, entry => entry.weekKey === currentMeta.weekKey);
+            redistributeWorkedSecondsAcrossEntries(nextSchedule, weekEntries, safeTargetSeconds, currentMeta);
+        } else {
+            const allEntries = collectAdminScheduleEntries(nextSchedule);
+            redistributeWorkedSecondsAcrossEntries(nextSchedule, allEntries, safeTargetSeconds, currentMeta);
+        }
+
+        return {
+            nextSchedule,
+            currentMeta,
+            normalizedScope,
+            appliedTodaySeconds: getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx),
+            appliedWeekSeconds: getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey),
+            appliedTotalSeconds: getWorkedSecondsTotal(nextSchedule)
+        };
+    }
+
+    function buildAdminTimeAdjustmentPatches(uid, userData = {}, targetSeconds = 0, scope = 'today', referenceDate = new Date()) {
+        const normalizedSeconds = Math.max(0, targetSeconds);
         const adjustmentRequestedAt = new Date().toISOString();
         const adjustmentRequestedAtMs = Date.now();
-        const nextSchedule = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, referenceDate);
-        const totalWorkedSeconds = typeof calculateTotalWorkedSecondsFromSchedule === 'function'
-            ? calculateTotalWorkedSecondsFromSchedule(nextSchedule)
-            : normalizedSeconds;
-        const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === 'function'
-            ? getCurrentWeekTotalsFromSchedule(nextSchedule).seconds
-            : normalizedSeconds;
+        const scheduleUpdate = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, scope, referenceDate);
+        const nextSchedule = scheduleUpdate.nextSchedule;
+        const currentMeta = scheduleUpdate.currentMeta;
+        const totalWorkedSeconds = scheduleUpdate.appliedTotalSeconds;
+        const weeklyStudyTime = scheduleUpdate.appliedWeekSeconds;
         const totalQuestionsAllTime = typeof calculateTotalQuestionsFromSchedule === 'function'
             ? calculateTotalQuestionsFromSchedule(nextSchedule)
             : Math.max(0, parseAdminTimeValue(userData.totalQuestionsAllTime, 0));
@@ -483,9 +866,9 @@
             totalStudyTime: totalWorkedSeconds,
             totalTime: Math.max(0, totalWorkedSeconds) * 1000,
             totalQuestionsAllTime,
-            dailyStudyTime: normalizedSeconds,
-            todayStudyTime: normalizedSeconds,
-            todayWorkedSeconds: normalizedSeconds,
+            dailyStudyTime: scheduleUpdate.appliedTodaySeconds,
+            todayStudyTime: scheduleUpdate.appliedTodaySeconds,
+            todayWorkedSeconds: scheduleUpdate.appliedTodaySeconds,
             dailyStudyDateKey: currentMeta.dateKey,
             todayDateKey: currentMeta.dateKey,
             weeklyStudyTime,
@@ -498,10 +881,13 @@
             lastTimerSyncAt: nowMs,
             adminTimeAdjustment: {
                 token: `adjust_${adjustmentRequestedAtMs}`,
+                scope: scheduleUpdate.normalizedScope,
                 dateKey: currentMeta.dateKey,
+                weekKey: currentMeta.weekKey,
                 requestedAt: adjustmentRequestedAt,
                 requestedAtMs: adjustmentRequestedAtMs,
-                targetSeconds: normalizedSeconds
+                targetSeconds: normalizedSeconds,
+                appliedDaySeconds: scheduleUpdate.appliedTodaySeconds
             },
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
@@ -537,61 +923,18 @@
             .normalize('NFKC');
     }
 
-    async function findAdminTimeAdjustmentUser(targetValue) {
-        const normalizedTarget = String(targetValue || '').trim();
-        if (!normalizedTarget) {
-            throw new Error('target-empty');
-        }
-
-        const exactUsernameSnapshot = await db.collection('users').where('username', '==', normalizedTarget).limit(2).get();
-        if (!exactUsernameSnapshot.empty) {
-            if (exactUsernameSnapshot.size > 1) {
-                throw new Error('target-ambiguous');
-            }
-            return exactUsernameSnapshot.docs[0];
-        }
-
-        const exactEmailSnapshot = await db.collection('users').where('email', '==', normalizedTarget.toLowerCase()).limit(2).get();
-        if (!exactEmailSnapshot.empty) {
-            if (exactEmailSnapshot.size > 1) {
-                throw new Error('target-ambiguous');
-            }
-            return exactEmailSnapshot.docs[0];
-        }
-
-        const normalizedLookup = normalizeAdminLookupValue(normalizedTarget);
-        const usersSnapshot = await db.collection('users').get();
-        const matchingDocs = usersSnapshot.docs.filter(doc => {
-            const data = doc.data() || {};
-            const candidates = [
-                data.username,
-                data.name,
-                data.email,
-                typeof data.email === 'string' ? data.email.split('@')[0] : ''
-            ];
-
-            return candidates.some(candidate => normalizeAdminLookupValue(candidate) === normalizedLookup);
-        });
-
-        if (matchingDocs.length === 1) {
-            return matchingDocs[0];
-        }
-        if (matchingDocs.length > 1) {
-            throw new Error('target-ambiguous');
-        }
-
-        throw new Error('user-not-found');
-    }
-
-    async function applyAdminTimeAdjustmentByTarget(targetValue, targetSeconds) {
+    async function applyAdminTimeAdjustmentByTarget(targetValue, targetSeconds, scope = 'today', selectedUid = '') {
         if (!currentUser || !isCurrentAdmin()) {
             showAlert("Bu islem sadece admin hesabi icin aciktir.");
             return false;
         }
 
         const normalizedTarget = String(targetValue || '').trim();
-        if (!normalizedTarget) {
-            setAdminTimerResetStatus("Lutfen kullanici adi veya e-posta gir.", true);
+        const normalizedScope = normalizeAdminTimeAdjustmentScope(scope);
+        const scopeLabel = getAdminTimeAdjustmentScopeLabel(normalizedScope);
+
+        if (!normalizedTarget && !selectedUid) {
+            setAdminTimerResetStatus("Lutfen listeden bir kullanici sec veya arama yaz.", true);
             showAlert("Kullanici hedefi gerekli.");
             return false;
         }
@@ -608,12 +951,12 @@
             applyButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Sure guncelleniyor...</span>';
         }
 
-        setAdminTimerResetStatus(`${normalizedTarget} icin sure guncelleniyor...`);
+        setAdminTimerResetStatus(`${scopeLabel} suresi guncelleniyor...`);
 
         try {
-            const userDoc = await findAdminTimeAdjustmentUser(normalizedTarget);
+            const { userDoc, userChoice } = await resolveAdminTimeAdjustmentUser(normalizedTarget, selectedUid);
             const userData = userDoc.data() || {};
-            const patches = buildAdminTimeAdjustmentPatches(userDoc.id, userData, safeSeconds);
+            const patches = buildAdminTimeAdjustmentPatches(userDoc.id, userData, safeSeconds, normalizedScope);
 
             if (currentUser.uid === userDoc.id && typeof pauseRealtimeTimer === 'function') {
                 try {
@@ -654,23 +997,21 @@
                 if (typeof renderLiveLeaderboardFromDocs === 'function') renderLiveLeaderboardFromDocs();
             }
 
-            const resolvedLabel = String(userData.username || userData.email || normalizedTarget);
-            const hourValue = Math.floor(safeSeconds / 3600);
-            const minuteValue = Math.floor((safeSeconds % 3600) / 60);
-            setAdminTimerResetStatus(`${resolvedLabel} suresi ${hourValue}s ${minuteValue}dk olarak guncellendi.`);
-            showAlert(`${resolvedLabel} suresi guncellendi.`, 'success');
+            const resolvedLabel = String(userChoice?.primaryLabel || userData.username || userData.email || normalizedTarget || userDoc.id);
+            setAdminTimerResetStatus(`${resolvedLabel} icin ${scopeLabel.toLocaleLowerCase('tr-TR')} sure ${formatAdminAdjustmentDuration(safeSeconds)} olarak guncellendi.`);
+            showAlert(`${resolvedLabel} ${scopeLabel.toLocaleLowerCase('tr-TR')} suresi guncellendi.`, 'success');
             return true;
         } catch (error) {
             console.error('Admin sure duzeltme basarisiz:', error);
             const errorMessage = String(error?.message || '');
             if (errorMessage === 'user-not-found') {
-                setAdminTimerResetStatus("Bu kullanici adi veya e-posta bulunamadi.", true);
+                setAdminTimerResetStatus("Bu kullanici bulunamadi. Lutfen listeden sec.", true);
                 showAlert("Kullanici bulunamadi.");
             } else if (errorMessage === 'target-ambiguous') {
-                setAdminTimerResetStatus("Bu isimde birden fazla kullanici bulundu. E-posta ile dene.", true);
+                setAdminTimerResetStatus("Birden fazla eslesme bulundu. Lutfen listeden tek bir kullanici sec.", true);
                 showAlert("Birden fazla kullanici bulundu.");
             } else if (errorMessage === 'target-empty') {
-                setAdminTimerResetStatus("Lutfen kullanici adi veya e-posta gir.", true);
+                setAdminTimerResetStatus("Lutfen listeden bir kullanici sec veya arama yaz.", true);
                 showAlert("Kullanici hedefi gerekli.");
             } else {
                 setAdminTimerResetStatus("Sure duzeltilirken bir hata olustu. Lutfen tekrar dene.", true);
@@ -690,9 +1031,11 @@
     async function applyAdminTimeAdjustmentFromControls() {
         const controls = getAdminTimeAdjustmentControls();
         const targetValue = controls.targetInput?.value || '';
+        const selectedUid = String(controls.targetInput?.dataset.selectedUid || '');
+        const scope = normalizeAdminTimeAdjustmentScope(controls.scopeSelect?.value || 'today');
         const hours = Math.max(0, parseAdminTimeValue(controls.hoursInput?.value, 0));
         const minutes = Math.max(0, Math.min(59, parseAdminTimeValue(controls.minutesInput?.value, 0)));
-        await applyAdminTimeAdjustmentByTarget(targetValue, (hours * 3600) + (minutes * 60));
+        await applyAdminTimeAdjustmentByTarget(targetValue, (hours * 3600) + (minutes * 60), scope, selectedUid);
     }
 
     async function upsertSupportMessageInUserDoc(message) {
@@ -839,6 +1182,12 @@
         const adminResetControls = ensureAdminTimerResetControls();
         if (adminResetControls.panel) {
             adminResetControls.panel.style.display = isAdmin ? 'flex' : 'none';
+            if (isAdmin) {
+                const targetValue = document.getElementById('support-admin-time-target')?.value || '';
+                renderAdminTimeAdjustmentUserMatches(targetValue).catch(error => {
+                    console.error('Admin kullanici listesi guncellenemedi:', error);
+                });
+            }
         }
 
         updateSupportButton();
