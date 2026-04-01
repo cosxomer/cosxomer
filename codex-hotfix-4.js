@@ -443,6 +443,8 @@
     function buildAdminTimeAdjustmentPatches(uid, userData = {}, targetSeconds = 0, referenceDate = new Date()) {
         const normalizedSeconds = Math.max(0, targetSeconds);
         const currentMeta = getAdminAdjustmentDateMeta(referenceDate);
+        const adjustmentRequestedAt = new Date().toISOString();
+        const adjustmentRequestedAtMs = Date.now();
         const nextSchedule = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, referenceDate);
         const totalWorkedSeconds = typeof calculateTotalWorkedSecondsFromSchedule === 'function'
             ? calculateTotalWorkedSecondsFromSchedule(nextSchedule)
@@ -494,6 +496,13 @@
             isRunning: false,
             lastSyncTime: nowMs,
             lastTimerSyncAt: nowMs,
+            adminTimeAdjustment: {
+                token: `adjust_${adjustmentRequestedAtMs}`,
+                dateKey: currentMeta.dateKey,
+                requestedAt: adjustmentRequestedAt,
+                requestedAtMs: adjustmentRequestedAtMs,
+                targetSeconds: normalizedSeconds
+            },
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
             dailyQuestions,

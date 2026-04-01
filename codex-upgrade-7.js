@@ -535,6 +535,28 @@
         };
     }
 
+    function normalizeAdminTimeAdjustment(adjustment = null) {
+        if (!adjustment || typeof adjustment !== "object") return null;
+
+        const token = String(adjustment.token || adjustment.requestedAt || "").trim();
+        const dateKey = String(adjustment.dateKey || "").trim();
+        const requestedAtMs = Math.max(
+            parseInteger(adjustment.requestedAtMs, 0),
+            parseInteger(adjustment.timestamp, 0),
+            adjustment.requestedAt ? new Date(adjustment.requestedAt).getTime() : 0
+        );
+        const targetSeconds = Math.max(0, parseInteger(adjustment.targetSeconds, 0));
+
+        if (!token || !dateKey || !requestedAtMs) return null;
+
+        return {
+            token,
+            dateKey,
+            requestedAtMs,
+            targetSeconds
+        };
+    }
+
     function getTrackedSubjectIds(dayData = null) {
         const autoSubjects = typeof normalizeSelectedSubjects === "function"
             ? normalizeSelectedSubjects(studyTrack || "", selectedSubjects || [])
@@ -3393,13 +3415,23 @@
         const localDayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
         const remoteDayData = ensureDayObject(remoteSchedule?.[weekKey]?.[dayIdx] || {});
         const explicitDailySeconds = getFreshDailyStudySeconds(userData, remoteSchedule, referenceDate);
+        const adminTimeAdjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
+        const shouldForceReplaceFromAdmin = !!adminTimeAdjustment
+            && adminTimeAdjustment.dateKey === getCurrentDayMeta(referenceDate).dateKey;
         const currentStoredSeconds = Math.max(
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
         );
-        const nextWorkedSeconds = Math.max(currentStoredSeconds, explicitDailySeconds);
+        const nextWorkedSeconds = shouldForceReplaceFromAdmin
+            ? Math.max(
+                0,
+                parseInteger(remoteDayData.workedSeconds, 0),
+                explicitDailySeconds,
+                adminTimeAdjustment.targetSeconds
+            )
+            : Math.max(currentStoredSeconds, explicitDailySeconds);
 
-        if (nextWorkedSeconds <= currentStoredSeconds) {
+        if (!shouldForceReplaceFromAdmin && nextWorkedSeconds <= currentStoredSeconds) {
             return false;
         }
 
