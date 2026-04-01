@@ -4591,19 +4591,53 @@
         return mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
     }
 
-    async function fetchLeaderboardDocsFromCloud() {
-        let usersDocs = [];
-        let usersError = null;
+    async function fetchLeaderboardDocsFromLiveCollection() {
+        const query = db.collection(LEADERBOARD_COLLECTION);
+        let snapshot = null;
 
+        try {
+            snapshot = await query.get({ source: "server" });
+        } catch (error) {
+            snapshot = await query.get();
+        }
+
+        return normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+    }
+
+    async function fetchLeaderboardDocsFromCloud() {
         if (currentUser?.uid) {
+            let usersDocs = [];
+            let usersError = null;
+            let liveDocs = [];
+            let liveError = null;
+
             try {
                 usersDocs = await fetchLeaderboardDocsFromUsersCollection();
-                if (usersDocs.length) {
-                    return usersDocs;
-                }
             } catch (error) {
                 usersError = error;
             }
+
+            try {
+                liveDocs = await fetchLeaderboardDocsFromLiveCollection();
+            } catch (error) {
+                liveError = error;
+            }
+
+            const mergedDocs = mergeLeaderboardSourceDocs(usersDocs, liveDocs);
+            if (mergedDocs.length) {
+                return mergedDocs;
+            }
+
+            if (usersDocs.length) {
+                return usersDocs;
+            }
+            if (liveDocs.length) {
+                return liveDocs;
+            }
+            if (usersError || liveError) {
+                throw (liveError || usersError);
+            }
+            return [];
         }
 
         const query = db.collection(LEADERBOARD_COLLECTION);
@@ -4624,28 +4658,7 @@
             }
         }
 
-        const shouldTryUsersCollection = !!currentUser?.uid
-            && !usersDocs.length
-            && !usersError
-            && (!!sdkError || sdkDocs.length <= 1);
-        if (shouldTryUsersCollection) {
-            try {
-                const usersCollectionDocs = await fetchLeaderboardDocsFromUsersCollection();
-                if (
-                    usersCollectionDocs.length > sdkDocs.length
-                    || (!!sdkError && usersCollectionDocs.length > 0)
-                ) {
-                    sdkDocs = usersCollectionDocs;
-                    sdkError = null;
-                }
-            } catch (usersCollectionError) {
-                if (!sdkDocs.length) {
-                    throw (sdkError || usersCollectionError);
-                }
-            }
-        }
-
-        const shouldTryRest = !currentUser?.uid && (!!sdkError || sdkDocs.length <= 1);
+        const shouldTryRest = !!sdkError || sdkDocs.length <= 1;
         if (shouldTryRest) {
             try {
                 const restDocs = await fetchLeaderboardDocsViaRest();
@@ -4661,7 +4674,7 @@
         }
 
         if (sdkError && !sdkDocs.length) {
-            throw (usersError || sdkError);
+            throw sdkError;
         }
 
         return sdkDocs;
@@ -4899,15 +4912,33 @@
         if (currentUser?.uid) {
             leaderboardProfileSourceDocs = [];
             leaderboardLiveSourceDocs = [];
-
-            const unsubscribeUsers = db.collection("users").onSnapshot(snapshot => {
-                leaderboardProfileSourceDocs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
-                applyLeaderboardCloudDocs(leaderboardProfileSourceDocs);
+            const reapplyMergedDocs = () => {
+                applyLeaderboardCloudDocs(mergeLeaderboardSourceDocs(
+                    leaderboardProfileSourceDocs,
+                    leaderboardLiveSourceDocs
+                ));
                 renderLiveLeaderboardFromDocs();
-            }, handleRealtimeError);
+            };
+
+            const handleUsersSnapshot = snapshot => {
+                leaderboardProfileSourceDocs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
+                reapplyMergedDocs();
+            };
+
+            const handleLiveSnapshot = snapshot => {
+                leaderboardLiveSourceDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    data: doc.data() || {}
+                })));
+                reapplyMergedDocs();
+            };
+
+            const unsubscribeUsers = db.collection("users").onSnapshot(handleUsersSnapshot, handleRealtimeError);
+            const unsubscribeLive = db.collection(LEADERBOARD_COLLECTION).onSnapshot(handleLiveSnapshot, handleRealtimeError);
 
             leaderboardRealtimeUnsubscribe = () => {
                 unsubscribeUsers();
+                unsubscribeLive();
                 leaderboardProfileSourceDocs = [];
                 leaderboardLiveSourceDocs = [];
             };
