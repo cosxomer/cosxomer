@@ -530,26 +530,54 @@
         };
     }
 
+    function normalizeAdminLookupValue(value) {
+        return String(value || '')
+            .trim()
+            .toLocaleLowerCase('tr-TR')
+            .normalize('NFKC');
+    }
+
     async function findAdminTimeAdjustmentUser(targetValue) {
         const normalizedTarget = String(targetValue || '').trim();
         if (!normalizedTarget) {
             throw new Error('target-empty');
         }
 
-        const usernameSnapshot = await db.collection('users').where('username', '==', normalizedTarget).limit(2).get();
-        if (!usernameSnapshot.empty) {
-            if (usernameSnapshot.size > 1) {
+        const exactUsernameSnapshot = await db.collection('users').where('username', '==', normalizedTarget).limit(2).get();
+        if (!exactUsernameSnapshot.empty) {
+            if (exactUsernameSnapshot.size > 1) {
                 throw new Error('target-ambiguous');
             }
-            return usernameSnapshot.docs[0];
+            return exactUsernameSnapshot.docs[0];
         }
 
-        const emailSnapshot = await db.collection('users').where('email', '==', normalizedTarget.toLowerCase()).limit(2).get();
-        if (!emailSnapshot.empty) {
-            if (emailSnapshot.size > 1) {
+        const exactEmailSnapshot = await db.collection('users').where('email', '==', normalizedTarget.toLowerCase()).limit(2).get();
+        if (!exactEmailSnapshot.empty) {
+            if (exactEmailSnapshot.size > 1) {
                 throw new Error('target-ambiguous');
             }
-            return emailSnapshot.docs[0];
+            return exactEmailSnapshot.docs[0];
+        }
+
+        const normalizedLookup = normalizeAdminLookupValue(normalizedTarget);
+        const usersSnapshot = await db.collection('users').get();
+        const matchingDocs = usersSnapshot.docs.filter(doc => {
+            const data = doc.data() || {};
+            const candidates = [
+                data.username,
+                data.name,
+                data.email,
+                typeof data.email === 'string' ? data.email.split('@')[0] : ''
+            ];
+
+            return candidates.some(candidate => normalizeAdminLookupValue(candidate) === normalizedLookup);
+        });
+
+        if (matchingDocs.length === 1) {
+            return matchingDocs[0];
+        }
+        if (matchingDocs.length > 1) {
+            throw new Error('target-ambiguous');
         }
 
         throw new Error('user-not-found');
