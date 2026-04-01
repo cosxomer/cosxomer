@@ -37,6 +37,7 @@
     let leaderboardRealtimeDocs = [];
     let leaderboardProfileSourceDocs = [];
     let leaderboardLiveSourceDocs = [];
+    let legacyWorkingPresenceByUserId = new Map();
     let leaderboardLiveInterval = null;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
@@ -3029,6 +3030,15 @@
             ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
             : parseInteger(basePayload.currentWeekSeconds, 0);
         const activeTimer = basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null);
+        const legacyWorkingStartedAt = Math.max(
+            parseInteger(basePayload.legacyWorkingStartedAt, 0),
+            activeTimer
+                ? Math.max(
+                    parseInteger(activeTimer.startedAtMs, 0),
+                    Date.now() - (Math.max(0, parseInteger(basePayload.currentSessionTime, 0)) * 1000)
+                )
+                : 0
+        );
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
@@ -3088,8 +3098,10 @@
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
+            legacyWorkingStartedAt,
             activeTimer,
-            isWorking: isTimerVisibleForLeaderboard(basePayload.activeTimer)
+            isWorking: !!basePayload.isWorking
+                || isTimerVisibleForLeaderboard(basePayload.activeTimer)
                 || isTimerVisibleForLeaderboard(timerState.session),
             lastTimerSyncAt: parseInteger(basePayload.lastTimerSyncAt, Date.now()),
             notes: publicNotes,
@@ -3151,6 +3163,15 @@
             parseInteger(basePayload.currentSessionTime, 0),
             isCurrentUserTarget && isTimerVisibleForLeaderboard(timerState.session) ? getTimerElapsedSeconds(timerState.session) : 0
         );
+        const legacyWorkingStartedAt = Math.max(
+            parseInteger(basePayload.legacyWorkingStartedAt, 0),
+            activeTimer
+                ? Math.max(
+                    parseInteger(activeTimer.startedAtMs, 0),
+                    Date.now() - (Math.max(0, currentSessionTime) * 1000)
+                )
+                : 0
+        );
         const totalWorkedSeconds = Math.max(
             parseInteger(basePayload.totalWorkedSeconds, 0),
             parseInteger(basePayload.totalStudyTime, 0),
@@ -3198,8 +3219,9 @@
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime,
+            legacyWorkingStartedAt,
             activeTimer,
-            isWorking: isTimerVisibleForLeaderboard(activeTimer),
+            isWorking: !!basePayload.isWorking || isTimerVisibleForLeaderboard(activeTimer),
             totalWorkedSeconds,
             totalStudyTime: totalWorkedSeconds,
             daily: questionCounters.dailyQuestions,
@@ -3433,6 +3455,12 @@
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
         const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
+        const legacyWorkingStartedAt = activeSession && activeSession.isRunning
+            ? Math.max(
+                parseInteger(activeSession.startedAtMs, 0),
+                Date.now() - (Math.max(0, getTimerElapsedSeconds(activeSession)) * 1000)
+            )
+            : 0;
         const questionCounters = buildQuestionCounterPayload(scheduleData);
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || "",
@@ -3460,6 +3488,7 @@
             currentSessionTime: options.currentSessionTime === undefined
                 ? (isTimerVisibleForLeaderboard(activeTimerRecord) ? getTimerElapsedSeconds(activeSession) : 0)
                 : options.currentSessionTime,
+            legacyWorkingStartedAt,
             activeTimer: activeTimerRecord,
             isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
             lastTimerSyncAt: Date.now(),
@@ -4055,6 +4084,7 @@
     function getLeaderboardLiveSessionSnapshot(userData = {}, now = Date.now()) {
         const activeTimer = userData?.activeTimer || null;
         const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
+        const legacyWorkingStartedAt = Math.max(0, parseInteger(userData?.legacyWorkingStartedAt, 0));
         const lastSyncAt = getLeaderboardSessionLastSyncAt(userData);
         const activeTimerVisible = isTimerVisibleForLeaderboard(activeTimer, now);
 
@@ -4067,10 +4097,18 @@
         }
 
         if (currentSessionTime <= 0) {
+            const legacyIsFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
+            if (legacyIsFresh && !!userData?.isWorking) {
+                return {
+                    seconds: Math.max(0, Math.floor((now - legacyWorkingStartedAt) / 1000)),
+                    isLive: true,
+                    lastSyncAt: Math.max(lastSyncAt, legacyWorkingStartedAt)
+                };
+            }
             return {
                 seconds: 0,
                 isLive: false,
-                lastSyncAt
+                lastSyncAt: Math.max(lastSyncAt, legacyWorkingStartedAt)
             };
         }
 
@@ -4315,6 +4353,30 @@
             const rawData = doc.data() || {};
             const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
+            const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
+            const rawIsWorking = !!rawData.isWorking;
+            let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
+            const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(doc.id) || null;
+
+            if (rawIsWorking) {
+                if (!legacyWorkingStartedAt && rawCurrentSessionTime > 0 && parseInteger(rawData.lastTimerSyncAt, 0) > 0) {
+                    legacyWorkingStartedAt = Math.max(
+                        0,
+                        parseInteger(rawData.lastTimerSyncAt, 0) - (rawCurrentSessionTime * 1000)
+                    );
+                }
+                if (!legacyWorkingStartedAt && cachedLegacyPresence?.startedAtMs) {
+                    legacyWorkingStartedAt = parseInteger(cachedLegacyPresence.startedAtMs, 0);
+                }
+                if (!legacyWorkingStartedAt) {
+                    legacyWorkingStartedAt = Date.now();
+                }
+                legacyWorkingPresenceByUserId.set(doc.id, { startedAtMs: legacyWorkingStartedAt });
+            } else {
+                legacyWorkingPresenceByUserId.delete(doc.id);
+                legacyWorkingStartedAt = 0;
+            }
+
             const currentWeekSeconds = Math.max(
                 parseInteger(rawData.currentWeekSeconds, 0),
                 parseInteger(rawData.weeklyStudyTime, 0),
@@ -4367,10 +4429,11 @@
                     totalWorkedSeconds,
                     totalStudyTime: Math.max(parseInteger(rawData.totalStudyTime, 0), totalWorkedSeconds),
                     totalQuestionsAllTime,
-                    currentSessionTime: Math.max(0, parseInteger(rawData.currentSessionTime, 0)),
+                    currentSessionTime: rawCurrentSessionTime,
+                    legacyWorkingStartedAt,
                     activeTimer: rawData.activeTimer || null,
-                    isWorking: !!rawData.isWorking || isTimerRecordRunning(rawData.activeTimer),
-                    lastTimerSyncAt: getLeaderboardSourceRecency(rawData)
+                    isWorking: rawIsWorking || isTimerRecordRunning(rawData.activeTimer),
+                    lastTimerSyncAt: Math.max(getLeaderboardSourceRecency(rawData), legacyWorkingStartedAt)
                 }
             };
         }));
@@ -7210,6 +7273,12 @@
             const resolvedEmail = currentUser?.email || basePayload.email || "";
             const questionCounters = buildQuestionCounterPayload(scheduleData);
             const activeTimerRecord = timerState.session ? serializeTimerSession(timerState.session) : null;
+            const legacyWorkingStartedAt = timerState.session?.isRunning
+                ? Math.max(
+                    parseInteger(timerState.session.startedAtMs, 0),
+                    Date.now() - (Math.max(0, getTimerElapsedSeconds(timerState.session)) * 1000)
+                )
+                : 0;
             const titleInfo = buildResolvedTitleInfo({
                 uid: currentUser?.uid || basePayload.uid || "",
                 schedule: scheduleData,
@@ -7245,6 +7314,7 @@
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
+                legacyWorkingStartedAt,
                 activeTimer: activeTimerRecord,
                 isWorking: isTimerRecordRunning(timerState.session),
                 lastTimerSyncAt: Date.now()
@@ -7355,6 +7425,71 @@
         bindAction("#study-seconds", "input", "updateInputs");
 
         modal.dataset.codexTimerControlsBound = "true";
+    }
+
+    function patchLegacyWorkingStatusSync() {
+        const originalUpdateWorkingStatus = typeof updateWorkingStatus === "function" ? updateWorkingStatus : null;
+        if (!originalUpdateWorkingStatus || originalUpdateWorkingStatus.__codexLegacyWorkingPatched) return;
+
+        const wrappedUpdateWorkingStatus = function(status) {
+            if (!currentUser?.uid) {
+                return originalUpdateWorkingStatus.apply(this, arguments);
+            }
+
+            const isWorking = !!status;
+            const now = Date.now();
+            const sessionElapsedSeconds = timerState.session?.isRunning
+                ? Math.max(0, getTimerElapsedSeconds(timerState.session))
+                : 0;
+            const nextLegacyWorkingStartedAt = isWorking
+                ? Math.max(
+                    parseInteger(currentUserLiveDoc?.legacyWorkingStartedAt, 0),
+                    timerState.session?.isRunning
+                        ? Math.max(
+                            parseInteger(timerState.session.startedAtMs, 0),
+                            now - (sessionElapsedSeconds * 1000)
+                        )
+                        : now
+                )
+                : 0;
+            const workingPatch = {
+                isWorking,
+                currentSessionTime: isWorking ? sessionElapsedSeconds : 0,
+                legacyWorkingStartedAt: nextLegacyWorkingStartedAt,
+                lastTimerSyncAt: now,
+                activeTimer: isWorking && timerState.session ? serializeTimerSession(timerState.session) : null
+            };
+
+            currentUserLiveDoc = {
+                ...(currentUserLiveDoc || {}),
+                ...workingPatch
+            };
+
+            if (isWorking) {
+                legacyWorkingPresenceByUserId.set(currentUser.uid, {
+                    startedAtMs: nextLegacyWorkingStartedAt
+                });
+            } else {
+                legacyWorkingPresenceByUserId.delete(currentUser.uid);
+            }
+
+            const cloudPayload = {
+                ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+                ...workingPatch
+            };
+
+            withManualFirestoreWrite(() => db.collection("users").doc(currentUser.uid).set(workingPatch, { merge: true }))
+                .catch(error => {
+                    console.error("Legacy calisma durumu buluta yazilamadi:", error);
+                });
+            syncPublicProfileSnapshotSafely(cloudPayload);
+            syncLeaderboardSnapshotSafely(cloudPayload);
+
+            return undefined;
+        };
+
+        wrappedUpdateWorkingStatus.__codexLegacyWorkingPatched = true;
+        updateWorkingStatus = wrappedUpdateWorkingStatus;
     }
 
     function patchSignOutPreservation() {
@@ -7569,6 +7704,7 @@
         patchTaskInteractions();
         patchNotesFolders();
         patchTimerControls();
+        patchLegacyWorkingStatusSync();
         patchSignOutPreservation();
         publishTimerBridge();
         bindTimerModalControls();
