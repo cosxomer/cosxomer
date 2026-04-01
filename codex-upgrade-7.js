@@ -4245,6 +4245,25 @@
         return normalizeLeaderboardCloudDocs(payload?.documents || []);
     }
 
+    async function fetchLeaderboardDocsFromUsersCollection() {
+        const query = db.collection("users");
+        let snapshot = null;
+
+        try {
+            snapshot = await query.get({ source: "server" });
+        } catch (error) {
+            snapshot = await query.get();
+        }
+
+        return normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({
+            id: doc.id,
+            data: buildLeaderboardDocumentPayload({
+                ...(doc.data() || {}),
+                uid: doc.id
+            })
+        })));
+    }
+
     async function fetchLeaderboardDocsFromCloud() {
         const query = db.collection(LEADERBOARD_COLLECTION);
         let sdkDocs = [];
@@ -4264,7 +4283,25 @@
             }
         }
 
-        const shouldTryRest = !!sdkError || sdkDocs.length <= 1;
+        const shouldTryUsersCollection = !!sdkError || sdkDocs.length <= 1;
+        if (shouldTryUsersCollection) {
+            try {
+                const usersCollectionDocs = await fetchLeaderboardDocsFromUsersCollection();
+                if (
+                    usersCollectionDocs.length > sdkDocs.length
+                    || (!!sdkError && usersCollectionDocs.length > 0)
+                ) {
+                    sdkDocs = usersCollectionDocs;
+                    sdkError = null;
+                }
+            } catch (usersCollectionError) {
+                if (!sdkDocs.length) {
+                    throw (sdkError || usersCollectionError);
+                }
+            }
+        }
+
+        const shouldTryRest = !currentUser?.uid && (!!sdkError || sdkDocs.length <= 1);
         if (shouldTryRest) {
             try {
                 const restDocs = await fetchLeaderboardDocsViaRest();
