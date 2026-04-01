@@ -39,6 +39,7 @@
     let leaderboardLiveSourceDocs = [];
     let legacyWorkingPresenceByUserId = new Map();
     let inferredWorkingPresenceByUserId = new Map();
+    let observedWorkingBadgeByUserId = new Map();
     let leaderboardLiveInterval = null;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
@@ -4265,6 +4266,34 @@
         return nextState;
     }
 
+    function resolveObservedWorkingBadge(userId = "", seconds = 0, isWorking = false, now = Date.now()) {
+        if (!userId) return !!isWorking;
+
+        const currentDayMeta = getCurrentDayMeta(new Date(now));
+        const previousState = observedWorkingBadgeByUserId.get(userId) || null;
+        const sameDay = previousState?.dateKey === currentDayMeta.dateKey;
+        const previousSeconds = sameDay ? parseInteger(previousState?.seconds, 0) : 0;
+        const previousSeenAt = sameDay ? parseInteger(previousState?.seenAtMs, 0) : 0;
+        let observedLiveUntilMs = sameDay ? parseInteger(previousState?.observedLiveUntilMs, 0) : 0;
+
+        if (isWorking) {
+            observedLiveUntilMs = Math.max(observedLiveUntilMs, now + 20000);
+        } else if (sameDay && seconds > previousSeconds && previousSeenAt > 0 && (now - previousSeenAt) <= 5000) {
+            observedLiveUntilMs = now + 20000;
+        } else if (observedLiveUntilMs <= now) {
+            observedLiveUntilMs = 0;
+        }
+
+        observedWorkingBadgeByUserId.set(userId, {
+            dateKey: currentDayMeta.dateKey,
+            seconds: Math.max(0, parseInteger(seconds, 0)),
+            seenAtMs: now,
+            observedLiveUntilMs
+        });
+
+        return !!isWorking || observedLiveUntilMs > now;
+    }
+
     function getTrustedLeaderboardPresenceState(rawData = {}, docId = "", now = Date.now()) {
         const rawCurrentSessionTime = Math.max(0, parseInteger(rawData?.currentSessionTime, 0));
         const activeTimer = rawData?.activeTimer || null;
@@ -4423,7 +4452,8 @@
         const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
             : seconds;
-        const isWorking = currentLeaderboardTab === "daily" && liveSessionSnapshot.isLive;
+        const isWorking = currentLeaderboardTab === "daily"
+            && resolveObservedWorkingBadge(currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID, seconds, liveSessionSnapshot.isLive);
         const hasVisibleStats = seconds > 0 || isWorking;
         const titleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID,
@@ -4922,7 +4952,7 @@
                 const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data);
 
                 const isWorking = currentLeaderboardTab === "daily"
-                    && liveSessionSnapshot.isLive;
+                    && resolveObservedWorkingBadge(doc.id, seconds, liveSessionSnapshot.isLive);
                 const hasVisibleStats = seconds > 0 || isWorking;
 
                 if (!resolvedUsername || !hasVisibleStats) return null;
@@ -5118,6 +5148,7 @@
         leaderboardLiveSourceDocs = [];
         inferredWorkingPresenceByUserId = new Map();
         legacyWorkingPresenceByUserId = new Map();
+        observedWorkingBadgeByUserId = new Map();
         stopLeaderboardCloudPolling();
         if (leaderboardLiveInterval) {
             clearInterval(leaderboardLiveInterval);
