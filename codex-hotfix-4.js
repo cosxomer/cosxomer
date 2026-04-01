@@ -503,6 +503,10 @@
                         <i class="fas fa-sliders-h"></i>
                         <span>Bu Kullaniciya Sureyi Uygula</span>
                     </button>
+                    <button id="support-admin-user-remove-btn" type="button" style="display:inline-flex; align-items:center; justify-content:center; gap:10px; padding:11px 14px; border:none; border-radius:12px; background:linear-gradient(135deg, #b91c1c, #ef4444); color:var(--header-text); font-weight:700; cursor:pointer;">
+                        <i class="fas fa-user-times"></i>
+                        <span>Bu Kullanici Kaydini Kaldir</span>
+                    </button>
                 </div>
                 <div id="support-admin-reset-status" style="font-size:0.92rem; line-height:1.5; opacity:0.82;">
                     Bu islem, diger kullanicilarin sadece bugune ait calisma suresini sifirlar ve acik timerlarini kapatir.
@@ -523,6 +527,12 @@
         if (applyButton && !applyButton.dataset.bound) {
             applyButton.dataset.bound = '1';
             applyButton.addEventListener('click', applyAdminTimeAdjustmentFromControls);
+        }
+
+        const removeButton = document.getElementById('support-admin-user-remove-btn');
+        if (removeButton && !removeButton.dataset.bound) {
+            removeButton.dataset.bound = '1';
+            removeButton.addEventListener('click', removeAdminUserRecordFromControls);
         }
 
         const targetInput = document.getElementById('support-admin-time-target');
@@ -585,7 +595,8 @@
             scopeSelect: document.getElementById('support-admin-time-scope'),
             hoursInput: document.getElementById('support-admin-time-hours'),
             minutesInput: document.getElementById('support-admin-time-minutes'),
-            applyButton: document.getElementById('support-admin-time-apply-btn')
+            applyButton: document.getElementById('support-admin-time-apply-btn'),
+            removeButton: document.getElementById('support-admin-user-remove-btn')
         };
     }
 
@@ -798,6 +809,121 @@
         }
 
         throw new Error('user-not-found');
+    }
+
+    async function deleteAdminDocumentRefs(documentRefs = []) {
+        const uniqueRefs = [];
+        const seenPaths = new Set();
+
+        (documentRefs || []).forEach(ref => {
+            const path = String(ref?.path || '');
+            if (!path || seenPaths.has(path)) return;
+            seenPaths.add(path);
+            uniqueRefs.push(ref);
+        });
+
+        const chunkSize = 350;
+        for (let index = 0; index < uniqueRefs.length; index += chunkSize) {
+            const batch = db.batch();
+            uniqueRefs.slice(index, index + chunkSize).forEach(ref => batch.delete(ref));
+            await batch.commit();
+        }
+    }
+
+    async function collectAdminUserSupportMessageRefs(uid = '') {
+        const normalizedUid = String(uid || '').trim();
+        if (!normalizedUid) return [];
+
+        const refsByPath = new Map();
+        const senderSnapshot = await db.collection(SUPPORT_COLLECTION).where('senderId', '==', normalizedUid).get().catch(() => null);
+        const ownerSnapshot = await db.collection(SUPPORT_COLLECTION).where('ownerDocId', '==', normalizedUid).get().catch(() => null);
+
+        [senderSnapshot, ownerSnapshot].forEach(snapshot => {
+            (snapshot?.docs || []).forEach(doc => {
+                refsByPath.set(doc.ref.path, doc.ref);
+            });
+        });
+
+        return [...refsByPath.values()];
+    }
+
+    async function removeAdminUserRecordByTarget(targetValue, selectedUid = '') {
+        if (!currentUser || !isCurrentAdmin()) {
+            showAlert("Bu islem sadece admin hesabi icin aciktir.");
+            return false;
+        }
+
+        const controls = getAdminTimeAdjustmentControls();
+        const removeButton = controls.removeButton;
+        const originalLabel = removeButton ? removeButton.innerHTML : "";
+
+        if (removeButton) {
+            removeButton.disabled = true;
+            removeButton.style.opacity = '0.72';
+            removeButton.style.cursor = 'wait';
+            removeButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>Kayit kaldiriliyor...</span>';
+        }
+
+        setAdminTimerResetStatus('Kullanici kaydi kaldiriliyor...');
+
+        try {
+            const { userDoc, userChoice } = await resolveAdminTimeAdjustmentUser(targetValue, selectedUid);
+            if (userDoc.id === currentUser.uid) {
+                throw new Error('cannot-remove-self');
+            }
+
+            const supportRefs = await collectAdminUserSupportMessageRefs(userDoc.id);
+            const refsToDelete = [
+                userDoc.ref,
+                db.collection('publicProfiles').doc(userDoc.id),
+                db.collection('leaderboard').doc(userDoc.id),
+                ...supportRefs
+            ];
+
+            await deleteAdminDocumentRefs(refsToDelete);
+
+            adminTimeAdjustmentUserChoices = adminTimeAdjustmentUserChoices.filter(user => user.uid !== userDoc.id);
+            clearAdminTimeAdjustmentSelection();
+            if (controls.results) {
+                await renderAdminTimeAdjustmentUserMatches('');
+            }
+            if (typeof loadSupportMessages === 'function') {
+                loadSupportMessages().catch(error => {
+                    console.error('Destek listesi silme sonrasi yenilenemedi:', error);
+                });
+            }
+            if (typeof refreshLeaderboardOptimistically === 'function') refreshLeaderboardOptimistically(null);
+            if (typeof renderLiveLeaderboardFromDocs === 'function') renderLiveLeaderboardFromDocs();
+
+            const removedLabel = String(userChoice?.primaryLabel || userDoc.data()?.username || userDoc.data()?.email || userDoc.id);
+            setAdminTimerResetStatus(`${removedLabel} kaydi kaldirildi.`);
+            showAlert(`${removedLabel} kaydi kaldirildi.`, 'success');
+            return true;
+        } catch (error) {
+            console.error('Admin kullanici kaldirma basarisiz:', error);
+            const errorMessage = String(error?.message || '');
+            if (errorMessage === 'cannot-remove-self') {
+                setAdminTimerResetStatus('Kendi hesabini bu aracla kaldiramazsin.', true);
+                showAlert('Kendi hesabini kaldiramazsin.');
+            } else if (errorMessage === 'user-not-found') {
+                setAdminTimerResetStatus('Bu kullanici bulunamadi. Lutfen listeden sec.', true);
+                showAlert('Kullanici bulunamadi.');
+            } else if (errorMessage === 'target-ambiguous') {
+                setAdminTimerResetStatus('Birden fazla eslesme bulundu. Lutfen listeden tek bir kullanici sec.', true);
+                showAlert('Birden fazla kullanici bulundu.');
+            } else {
+                setAdminTimerResetStatus('Kullanici kaydi kaldirilirken bir hata olustu. Lutfen tekrar dene.', true);
+                showAlert('Kullanici kaldirilamadi.');
+            }
+            return false;
+        } finally {
+            if (removeButton) {
+                removeButton.disabled = false;
+                removeButton.style.opacity = '1';
+                removeButton.style.cursor = 'pointer';
+                removeButton.innerHTML = originalLabel;
+            }
+        }
     }
 
     function buildAdjustedWorkedSchedule(existingSchedule = {}, targetSeconds = 0, scope = 'today', referenceDate = new Date()) {
@@ -1036,6 +1162,13 @@
         const hours = Math.max(0, parseAdminTimeValue(controls.hoursInput?.value, 0));
         const minutes = Math.max(0, Math.min(59, parseAdminTimeValue(controls.minutesInput?.value, 0)));
         await applyAdminTimeAdjustmentByTarget(targetValue, (hours * 3600) + (minutes * 60), scope, selectedUid);
+    }
+
+    async function removeAdminUserRecordFromControls() {
+        const controls = getAdminTimeAdjustmentControls();
+        const targetValue = controls.targetInput?.value || '';
+        const selectedUid = String(controls.targetInput?.dataset.selectedUid || '');
+        await removeAdminUserRecordByTarget(targetValue, selectedUid);
     }
 
     async function upsertSupportMessageInUserDoc(message) {
