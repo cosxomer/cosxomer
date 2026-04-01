@@ -625,7 +625,6 @@
 
             const batch = db.batch();
             batch.set(userDoc.ref, patches.usersPatch, { merge: true });
-            batch.set(db.collection('publicProfiles').doc(userDoc.id), patches.publicProfilePatch, { merge: true });
             await batch.commit();
 
             if (currentUser.uid === userDoc.id) {
