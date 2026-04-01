@@ -4174,6 +4174,7 @@
             : {};
         const data = buildOptimisticCurrentUserData(baseData);
         const seconds = getLiveLeaderboardSeconds(data);
+        const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data);
         const questionBreakdown = getLeaderboardQuestionBreakdown(data);
         const displayedQuestionCounts = getDisplayedQuestionCounts();
         const dailyQuestions = Math.max(questionBreakdown.dailyQuestions, displayedQuestionCounts.dailyQuestions);
@@ -4182,7 +4183,7 @@
         const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
             : seconds;
-        const isWorking = currentLeaderboardTab === "daily" && isTimerVisibleForLeaderboard(data.activeTimer);
+        const isWorking = currentLeaderboardTab === "daily" && liveSessionSnapshot.isLive;
         const hasVisibleStats = seconds > 0 || isWorking;
         const titleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID,
@@ -4348,6 +4349,50 @@
             .filter(Boolean);
     }
 
+    function normalizeLiveLeaderboardDocData(rawData = {}, docId = "") {
+        const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
+        const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
+        const rawIsWorking = !!rawData.isWorking || isTimerRecordRunning(rawData.activeTimer);
+        const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(docId) || null;
+        const sourceRecency = getLeaderboardSourceRecency(rawData);
+        let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
+
+        if (rawIsWorking) {
+            if (!legacyWorkingStartedAt && rawCurrentSessionTime > 0 && sourceRecency > 0) {
+                legacyWorkingStartedAt = Math.max(0, sourceRecency - (rawCurrentSessionTime * 1000));
+            }
+            if (!legacyWorkingStartedAt && rawData.activeTimer) {
+                legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.activeTimer.startedAtMs, 0));
+            }
+            if (!legacyWorkingStartedAt && cachedLegacyPresence?.startedAtMs) {
+                legacyWorkingStartedAt = parseInteger(cachedLegacyPresence.startedAtMs, 0);
+            }
+            if (!legacyWorkingStartedAt) {
+                legacyWorkingStartedAt = sourceRecency || Date.now();
+            }
+            legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
+        } else {
+            legacyWorkingPresenceByUserId.delete(docId);
+            legacyWorkingStartedAt = 0;
+        }
+
+        return {
+            ...rawData,
+            schedule: safeSchedule,
+            currentSessionTime: rawCurrentSessionTime,
+            legacyWorkingStartedAt,
+            isWorking: rawIsWorking,
+            lastTimerSyncAt: Math.max(parseInteger(rawData.lastTimerSyncAt, 0), sourceRecency, legacyWorkingStartedAt)
+        };
+    }
+
+    function normalizeLiveLeaderboardDocs(rawDocs = []) {
+        return normalizeLeaderboardCloudDocs(rawDocs).map(item => ({
+            id: item.id,
+            data: normalizeLiveLeaderboardDocData(item.data || {}, item.id)
+        }));
+    }
+
     function mapUserSnapshotDocsToLeaderboardDocs(snapshotDocs = []) {
         return normalizeLeaderboardCloudDocs((Array.isArray(snapshotDocs) ? snapshotDocs : []).map(doc => {
             const rawData = doc.data() || {};
@@ -4467,6 +4512,8 @@
             const liveSessionSeconds = Math.max(0, parseInteger(liveData.currentSessionTime, 0));
             const profileTimer = profileData.activeTimer || null;
             const liveTimer = liveData.activeTimer || null;
+            const profileLegacyWorkingStartedAt = Math.max(0, parseInteger(profileData.legacyWorkingStartedAt, 0));
+            const liveLegacyWorkingStartedAt = Math.max(0, parseInteger(liveData.legacyWorkingStartedAt, 0));
             const profileTimerRecency = getLeaderboardSourceRecency({ activeTimer: profileTimer });
             const liveTimerRecency = getLeaderboardSourceRecency({ activeTimer: liveTimer });
             const liveTimerLooksFresher = !!liveTimer && (
@@ -4507,6 +4554,14 @@
                 ? (liveTimer || profileTimer || null)
                 : (profileTimer || liveTimer || null);
             mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
+            mergedData.legacyWorkingStartedAt = Math.max(
+                profileLegacyWorkingStartedAt,
+                liveLegacyWorkingStartedAt,
+                parseInteger(mergedData.activeTimer?.startedAtMs, 0),
+                (mergedData.currentSessionTime > 0 && mergedData.lastTimerSyncAt > 0)
+                    ? Math.max(0, mergedData.lastTimerSyncAt - (mergedData.currentSessionTime * 1000))
+                    : 0
+            );
             mergedData.totalWorkedSeconds = Math.max(
                 parseInteger(profileData.totalWorkedSeconds, 0),
                 parseInteger(profileData.totalStudyTime, 0),
@@ -4601,7 +4656,7 @@
             snapshot = await query.get();
         }
 
-        return normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+        return normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
     }
 
     async function fetchLeaderboardDocsFromCloud() {
@@ -4646,12 +4701,12 @@
 
         try {
             const snapshot = await query.get({ source: "server" });
-            sdkDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+            sdkDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
         } catch (error) {
             sdkError = error;
             try {
                 const snapshot = await query.get();
-                sdkDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+                sdkDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
                 sdkError = null;
             } catch (fallbackError) {
                 sdkError = fallbackError;
@@ -4661,7 +4716,7 @@
         const shouldTryRest = !!sdkError || sdkDocs.length <= 1;
         if (shouldTryRest) {
             try {
-                const restDocs = await fetchLeaderboardDocsViaRest();
+                const restDocs = normalizeLiveLeaderboardDocs(await fetchLeaderboardDocsViaRest());
                 if (restDocs.length > sdkDocs.length) {
                     sdkDocs = restDocs;
                     sdkError = null;
@@ -4754,8 +4809,9 @@
 
                 const isWorking = currentLeaderboardTab === "daily"
                     && liveSessionSnapshot.isLive;
+                const hasVisibleStats = seconds > 0 || isWorking;
 
-                if (!resolvedUsername) return null;
+                if (!resolvedUsername || !hasVisibleStats) return null;
 
                 return {
                     uid: doc.id,
@@ -4926,7 +4982,7 @@
             };
 
             const handleLiveSnapshot = snapshot => {
-                leaderboardLiveSourceDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({
+                leaderboardLiveSourceDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({
                     id: doc.id,
                     data: doc.data() || {}
                 })));
@@ -4944,7 +5000,7 @@
             };
         } else {
             leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
-                applyLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+                applyLeaderboardCloudDocs(normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }))));
                 renderLiveLeaderboardFromDocs();
             }, handleRealtimeError);
         }
