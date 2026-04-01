@@ -4205,6 +4205,16 @@
             .filter(Boolean);
     }
 
+    function mapUserSnapshotDocsToLeaderboardDocs(snapshotDocs = []) {
+        return normalizeLeaderboardCloudDocs((Array.isArray(snapshotDocs) ? snapshotDocs : []).map(doc => ({
+            id: doc.id,
+            data: buildLeaderboardDocumentPayload({
+                ...(doc.data() || {}),
+                uid: doc.id
+            })
+        })));
+    }
+
     function applyLeaderboardCloudDocs(rawDocs = []) {
         leaderboardRealtimeDocs = normalizeLeaderboardCloudDocs(rawDocs);
 
@@ -4255,16 +4265,24 @@
             snapshot = await query.get();
         }
 
-        return normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({
-            id: doc.id,
-            data: buildLeaderboardDocumentPayload({
-                ...(doc.data() || {}),
-                uid: doc.id
-            })
-        })));
+        return mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
     }
 
     async function fetchLeaderboardDocsFromCloud() {
+        let usersDocs = [];
+        let usersError = null;
+
+        if (currentUser?.uid) {
+            try {
+                usersDocs = await fetchLeaderboardDocsFromUsersCollection();
+                if (usersDocs.length) {
+                    return usersDocs;
+                }
+            } catch (error) {
+                usersError = error;
+            }
+        }
+
         const query = db.collection(LEADERBOARD_COLLECTION);
         let sdkDocs = [];
         let sdkError = null;
@@ -4283,7 +4301,10 @@
             }
         }
 
-        const shouldTryUsersCollection = !!sdkError || sdkDocs.length <= 1;
+        const shouldTryUsersCollection = !!currentUser?.uid
+            && !usersDocs.length
+            && !usersError
+            && (!!sdkError || sdkDocs.length <= 1);
         if (shouldTryUsersCollection) {
             try {
                 const usersCollectionDocs = await fetchLeaderboardDocsFromUsersCollection();
@@ -4317,7 +4338,7 @@
         }
 
         if (sdkError && !sdkDocs.length) {
-            throw sdkError;
+            throw (usersError || sdkError);
         }
 
         return sdkDocs;
@@ -4392,16 +4413,16 @@
                     titleAwards: getStoredTitleAwards(data)
                 });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
+                const resolvedUsername = String(data.username || data.email?.split?.("@")?.[0] || "Kullanici").trim();
 
                 const isWorking = currentLeaderboardTab === "daily"
                     && isTimerVisibleForLeaderboard(data.activeTimer);
 
-                if (!data.username) return null;
-                if (!(seconds > 0 || resolvedIsAdmin || isWorking)) return null;
+                if (!resolvedUsername) return null;
 
                 return {
                     uid: doc.id,
-                    username: data.username,
+                    username: resolvedUsername,
                     email: data.email || "",
                     isAdmin: resolvedIsAdmin,
                     about: data.about || "",
@@ -4528,8 +4549,15 @@
         }
         ensureLeaderboardCloudPolling();
 
-        leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
-            applyLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+        const realtimeQuery = currentUser?.uid
+            ? db.collection("users")
+            : db.collection(LEADERBOARD_COLLECTION);
+
+        leaderboardRealtimeUnsubscribe = realtimeQuery.onSnapshot(snapshot => {
+            const nextDocs = currentUser?.uid
+                ? mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs)
+                : snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
+            applyLeaderboardCloudDocs(nextDocs);
             renderLiveLeaderboardFromDocs();
         }, error => {
             const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
