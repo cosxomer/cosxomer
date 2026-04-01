@@ -3270,7 +3270,8 @@
 
     function isPresenceOnlyTimerSyncReason(reason = "") {
         const normalizedReason = String(reason || "").trim().toLowerCase();
-        return normalizedReason === "heartbeat"
+        return normalizedReason === "start"
+            || normalizedReason === "heartbeat"
             || normalizedReason === "modal-show"
             || normalizedReason === "modal-hide"
             || normalizedReason === "visibility-hidden"
@@ -4687,16 +4688,8 @@
 
     async function fetchLeaderboardDocsFromCloud() {
         if (currentUser?.uid) {
-            let usersDocs = [];
-            let usersError = null;
             let liveDocs = [];
             let liveError = null;
-
-            try {
-                usersDocs = await fetchLeaderboardDocsFromUsersCollection();
-            } catch (error) {
-                usersError = error;
-            }
 
             try {
                 liveDocs = await fetchLeaderboardDocsFromLiveCollection();
@@ -4704,18 +4697,22 @@
                 liveError = error;
             }
 
-            const mergedDocs = mergeLeaderboardSourceDocs(usersDocs, liveDocs);
-            if (mergedDocs.length) {
-                return mergedDocs;
+            if (liveDocs.length) {
+                return liveDocs;
+            }
+
+            let usersDocs = [];
+            let usersError = null;
+            try {
+                usersDocs = await fetchLeaderboardDocsFromUsersCollection();
+            } catch (error) {
+                usersError = error;
             }
 
             if (usersDocs.length) {
                 return usersDocs;
             }
-            if (liveDocs.length) {
-                return liveDocs;
-            }
-            if (usersError || liveError) {
+            if (liveError || usersError) {
                 throw (liveError || usersError);
             }
             return [];
@@ -5001,11 +4998,6 @@
                 renderLiveLeaderboardFromDocs();
             };
 
-            const handleUsersSnapshot = snapshot => {
-                leaderboardProfileSourceDocs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
-                reapplyMergedDocs();
-            };
-
             const handleLiveSnapshot = snapshot => {
                 leaderboardLiveSourceDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({
                     id: doc.id,
@@ -5014,11 +5006,18 @@
                 reapplyMergedDocs();
             };
 
-            const unsubscribeUsers = db.collection("users").onSnapshot(handleUsersSnapshot, handleRealtimeError);
+            fetchLeaderboardDocsFromUsersCollection()
+                .then(docs => {
+                    leaderboardProfileSourceDocs = docs;
+                    reapplyMergedDocs();
+                })
+                .catch(error => {
+                    console.warn("Lider tablo profil verileri tek seferde yuklenemedi:", error);
+                });
+
             const unsubscribeLive = db.collection(LEADERBOARD_COLLECTION).onSnapshot(handleLiveSnapshot, handleRealtimeError);
 
             leaderboardRealtimeUnsubscribe = () => {
-                unsubscribeUsers();
                 unsubscribeLive();
                 leaderboardProfileSourceDocs = [];
                 leaderboardLiveSourceDocs = [];
