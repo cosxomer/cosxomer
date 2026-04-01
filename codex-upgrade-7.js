@@ -2,7 +2,7 @@
     const VERIFY_MESSAGE = "Lutfen e-posta adresini kontrol et. Dogrulama baglantisi gonderildi; spam/junk klasorunu da kontrol et.";
     const RESET_PASSWORD_MESSAGE = "Sifre sifirlama baglantisi e-posta adresine gonderildi. Spam/junk klasorunu da kontrol et.";
     const VERIFY_COOLDOWN_MS = 30000;
-    const TIMER_SYNC_MS = 12000;
+    const TIMER_SYNC_MS = 60000;
     const TIMER_OWNER_TTL_MS = 15000;
     const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -2393,8 +2393,10 @@
             parseInteger(safeData?.todayWorkedSeconds, 0)
         );
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(safeData?.activeTimer, referenceDate.getTime());
+        const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(safeData, referenceDate.getTime());
+        const hasVisibleLiveSession = hasVisibleActiveTimer || liveSessionSnapshot.isLive;
         const isFreshSnapshot = isDailyStudySnapshotFresh(safeData, referenceDate);
-        const shouldReset = !hasVisibleActiveTimer && (
+        const shouldReset = !hasVisibleLiveSession && (
             !isFreshSnapshot
             || (!explicitDateKey && explicitDailySeconds > scheduleSeconds && scheduleSeconds <= 0)
         );
@@ -3264,6 +3266,30 @@
         return syncLeaderboardSnapshot(basePayload).catch(error => {
             console.error("Leaderboard anlik senkronu basarisiz:", error);
         });
+    }
+
+    function isPresenceOnlyTimerSyncReason(reason = "") {
+        const normalizedReason = String(reason || "").trim().toLowerCase();
+        return normalizedReason === "heartbeat"
+            || normalizedReason === "modal-show"
+            || normalizedReason === "modal-hide"
+            || normalizedReason === "visibility-hidden"
+            || normalizedReason === "visibility-visible";
+    }
+
+    function buildRealtimeLeaderboardPresencePayload(basePayload = {}) {
+        return buildLeaderboardDocumentPayload({
+            ...(currentUserLiveDoc || {}),
+            ...(basePayload || {}),
+            uid: currentUser?.uid || basePayload?.uid || ""
+        });
+    }
+
+    function syncRealtimeLeaderboardPresence(basePayload = {}) {
+        if (!currentUser?.uid) return Promise.resolve();
+        const leaderboardPayload = buildRealtimeLeaderboardPresencePayload(basePayload);
+        return db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true })
+            .then(() => leaderboardPayload);
     }
 
     function syncPublicQuestionCountersNow() {
@@ -4762,11 +4788,11 @@
     function ensureLeaderboardCloudPolling() {
         if (leaderboardCloudPollInterval) return;
 
-        refreshLeaderboardCloudSnapshot("open").catch(() => null);
+        refreshLeaderboardCloudSnapshot("fallback-open").catch(() => null);
         leaderboardCloudPollInterval = setInterval(() => {
             if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
-            refreshLeaderboardCloudSnapshot("poll").catch(() => null);
-        }, 12000);
+            refreshLeaderboardCloudSnapshot("fallback-poll").catch(() => null);
+        }, Math.max(TIMER_SYNC_MS, 60000));
     }
 
     function stopLeaderboardCloudPolling() {
@@ -4940,8 +4966,6 @@
                 ? '<p style="text-align:center; opacity:0.7;">Canli veriler yuklenirken yerel ilerleme gosteriliyor...</p>'
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
-        ensureLeaderboardCloudPolling();
-
         const handleRealtimeError = error => {
             const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
                 || String(error?.message || "").toLowerCase().includes("insufficient permissions");
@@ -4951,6 +4975,7 @@
                 console.error("Canli lider tablosu dinlenemedi:", error);
             }
 
+            ensureLeaderboardCloudPolling();
             refreshLeaderboardCloudSnapshot(permissionDenied ? "permission-fallback" : "snapshot-fallback")
                 .catch(() => {
                     leaderboardRealtimeDocs = [];
@@ -6678,30 +6703,31 @@
             if (options.userTriggeredWrite && currentUser && ((options.authorized === true) || ensureManualWriteAllowed(`timer:${reason}`))) {
                 try {
                     await withManualFirestoreWrite(() => queueCurrentUserWrite(`timer:${reason}`, async () => {
-                        const userRef = db.collection("users").doc(currentUser.uid);
-                        const snapshot = await userRef.get();
-                        if (!snapshot.exists) {
-                            currentUserLiveDoc = null;
-                            safeShowAlert("Bulut verisi bulunamadi. Silinen veri otomatik olarak yeniden olusturulmayacak.");
-                            return;
-                        }
-
                         const payload = buildRealtimeStudyPayload({
                             activeSession,
                             currentSessionTime: options.currentSessionTime
                         });
-                        await userRef.set(payload, { merge: true });
-                        await syncPublicProfileSnapshot({
+                        const mergedPayload = {
                             ...(currentUserLiveDoc || {}),
-                            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
                             ...payload
-                        });
-                        await syncLeaderboardSnapshot({
-                            ...(currentUserLiveDoc || {}),
-                            ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
-                            ...payload
-                        });
-                        await maybeAutoSyncLeaderboardCollection();
+                        };
+                        currentUserLiveDoc = mergedPayload;
+
+                        if (isPresenceOnlyTimerSyncReason(reason)) {
+                            await syncRealtimeLeaderboardPresence(mergedPayload);
+                        } else {
+                            const userRef = db.collection("users").doc(currentUser.uid);
+                            await userRef.set(payload, { merge: true });
+                            await syncPublicProfileSnapshot({
+                                ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+                                ...mergedPayload
+                            });
+                            await syncLeaderboardSnapshot({
+                                ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
+                                ...mergedPayload
+                            });
+                            await maybeAutoSyncLeaderboardCollection();
+                        }
                         clearTimerRecoverySnapshot(currentUser.uid);
                     }));
                 } catch (error) {
