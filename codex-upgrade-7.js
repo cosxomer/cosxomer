@@ -3339,6 +3339,9 @@
     }
 
     async function maybeAutoSyncLeaderboardCollection(options = {}) {
+        if (options.manual !== true) {
+            return { skipped: true, reason: "auto-sync-disabled" };
+        }
         if (!currentUser?.uid) return { skipped: true, reason: "no-user" };
         if (leaderboardCollectionSyncPromise) return leaderboardCollectionSyncPromise;
 
@@ -3367,7 +3370,7 @@
     }
 
     window.syncLeaderboardCollectionFromUsers = async function() {
-        const result = await syncLeaderboardCollectionFromUsers();
+        const result = await maybeAutoSyncLeaderboardCollection({ manual: true, force: true });
         safeShowAlert(`${result.updatedCount || 0} kullanici lider tablosuna senkronlandi.`, "success");
         return result;
     };
@@ -4532,6 +4535,9 @@
         if (currentUser?.uid) {
             try {
                 usersDocs = await fetchLeaderboardDocsFromUsersCollection();
+                if (usersDocs.length) {
+                    return usersDocs;
+                }
             } catch (error) {
                 usersError = error;
             }
@@ -4573,13 +4579,6 @@
                 if (!sdkDocs.length) {
                     throw (sdkError || usersCollectionError);
                 }
-            }
-        }
-
-        if (currentUser?.uid) {
-            const mergedDocs = mergeLeaderboardSourceDocs(usersDocs, sdkDocs);
-            if (mergedDocs.length) {
-                return mergedDocs;
             }
         }
 
@@ -4835,27 +4834,17 @@
         };
 
         if (currentUser?.uid) {
-            const renderMergedRealtimeDocs = () => {
-                applyLeaderboardCloudDocs(mergeLeaderboardSourceDocs(leaderboardProfileSourceDocs, leaderboardLiveSourceDocs));
-                renderLiveLeaderboardFromDocs();
-            };
-
             leaderboardProfileSourceDocs = [];
             leaderboardLiveSourceDocs = [];
 
             const unsubscribeUsers = db.collection("users").onSnapshot(snapshot => {
                 leaderboardProfileSourceDocs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
-                renderMergedRealtimeDocs();
-            }, handleRealtimeError);
-
-            const unsubscribeLeaderboard = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
-                leaderboardLiveSourceDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
-                renderMergedRealtimeDocs();
+                applyLeaderboardCloudDocs(leaderboardProfileSourceDocs);
+                renderLiveLeaderboardFromDocs();
             }, handleRealtimeError);
 
             leaderboardRealtimeUnsubscribe = () => {
                 unsubscribeUsers();
-                unsubscribeLeaderboard();
                 leaderboardProfileSourceDocs = [];
                 leaderboardLiveSourceDocs = [];
             };
