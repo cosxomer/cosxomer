@@ -2,11 +2,11 @@
     const VERIFY_MESSAGE = "Lutfen e-posta adresini kontrol et. Dogrulama baglantisi gonderildi; spam/junk klasorunu da kontrol et.";
     const RESET_PASSWORD_MESSAGE = "Sifre sifirlama baglantisi e-posta adresine gonderildi. Spam/junk klasorunu da kontrol et.";
     const VERIFY_COOLDOWN_MS = 30000;
-    const TIMER_SYNC_MS = 60000;
+    const TIMER_SYNC_MS = 10 * 60 * 1000;
     const TIMER_OWNER_TTL_MS = 15000;
     const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
-    const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS * 3, 45000);
+    const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS + (2 * 60 * 1000), 12 * 60 * 1000);
     const USER_SAVE_DEBOUNCE_MS = 180;
     const TIMER_ACTION_TIMEOUT_MS = 3500;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
@@ -59,6 +59,7 @@
     let requiresEmailVerification = false;
     let taskDragState = null;
     let lastAutoDailyResetSyncSignature = "";
+    let hasBootstrappedUsersRealtime = false;
 
     const timerState = {
         mode: localStorage.getItem(TIMER_MODE_KEY) || "pomodoro",
@@ -849,6 +850,7 @@
     }
 
     function createSignupPayload(username, email, accountCreatedAt) {
+        const nowMs = Date.now();
         const adminProfile = typeof getAdminProfileMeta === "function"
             ? getAdminProfileMeta(username, email)
             : {
@@ -876,12 +878,16 @@
             totalQuestionsAllTime: 0,
             selectedTitleId: "",
             titleAwards: {},
+            name: username,
+            isRunning: false,
+            lastSyncTime: nowMs,
+            totalTime: 0,
             dailyStudyTime: 0,
             dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
             currentSessionTime: 0,
             activeTimer: null,
             isWorking: false,
-            lastTimerSyncAt: Date.now()
+            lastTimerSyncAt: nowMs
         };
     }
 
@@ -3253,13 +3259,19 @@
     }
 
     function syncLeaderboardSnapshot(basePayload = null) {
-        if (!currentUser?.uid) return Promise.resolve();
+        if (!currentUser?.uid) return Promise.resolve(basePayload || null);
         const userPayload = basePayload || (typeof buildUserPayload === "function" ? buildUserPayload() : {});
-        const leaderboardPayload = buildLeaderboardDocumentPayload({
+        const normalizedPayload = normalizeLiveLeaderboardDocData({
             ...userPayload,
             uid: currentUser.uid
-        });
-        return db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true });
+        }, currentUser.uid);
+        const docIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
+        if (docIndex >= 0) {
+            leaderboardRealtimeDocs[docIndex] = { id: currentUser.uid, data: normalizedPayload };
+        } else {
+            leaderboardRealtimeDocs.push({ id: currentUser.uid, data: normalizedPayload });
+        }
+        return Promise.resolve(normalizedPayload);
     }
 
     function syncLeaderboardSnapshotSafely(basePayload = null) {
@@ -3270,9 +3282,7 @@
 
     function isPresenceOnlyTimerSyncReason(reason = "") {
         const normalizedReason = String(reason || "").trim().toLowerCase();
-        return normalizedReason === "start"
-            || normalizedReason === "heartbeat"
-            || normalizedReason === "modal-show"
+        return normalizedReason === "modal-show"
             || normalizedReason === "modal-hide"
             || normalizedReason === "visibility-hidden"
             || normalizedReason === "visibility-visible";
@@ -3287,10 +3297,9 @@
     }
 
     function syncRealtimeLeaderboardPresence(basePayload = {}) {
-        if (!currentUser?.uid) return Promise.resolve();
+        if (!currentUser?.uid) return Promise.resolve(basePayload);
         const leaderboardPayload = buildRealtimeLeaderboardPresencePayload(basePayload);
-        return db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true })
-            .then(() => leaderboardPayload);
+        return syncLeaderboardSnapshot(leaderboardPayload).then(() => leaderboardPayload);
     }
 
     function syncPublicQuestionCountersNow() {
@@ -3339,88 +3348,27 @@
             ...(currentUserLiveDoc || {}),
             ...userQuestionPatch
         };
-
-        return Promise.all([
-            db.collection("users").doc(currentUser.uid).set(userQuestionPatch, { merge: true }),
-            db.collection(PUBLIC_PROFILE_COLLECTION).doc(currentUser.uid).set(questionPatch, { merge: true }),
-            db.collection(LEADERBOARD_COLLECTION).doc(currentUser.uid).set(leaderboardPayload, { merge: true })
-        ]).catch(error => {
-            console.error("Soru sayisi senkronu basarisiz:", error);
+        syncLeaderboardSnapshot({
+            ...currentUserLiveDoc,
+            ...leaderboardPayload
+        }).catch(error => {
+            console.error("Yerel lider tablo guncellemesi basarisiz:", error);
         });
+        return Promise.resolve(questionPatch);
     }
 
     async function syncLeaderboardCollectionFromUsers() {
-        if (!currentUser?.uid) {
-            throw new Error("Kullanici oturumu bulunamadi.");
-        }
-
         const usersSnapshot = await db.collection("users").get();
-        let batch = db.batch();
-        let operationCount = 0;
-        let updatedCount = 0;
-
-        const commitBatch = async () => {
-            if (!operationCount) return;
-            await batch.commit();
-            batch = db.batch();
-            operationCount = 0;
-        };
-
-        for (const doc of usersSnapshot.docs) {
-            const userData = doc.data() || {};
-            const leaderboardPayload = buildLeaderboardDocumentPayload({
-                ...userData,
-                uid: doc.id
-            });
-            if (!leaderboardPayload.uid || !leaderboardPayload.username) continue;
-
-            batch.set(db.collection(LEADERBOARD_COLLECTION).doc(doc.id), leaderboardPayload, { merge: true });
-            operationCount += 1;
-            updatedCount += 1;
-
-            if (operationCount >= 400) {
-                await commitBatch();
-            }
-        }
-
-        await commitBatch();
-        return { updatedCount };
+        return { updatedCount: usersSnapshot.size || 0, skipped: true, reason: "users-only-leaderboard" };
     }
 
     async function maybeAutoSyncLeaderboardCollection(options = {}) {
-        if (options.manual !== true) {
-            return { skipped: true, reason: "auto-sync-disabled" };
-        }
-        if (!currentUser?.uid) return { skipped: true, reason: "no-user" };
-        if (leaderboardCollectionSyncPromise) return leaderboardCollectionSyncPromise;
-
-        const force = options.force === true;
-        const throttleMs = force ? 12000 : 90000;
-        const lastRunAt = parseInteger(localStorage.getItem(LEADERBOARD_AUTOSYNC_KEY), 0);
-        if (!force && lastRunAt > 0 && (Date.now() - lastRunAt) < throttleMs) {
-            return { skipped: true, reason: "throttled" };
-        }
-
-        localStorage.setItem(LEADERBOARD_AUTOSYNC_KEY, String(Date.now()));
-        leaderboardCollectionSyncPromise = syncLeaderboardCollectionFromUsers()
-            .then(result => {
-                console.info(`Leaderboard koleksiyonu ${result.updatedCount || 0} kullanici icin senkronlandi.`);
-                return result;
-            })
-            .catch(error => {
-                console.error("Leaderboard koleksiyonu toplu senkronu basarisiz:", error);
-                return { skipped: false, error };
-            })
-            .finally(() => {
-                leaderboardCollectionSyncPromise = null;
-            });
-
-        return leaderboardCollectionSyncPromise;
+        return { skipped: true, reason: "users-only-leaderboard" };
     }
 
     window.syncLeaderboardCollectionFromUsers = async function() {
-        const result = await maybeAutoSyncLeaderboardCollection({ manual: true, force: true });
-        safeShowAlert(`${result.updatedCount || 0} kullanici lider tablosuna senkronlandi.`, "success");
+        const result = { skipped: true, reason: "users-only-leaderboard" };
+        safeShowAlert("Lider tablo artik dogrudan users koleksiyonundan besleniyor.", "success");
         return result;
     };
 
@@ -3476,16 +3424,31 @@
         scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
 
+        const syncTimestamp = Date.now();
         const currentDayMeta = getCurrentDayMeta(new Date());
         const resolvedSelectedTitleId = getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {});
         const resolvedTitleAwards = getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {});
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
         const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
         const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
+        const sessionPendingSeconds = activeSession && activeSession.isRunning
+            ? getPendingTimerDelta(activeSession)
+            : 0;
+        const resolvedCurrentSessionTime = options.currentSessionTime === undefined
+            ? sessionPendingSeconds
+            : Math.max(0, Math.min(parseInteger(options.currentSessionTime, sessionPendingSeconds), sessionPendingSeconds));
+        const resolvedName = String(
+            currentUsername
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || currentUserLiveDoc?.username
+            || currentUserLiveDoc?.name
+            || ""
+        ).trim() || "Kullanici";
         const legacyWorkingStartedAt = activeSession && activeSession.isRunning
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
-                Date.now() - (Math.max(0, getTimerElapsedSeconds(activeSession)) * 1000)
+                syncTimestamp - (Math.max(0, getTimerElapsedSeconds(activeSession)) * 1000)
             )
             : 0;
         const questionCounters = buildQuestionCounterPayload(scheduleData);
@@ -3502,8 +3465,10 @@
 
         return {
             schedule: scheduleData,
+            name: resolvedName,
             totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
             totalStudyTime: totalWorkedSecondsAllTime || 0,
+            totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
             totalQuestionsAllTime: totalQuestionsAllTime || 0,
             ...questionCounters,
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
@@ -3512,13 +3477,13 @@
             dailyStudyDateKey: currentDayMeta.dateKey,
             weeklyStudyTime: currentWeekWorkedSeconds,
             currentWeekSeconds: currentWeekWorkedSeconds,
-            currentSessionTime: options.currentSessionTime === undefined
-                ? (isTimerVisibleForLeaderboard(activeTimerRecord) ? getTimerElapsedSeconds(activeSession) : 0)
-                : options.currentSessionTime,
+            currentSessionTime: resolvedCurrentSessionTime,
             legacyWorkingStartedAt,
             activeTimer: activeTimerRecord,
             isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
-            lastTimerSyncAt: Date.now(),
+            isRunning: !!activeSession?.isRunning,
+            lastSyncTime: syncTimestamp,
+            lastTimerSyncAt: syncTimestamp,
             emailVerified: !!currentUser?.emailVerified
         };
     }
@@ -3567,6 +3532,7 @@
         return {
             ...baseData,
             username: currentUsername || baseData.username || "Kullanıcı",
+            name: currentUsername || baseData.name || baseData.username || "Kullanici",
             email: currentUser?.email || baseData.email || "",
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
             about: currentProfileAbout || baseData.about || "",
@@ -3579,10 +3545,14 @@
             schedule: resolvedSchedule,
             totalWorkedSeconds: resolvedTotalWorkedSeconds,
             totalStudyTime: resolvedTotalWorkedSeconds,
+            totalTime: resolvedTotalWorkedSeconds * 1000,
             totalQuestionsAllTime: resolvedTotalQuestions,
             ...questionCounters,
             activeTimer: resolvedActiveTimer,
             isWorking: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
+            isRunning: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
+            lastSyncTime: Date.now(),
+            currentSessionTime: Math.max(0, getPendingTimerDelta(activeSessionOverride === undefined ? timerState.session : activeSessionOverride)),
             notes: typeof normalizeUserNotes === "function"
                 ? normalizeUserNotes((userNotes && userNotes.length) ? userNotes : (baseData.notes || []))
                 : ((userNotes && userNotes.length) ? userNotes : (baseData.notes || []))
@@ -4100,6 +4070,7 @@
 
     function getLeaderboardSessionLastSyncAt(userData = {}) {
         return Math.max(
+            parseInteger(userData?.lastSyncTime, 0),
             parseInteger(userData?.lastTimerSyncAt, 0),
             parseInteger(userData?.updatedAtMs, 0),
             parseInteger(userData?.activeTimer?.lastSeenAtMs, 0),
@@ -4113,6 +4084,7 @@
         const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
         const legacyWorkingStartedAt = Math.max(0, parseInteger(userData?.legacyWorkingStartedAt, 0));
         const lastSyncAt = getLeaderboardSessionLastSyncAt(userData);
+        const isRunning = !!userData?.isRunning || !!userData?.isWorking;
         const activeTimerVisible = isTimerVisibleForLeaderboard(activeTimer, now);
 
         if (activeTimerVisible) {
@@ -4142,17 +4114,20 @@
         if (lastSyncAt <= 0) {
             return {
                 seconds: currentSessionTime,
-                isLive: !!userData?.isWorking,
+                isLive: isRunning,
                 lastSyncAt
             };
         }
 
         const secondsSinceLastSync = Math.max(0, Math.floor((now - lastSyncAt) / 1000));
         const isFresh = (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
+        const fallbackSeconds = isRunning
+            ? Math.max(currentSessionTime, secondsSinceLastSync)
+            : currentSessionTime;
 
         return {
-            seconds: isFresh ? (currentSessionTime + secondsSinceLastSync) : currentSessionTime,
-            isLive: isFresh && (!!userData?.isWorking || currentSessionTime > 0),
+            seconds: isFresh ? fallbackSeconds : currentSessionTime,
+            isLive: isFresh && (isRunning || currentSessionTime > 0),
             lastSyncAt
         };
     }
@@ -4379,7 +4354,7 @@
     function normalizeLiveLeaderboardDocData(rawData = {}, docId = "") {
         const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
         const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
-        const rawIsWorking = !!rawData.isWorking || isTimerRecordRunning(rawData.activeTimer);
+        const rawIsWorking = !!rawData.isWorking || !!rawData.isRunning || isTimerRecordRunning(rawData.activeTimer);
         const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(docId) || null;
         const sourceRecency = getLeaderboardSourceRecency(rawData);
         let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
@@ -4405,11 +4380,15 @@
 
         return {
             ...rawData,
+            username: String(rawData.username || rawData.name || rawData.email?.split?.("@")?.[0] || "").trim(),
             schedule: safeSchedule,
             currentSessionTime: rawCurrentSessionTime,
             legacyWorkingStartedAt,
             isWorking: rawIsWorking,
-            lastTimerSyncAt: Math.max(parseInteger(rawData.lastTimerSyncAt, 0), sourceRecency, legacyWorkingStartedAt)
+            isRunning: rawIsWorking,
+            totalTime: Math.max(parseInteger(rawData.totalTime, 0), parseInteger(rawData.totalWorkedSeconds, 0) * 1000, parseInteger(rawData.totalStudyTime, 0) * 1000),
+            lastSyncTime: Math.max(parseInteger(rawData.lastSyncTime, 0), sourceRecency),
+            lastTimerSyncAt: Math.max(parseInteger(rawData.lastTimerSyncAt, 0), parseInteger(rawData.lastSyncTime, 0), sourceRecency, legacyWorkingStartedAt)
         };
     }
 
@@ -4426,7 +4405,7 @@
             const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
             const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
-            const rawIsWorking = !!rawData.isWorking;
+            const rawIsWorking = !!rawData.isWorking || !!rawData.isRunning || isTimerRecordRunning(rawData.activeTimer);
             let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
             const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(doc.id) || null;
 
@@ -4478,7 +4457,8 @@
                     ...rawData,
                     uid: doc.id,
                     email: rawData.email || "",
-                    username: String(rawData.username || rawData.email?.split?.("@")?.[0] || "").trim(),
+                    username: String(rawData.username || rawData.name || rawData.email?.split?.("@")?.[0] || "").trim(),
+                    name: rawData.name || rawData.username || rawData.email?.split?.("@")?.[0] || "",
                     studyTrack: rawData.studyTrack || "",
                     selectedSubjects: typeof normalizeSelectedSubjects === "function"
                         ? normalizeSelectedSubjects(rawData.studyTrack || "", rawData.selectedSubjects || [])
@@ -4500,12 +4480,15 @@
                     currentWeekSeconds,
                     totalWorkedSeconds,
                     totalStudyTime: Math.max(parseInteger(rawData.totalStudyTime, 0), totalWorkedSeconds),
+                    totalTime: Math.max(parseInteger(rawData.totalTime, 0), totalWorkedSeconds * 1000),
                     totalQuestionsAllTime,
                     currentSessionTime: rawCurrentSessionTime,
                     legacyWorkingStartedAt,
                     activeTimer: rawData.activeTimer || null,
                     isWorking: rawIsWorking || isTimerRecordRunning(rawData.activeTimer),
-                    lastTimerSyncAt: Math.max(getLeaderboardSourceRecency(rawData), legacyWorkingStartedAt)
+                    isRunning: rawIsWorking || isTimerRecordRunning(rawData.activeTimer),
+                    lastSyncTime: Math.max(parseInteger(rawData.lastSyncTime, 0), getLeaderboardSourceRecency(rawData)),
+                    lastTimerSyncAt: Math.max(parseInteger(rawData.lastSyncTime, 0), getLeaderboardSourceRecency(rawData), legacyWorkingStartedAt)
                 }
             };
         }));
@@ -4513,6 +4496,7 @@
 
     function getLeaderboardSourceRecency(data = {}) {
         return Math.max(
+            parseInteger(data?.lastSyncTime, 0),
             parseInteger(data?.lastTimerSyncAt, 0),
             parseInteger(data?.updatedAtMs, 0),
             parseInteger(data?.activeTimer?.lastSeenAtMs, 0),
@@ -4674,88 +4658,11 @@
     }
 
     async function fetchLeaderboardDocsFromLiveCollection() {
-        const query = db.collection(LEADERBOARD_COLLECTION);
-        let snapshot = null;
-
-        try {
-            snapshot = await query.get({ source: "server" });
-        } catch (error) {
-            snapshot = await query.get();
-        }
-
-        return normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+        return fetchLeaderboardDocsFromUsersCollection();
     }
 
     async function fetchLeaderboardDocsFromCloud() {
-        if (currentUser?.uid) {
-            let liveDocs = [];
-            let liveError = null;
-
-            try {
-                liveDocs = await fetchLeaderboardDocsFromLiveCollection();
-            } catch (error) {
-                liveError = error;
-            }
-
-            if (liveDocs.length) {
-                return liveDocs;
-            }
-
-            let usersDocs = [];
-            let usersError = null;
-            try {
-                usersDocs = await fetchLeaderboardDocsFromUsersCollection();
-            } catch (error) {
-                usersError = error;
-            }
-
-            if (usersDocs.length) {
-                return usersDocs;
-            }
-            if (liveError || usersError) {
-                throw (liveError || usersError);
-            }
-            return [];
-        }
-
-        const query = db.collection(LEADERBOARD_COLLECTION);
-        let sdkDocs = [];
-        let sdkError = null;
-
-        try {
-            const snapshot = await query.get({ source: "server" });
-            sdkDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
-        } catch (error) {
-            sdkError = error;
-            try {
-                const snapshot = await query.get();
-                sdkDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
-                sdkError = null;
-            } catch (fallbackError) {
-                sdkError = fallbackError;
-            }
-        }
-
-        const shouldTryRest = !!sdkError || sdkDocs.length <= 1;
-        if (shouldTryRest) {
-            try {
-                const restDocs = normalizeLiveLeaderboardDocs(await fetchLeaderboardDocsViaRest());
-                if (restDocs.length > sdkDocs.length) {
-                    sdkDocs = restDocs;
-                    sdkError = null;
-                }
-            } catch (restError) {
-                if (!sdkDocs.length) {
-                    throw (sdkError || restError);
-                }
-            }
-        }
-
-        if (sdkError && !sdkDocs.length) {
-            throw sdkError;
-        }
-
-        return sdkDocs;
+        return fetchLeaderboardDocsFromUsersCollection();
     }
 
     async function refreshLeaderboardCloudSnapshot(reason = "manual") {
@@ -4783,13 +4690,7 @@
     }
 
     function ensureLeaderboardCloudPolling() {
-        if (leaderboardCloudPollInterval) return;
-
-        refreshLeaderboardCloudSnapshot("fallback-open").catch(() => null);
-        leaderboardCloudPollInterval = setInterval(() => {
-            if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
-            refreshLeaderboardCloudSnapshot("fallback-poll").catch(() => null);
-        }, Math.max(TIMER_SYNC_MS, 60000));
+        return;
     }
 
     function stopLeaderboardCloudPolling() {
@@ -4827,7 +4728,7 @@
                     titleAwards: getStoredTitleAwards(data)
                 });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
-                const resolvedUsername = String(data.username || data.email?.split?.("@")?.[0] || "Kullanici").trim();
+                const resolvedUsername = String(data.username || data.name || data.email?.split?.("@")?.[0] || "Kullanici").trim();
                 const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data);
 
                 const isWorking = currentLeaderboardTab === "daily"
@@ -4954,80 +4855,59 @@
     }
 
     function subscribeRealtimeLeaderboard() {
-        if (leaderboardRealtimeUnsubscribe) return;
+        if (leaderboardRealtimeUnsubscribe || !currentUser?.uid) return;
 
         const listContainer = document.getElementById("leaderboard-list");
-        if (listContainer) {
+        if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
             const localPreviewExists = buildLeaderboardViewModelFromDocs().length > 0;
             listContainer.innerHTML = localPreviewExists
                 ? '<p style="text-align:center; opacity:0.7;">Canli veriler yuklenirken yerel ilerleme gosteriliyor...</p>'
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
-        const handleRealtimeError = error => {
-            const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
-                || String(error?.message || "").toLowerCase().includes("insufficient permissions");
-            if (permissionDenied) {
-                console.warn("Canli lider tablosu Firestore kurallari nedeniyle acilamadi. Yerel ilerleme gosteriliyor.");
+
+        const handleUsersSnapshot = snapshot => {
+            const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
+            applyLeaderboardCloudDocs(docs);
+
+            const currentUserDoc = (snapshot.docs || []).find(doc => doc.id === currentUser?.uid) || null;
+            const currentData = currentUserDoc?.data?.() || {};
+            const initialSync = !hasBootstrappedUsersRealtime;
+
+            if (currentUserDoc) {
+                syncCurrentUserLiveDoc(currentData, { silent: initialSync });
+                applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
             } else {
-                console.error("Canli lider tablosu dinlenemedi:", error);
+                currentUserLiveDoc = null;
             }
 
-            ensureLeaderboardCloudPolling();
-            refreshLeaderboardCloudSnapshot(permissionDenied ? "permission-fallback" : "snapshot-fallback")
-                .catch(() => {
-                    leaderboardRealtimeDocs = [];
-                    const fallbackData = buildLeaderboardViewModelFromDocs();
-                    if (fallbackData.length) {
-                        renderLiveLeaderboardFromDocs();
-                    } else if (listContainer) {
-                        listContainer.innerHTML = permissionDenied
-                            ? '<p style="text-align:center; color:#facc15;">Lider tablosu Firestore izinleri nedeniyle sadece bu cihazdaki veriyi gosterebiliyor.</p>'
-                            : '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
-                    }
-                });
+            if (initialSync) {
+                requiresEmailVerification = !!currentData.requiresEmailVerification;
+                if (requiresEmailVerification && !currentUser?.emailVerified) {
+                    showVerificationGate({
+                        email: currentUser?.email || "",
+                        meta: "Bu yeni hesap icin email dogrulamasi bekleniyor."
+                    });
+                } else {
+                    requiresEmailVerification = false;
+                    hideVerificationGate();
+                }
+                bootstrapExtendedUserData(currentData);
+                renderSchedule();
+                renderMyNotesPanel();
+                hasBootstrappedUsersRealtime = true;
+            }
+
+            if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                renderLiveLeaderboardFromDocs();
+            }
         };
 
-        if (currentUser?.uid) {
-            leaderboardProfileSourceDocs = [];
-            leaderboardLiveSourceDocs = [];
-            const reapplyMergedDocs = () => {
-                applyLeaderboardCloudDocs(mergeLeaderboardSourceDocs(
-                    leaderboardProfileSourceDocs,
-                    leaderboardLiveSourceDocs
-                ));
-                renderLiveLeaderboardFromDocs();
-            };
-
-            const handleLiveSnapshot = snapshot => {
-                leaderboardLiveSourceDocs = normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    data: doc.data() || {}
-                })));
-                reapplyMergedDocs();
-            };
-
-            fetchLeaderboardDocsFromUsersCollection()
-                .then(docs => {
-                    leaderboardProfileSourceDocs = docs;
-                    reapplyMergedDocs();
-                })
-                .catch(error => {
-                    console.warn("Lider tablo profil verileri tek seferde yuklenemedi:", error);
-                });
-
-            const unsubscribeLive = db.collection(LEADERBOARD_COLLECTION).onSnapshot(handleLiveSnapshot, handleRealtimeError);
-
-            leaderboardRealtimeUnsubscribe = () => {
-                unsubscribeLive();
-                leaderboardProfileSourceDocs = [];
-                leaderboardLiveSourceDocs = [];
-            };
-        } else {
-            leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
-                applyLeaderboardCloudDocs(normalizeLiveLeaderboardDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }))));
-                renderLiveLeaderboardFromDocs();
-            }, handleRealtimeError);
-        }
+        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(handleUsersSnapshot, error => {
+            console.error("Canli users dinleyicisi basarisiz:", error);
+            if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+            }
+        });
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
@@ -5043,6 +4923,7 @@
             leaderboardRealtimeUnsubscribe();
             leaderboardRealtimeUnsubscribe = null;
         }
+        hasBootstrappedUsersRealtime = false;
         leaderboardProfileSourceDocs = [];
         leaderboardLiveSourceDocs = [];
         stopLeaderboardCloudPolling();
@@ -6412,14 +6293,6 @@
                         ...buildPublicProfilePayload(signupPayload),
                         uid: credential.user.uid
                     }, { merge: true });
-                    await db.collection(LEADERBOARD_COLLECTION).doc(credential.user.uid).set(
-                        buildLeaderboardDocumentPayload({
-                            ...signupPayload,
-                            uid: credential.user.uid
-                        }),
-                        { merge: true }
-                    );
-                    maybeAutoSyncLeaderboardCollection({ force: true });
                     await credential.user.sendEmailVerification();
                     localStorage.setItem(VERIFY_EMAIL_KEY, email);
                     localStorage.setItem(VERIFY_COOLDOWN_KEY, String(Date.now() + VERIFY_COOLDOWN_MS));
@@ -6584,8 +6457,6 @@
                 await userRef.set(payload, { merge: true });
                 await syncPublicProfileSnapshot(payload);
                 await syncLeaderboardSnapshot(payload);
-                await syncPublicQuestionCountersNow();
-                await maybeAutoSyncLeaderboardCollection();
                 clearTimerRecoverySnapshot(currentUser.uid);
                 if (shouldNotify) {
                     safeShowAlert("Veriler buluta kaydedildi.", "success");
@@ -6717,15 +6588,10 @@
                         } else {
                             const userRef = db.collection("users").doc(currentUser.uid);
                             await userRef.set(payload, { merge: true });
-                            await syncPublicProfileSnapshot({
-                                ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
-                                ...mergedPayload
-                            });
                             await syncLeaderboardSnapshot({
                                 ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
                                 ...mergedPayload
                             });
-                            await maybeAutoSyncLeaderboardCollection();
                         }
                         clearTimerRecoverySnapshot(currentUser.uid);
                     }));
@@ -6938,11 +6804,6 @@
                 ensureVerificationCard();
                 applyTurkishInputSupport();
 
-                if (currentUserResetUnsubscribe) {
-                    currentUserResetUnsubscribe();
-                    currentUserResetUnsubscribe = null;
-                }
-
                 if (!user) {
                     const hadSession = !!timerState.session;
                     if (hadSession) {
@@ -6956,6 +6817,7 @@
                     currentUserLiveDoc = null;
                     currentUserWriteChain = Promise.resolve();
                     requiresEmailVerification = false;
+                    hasBootstrappedUsersRealtime = false;
                     noteFolders = normalizeNoteFolders([]);
                     activeNoteFolderId = NOTE_FOLDER_ALL_ID;
                     unsubscribeRealtimeLeaderboard();
@@ -6988,40 +6850,8 @@
                 }
 
                 hideVerificationGate();
-
-                let isInitialResetSnapshot = true;
-                currentUserResetUnsubscribe = db.collection("users").doc(user.uid).onSnapshot(doc => {
-                    if (!doc.exists) {
-                        currentUserLiveDoc = null;
-                        return;
-                    }
-                    const data = doc.data() || {};
-                    syncCurrentUserLiveDoc(data, { silent: isInitialResetSnapshot });
-                    applyAdminTimerResetFromUserData(data, { silent: isInitialResetSnapshot });
-                    isInitialResetSnapshot = false;
-                }, error => {
-                    console.error("Admin timer reset dinlenemedi:", error);
-                });
-
-                db.collection("users").doc(user.uid).get().then(doc => {
-                    const data = doc.exists ? (doc.data() || {}) : {};
-                    currentUserLiveDoc = doc.exists ? data : null;
-                    requiresEmailVerification = !!data.requiresEmailVerification;
-                    if (requiresEmailVerification && !user.emailVerified) {
-                        showVerificationGate({
-                            email: user.email || "",
-                            meta: "Bu yeni hesap icin email dogrulamasi bekleniyor."
-                        });
-                    } else {
-                        requiresEmailVerification = false;
-                        hideVerificationGate();
-                    }
-                    bootstrapExtendedUserData(data);
-                    renderSchedule();
-                    renderMyNotesPanel();
-                }).catch(error => {
-                    console.error("Genisletilmis kullanici verisi okunamadi:", error);
-                });
+                hasBootstrappedUsersRealtime = false;
+                subscribeRealtimeLeaderboard();
             });
 
             window.addEventListener("beforeunload", () => {
@@ -7207,12 +7037,12 @@
             const isOpen = panel.classList.contains("open");
             if (isOpen) {
                 panel.classList.remove("open");
-                unsubscribeRealtimeLeaderboard();
                 return;
             }
 
             panel.classList.add("open");
             subscribeRealtimeLeaderboard();
+            renderLiveLeaderboardFromDocs();
         };
 
         switchLeaderboardTab = function(tab) {
@@ -7224,6 +7054,7 @@
 
         fetchAndRenderLeaderboard = function() {
             subscribeRealtimeLeaderboard();
+            renderLiveLeaderboardFromDocs();
         };
     }
 
@@ -7382,13 +7213,17 @@
             refreshCurrentTotals();
 
             const basePayload = originalBuildUserPayload ? originalBuildUserPayload() : {};
+            const syncTimestamp = Date.now();
             const resolvedEmail = currentUser?.email || basePayload.email || "";
             const questionCounters = buildQuestionCounterPayload(scheduleData);
             const activeTimerRecord = timerState.session ? serializeTimerSession(timerState.session) : null;
+            const timerPendingSeconds = timerState.session?.isRunning
+                ? getPendingTimerDelta(timerState.session)
+                : 0;
             const legacyWorkingStartedAt = timerState.session?.isRunning
                 ? Math.max(
                     parseInteger(timerState.session.startedAtMs, 0),
-                    Date.now() - (Math.max(0, getTimerElapsedSeconds(timerState.session)) * 1000)
+                    syncTimestamp - (Math.max(0, getTimerElapsedSeconds(timerState.session)) * 1000)
                 )
                 : 0;
             const titleInfo = buildResolvedTitleInfo({
@@ -7407,6 +7242,7 @@
                 };
             return {
                 ...basePayload,
+                name: currentUsername || basePayload.name || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
                 email: resolvedEmail,
                 ...adminProfile,
                 emailVerified: !!currentUser?.emailVerified,
@@ -7419,17 +7255,20 @@
                 schedule: scheduleData,
                 totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
                 totalStudyTime: totalWorkedSecondsAllTime || 0,
+                totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
                 totalQuestionsAllTime: totalQuestionsAllTime || 0,
                 ...questionCounters,
                 selectedTitleId: titleInfo.selectedTitleId,
                 titleAwards: titleInfo.titleAwards,
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
-                currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
+                currentSessionTime: timerPendingSeconds,
                 legacyWorkingStartedAt,
                 activeTimer: activeTimerRecord,
                 isWorking: isTimerRecordRunning(timerState.session),
-                lastTimerSyncAt: Date.now()
+                isRunning: !!timerState.session?.isRunning,
+                lastSyncTime: syncTimestamp,
+                lastTimerSyncAt: syncTimestamp
             };
         };
 
@@ -7446,14 +7285,18 @@
                 });
                 return {
                     ...seed,
+                    name: currentUsername || seed.name || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
+                    totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
                     selectedTitleId: titleInfo.selectedTitleId,
                     titleAwards: titleInfo.titleAwards,
                     dailyStudyTime: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
-                    currentSessionTime: timerState.session?.isRunning ? getTimerElapsedSeconds(timerState.session) : 0,
+                    currentSessionTime: timerState.session?.isRunning ? getPendingTimerDelta(timerState.session) : 0,
                     activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                    isRunning: !!timerState.session?.isRunning,
+                    lastSyncTime: Date.now(),
                     emailVerified: !!currentUser?.emailVerified
                 };
             };
@@ -7566,9 +7409,12 @@
                 : 0;
             const workingPatch = {
                 isWorking,
+                isRunning: isWorking,
                 currentSessionTime: isWorking ? sessionElapsedSeconds : 0,
                 legacyWorkingStartedAt: nextLegacyWorkingStartedAt,
+                lastSyncTime: now,
                 lastTimerSyncAt: now,
+                totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
                 activeTimer: isWorking && timerState.session ? serializeTimerSession(timerState.session) : null
             };
 
@@ -7594,7 +7440,6 @@
                 .catch(error => {
                     console.error("Legacy calisma durumu buluta yazilamadi:", error);
                 });
-            syncPublicProfileSnapshotSafely(cloudPayload);
             syncLeaderboardSnapshotSafely(cloudPayload);
 
             return undefined;
@@ -7653,16 +7498,12 @@
             ensureVerificationCard();
             applyTurkishInputSupport();
 
-            if (currentUserResetUnsubscribe) {
-                currentUserResetUnsubscribe();
-                currentUserResetUnsubscribe = null;
-            }
-
             if (!user) {
                 currentUser = null;
                 currentUserLiveDoc = null;
                 currentUserWriteChain = Promise.resolve();
                 requiresEmailVerification = false;
+                hasBootstrappedUsersRealtime = false;
                 clearLoadedUserData();
                 unsubscribeRealtimeLeaderboard();
                 if (currentUserSaveTimer) {
@@ -7693,52 +7534,8 @@
             }
 
             hideVerificationGate();
-
-            let isInitialResetSnapshot = true;
-            currentUserResetUnsubscribe = db.collection("users").doc(user.uid).onSnapshot(doc => {
-                if (!doc.exists) {
-                    currentUserLiveDoc = null;
-                    bootstrapExtendedUserData({});
-                    renderSchedule();
-                    renderMyNotesPanel();
-                    isInitialResetSnapshot = false;
-                    return;
-                }
-                const data = doc.data() || {};
-                syncCurrentUserLiveDoc(data, { silent: isInitialResetSnapshot });
-                applyAdminTimerResetFromUserData(data, { silent: isInitialResetSnapshot });
-                isInitialResetSnapshot = false;
-            }, error => {
-                console.error("Admin timer reset dinlenemedi:", error);
-            });
-
-            db.collection("users").doc(user.uid).get().then(doc => {
-                const data = doc.exists ? (doc.data() || {}) : {};
-                currentUserLiveDoc = doc.exists ? data : null;
-                requiresEmailVerification = !!data.requiresEmailVerification;
-                if (requiresEmailVerification && !user.emailVerified) {
-                    showVerificationGate({
-                        email: user.email || "",
-                        meta: "Bu yeni hesap için email doğrulaması bekleniyor."
-                    });
-                } else {
-                    requiresEmailVerification = false;
-                    hideVerificationGate();
-                }
-                bootstrapExtendedUserData(data);
-                renderSchedule();
-                renderMyNotesPanel();
-                syncPublicProfileSnapshot(data).catch(error => {
-                    console.error("Public profil senkronu basarisiz:", error);
-                });
-                syncLeaderboardSnapshot(data).catch(error => {
-                    console.error("Leaderboard senkronu basarisiz:", error);
-                });
-                syncPublicQuestionCountersNow();
-                maybeAutoSyncLeaderboardCollection();
-            }).catch(error => {
-                console.error("Genişletilmiş kullanıcı verisi okunamadi:", error);
-            });
+            hasBootstrappedUsersRealtime = false;
+            subscribeRealtimeLeaderboard();
         });
 
         document.addEventListener("visibilitychange", () => {
