@@ -36,6 +36,8 @@
     let currentUserLiveDoc = null;
     let leaderboardRealtimeDocs = [];
     let leaderboardLiveInterval = null;
+    let leaderboardCloudPollInterval = null;
+    let leaderboardCloudRefreshPromise = null;
     let timerSyncInterval = null;
     let timerOwnerInterval = null;
     let currentUserWriteChain = Promise.resolve();
@@ -4144,6 +4146,186 @@
         return nextData.sort((a, b) => (b.seconds - a.seconds) || Number(b.isWorking) - Number(a.isWorking));
     }
 
+    function decodeFirestoreRestValue(value) {
+        if (!value || typeof value !== "object") return null;
+        if (Object.prototype.hasOwnProperty.call(value, "nullValue")) return null;
+        if (Object.prototype.hasOwnProperty.call(value, "stringValue")) return String(value.stringValue || "");
+        if (Object.prototype.hasOwnProperty.call(value, "booleanValue")) return !!value.booleanValue;
+        if (Object.prototype.hasOwnProperty.call(value, "integerValue")) return parseInteger(value.integerValue, 0);
+        if (Object.prototype.hasOwnProperty.call(value, "doubleValue")) return Number(value.doubleValue) || 0;
+        if (Object.prototype.hasOwnProperty.call(value, "timestampValue")) return String(value.timestampValue || "");
+        if (Object.prototype.hasOwnProperty.call(value, "referenceValue")) return String(value.referenceValue || "");
+        if (Object.prototype.hasOwnProperty.call(value, "bytesValue")) return String(value.bytesValue || "");
+        if (Object.prototype.hasOwnProperty.call(value, "geoPointValue")) {
+            return {
+                latitude: Number(value.geoPointValue?.latitude) || 0,
+                longitude: Number(value.geoPointValue?.longitude) || 0
+            };
+        }
+        if (Object.prototype.hasOwnProperty.call(value, "arrayValue")) {
+            const values = Array.isArray(value.arrayValue?.values) ? value.arrayValue.values : [];
+            return values.map(entry => decodeFirestoreRestValue(entry));
+        }
+        if (Object.prototype.hasOwnProperty.call(value, "mapValue")) {
+            return decodeFirestoreRestFields(value.mapValue?.fields || {});
+        }
+        return null;
+    }
+
+    function decodeFirestoreRestFields(fields = {}) {
+        const nextData = {};
+        Object.entries(fields || {}).forEach(([key, value]) => {
+            nextData[key] = decodeFirestoreRestValue(value);
+        });
+        return nextData;
+    }
+
+    function normalizeLeaderboardCloudDocs(rawDocs = []) {
+        return (Array.isArray(rawDocs) ? rawDocs : [])
+            .map(item => {
+                const docId = String(item?.id || item?.name?.split("/").pop() || "").trim();
+                if (!docId) return null;
+
+                if (item && item.data && typeof item.data === "object") {
+                    return {
+                        id: docId,
+                        data: item.data
+                    };
+                }
+
+                if (item && item.fields && typeof item.fields === "object") {
+                    return {
+                        id: docId,
+                        data: decodeFirestoreRestFields(item.fields)
+                    };
+                }
+
+                return null;
+            })
+            .filter(Boolean);
+    }
+
+    function applyLeaderboardCloudDocs(rawDocs = []) {
+        leaderboardRealtimeDocs = normalizeLeaderboardCloudDocs(rawDocs);
+
+        if (currentUser?.uid) {
+            const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
+            const baseData = currentUserIndex >= 0
+                ? (leaderboardRealtimeDocs[currentUserIndex]?.data || {})
+                : (currentUserLiveDoc || {});
+            const optimisticData = buildOptimisticCurrentUserData(baseData);
+            if (currentUserIndex >= 0) {
+                leaderboardRealtimeDocs[currentUserIndex] = { id: currentUser.uid, data: optimisticData };
+            } else {
+                leaderboardRealtimeDocs.push({ id: currentUser.uid, data: optimisticData });
+            }
+        }
+
+        return leaderboardRealtimeDocs;
+    }
+
+    async function fetchLeaderboardDocsViaRest() {
+        const projectId = String(firebase?.app?.()?.options?.projectId || "").trim();
+        const apiKey = String(firebase?.app?.()?.options?.apiKey || "").trim();
+        if (!projectId || !apiKey || typeof fetch !== "function") {
+            return [];
+        }
+
+        const endpoint = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/databases/(default)/documents/${encodeURIComponent(LEADERBOARD_COLLECTION)}?key=${encodeURIComponent(apiKey)}`;
+        const response = await fetch(endpoint, {
+            method: "GET",
+            cache: "no-store"
+        });
+
+        if (!response.ok) {
+            throw new Error(`leaderboard-rest-${response.status}`);
+        }
+
+        const payload = await response.json();
+        return normalizeLeaderboardCloudDocs(payload?.documents || []);
+    }
+
+    async function fetchLeaderboardDocsFromCloud() {
+        const query = db.collection(LEADERBOARD_COLLECTION);
+        let sdkDocs = [];
+        let sdkError = null;
+
+        try {
+            const snapshot = await query.get({ source: "server" });
+            sdkDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+        } catch (error) {
+            sdkError = error;
+            try {
+                const snapshot = await query.get();
+                sdkDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+                sdkError = null;
+            } catch (fallbackError) {
+                sdkError = fallbackError;
+            }
+        }
+
+        const shouldTryRest = !!sdkError || sdkDocs.length <= 1;
+        if (shouldTryRest) {
+            try {
+                const restDocs = await fetchLeaderboardDocsViaRest();
+                if (restDocs.length > sdkDocs.length) {
+                    sdkDocs = restDocs;
+                    sdkError = null;
+                }
+            } catch (restError) {
+                if (!sdkDocs.length) {
+                    throw (sdkError || restError);
+                }
+            }
+        }
+
+        if (sdkError && !sdkDocs.length) {
+            throw sdkError;
+        }
+
+        return sdkDocs;
+    }
+
+    async function refreshLeaderboardCloudSnapshot(reason = "manual") {
+        if (leaderboardCloudRefreshPromise) {
+            return leaderboardCloudRefreshPromise;
+        }
+
+        leaderboardCloudRefreshPromise = fetchLeaderboardDocsFromCloud()
+            .then(docs => {
+                applyLeaderboardCloudDocs(docs);
+                if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                    renderLiveLeaderboardFromDocs();
+                }
+                return docs;
+            })
+            .catch(error => {
+                console.error(`Lider tablosu ${reason} yenilenemedi:`, error);
+                throw error;
+            })
+            .finally(() => {
+                leaderboardCloudRefreshPromise = null;
+            });
+
+        return leaderboardCloudRefreshPromise;
+    }
+
+    function ensureLeaderboardCloudPolling() {
+        if (leaderboardCloudPollInterval) return;
+
+        refreshLeaderboardCloudSnapshot("open").catch(() => null);
+        leaderboardCloudPollInterval = setInterval(() => {
+            if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
+            refreshLeaderboardCloudSnapshot("poll").catch(() => null);
+        }, 12000);
+    }
+
+    function stopLeaderboardCloudPolling() {
+        if (!leaderboardCloudPollInterval) return;
+        clearInterval(leaderboardCloudPollInterval);
+        leaderboardCloudPollInterval = null;
+    }
+
     function buildLeaderboardViewModelFromDocs() {
         return mergeForcedLocalLeaderboardEntry(getLeaderboardSourceDocs()
             .map(doc => {
@@ -4307,21 +4489,10 @@
                 ? '<p style="text-align:center; opacity:0.7;">Canli veriler yuklenirken yerel ilerleme gosteriliyor...</p>'
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
+        ensureLeaderboardCloudPolling();
 
         leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
-            leaderboardRealtimeDocs = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
-            if (currentUser?.uid) {
-                const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
-                const baseData = currentUserIndex >= 0
-                    ? (leaderboardRealtimeDocs[currentUserIndex]?.data || {})
-                    : (currentUserLiveDoc || {});
-                const optimisticData = buildOptimisticCurrentUserData(baseData);
-                if (currentUserIndex >= 0) {
-                    leaderboardRealtimeDocs[currentUserIndex] = { id: currentUser.uid, data: optimisticData };
-                } else {
-                    leaderboardRealtimeDocs.push({ id: currentUser.uid, data: optimisticData });
-                }
-            }
+            applyLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
             renderLiveLeaderboardFromDocs();
         }, error => {
             const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
@@ -4332,15 +4503,18 @@
                 console.error("Canli lider tablosu dinlenemedi:", error);
             }
 
-            leaderboardRealtimeDocs = [];
-            const fallbackData = buildLeaderboardViewModelFromDocs();
-            if (fallbackData.length) {
-                renderLiveLeaderboardFromDocs();
-            } else if (listContainer) {
-                listContainer.innerHTML = permissionDenied
-                    ? '<p style="text-align:center; color:#facc15;">Lider tablosu Firestore izinleri nedeniyle sadece bu cihazdaki veriyi gosterebiliyor.</p>'
-                    : '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
-            }
+            refreshLeaderboardCloudSnapshot(permissionDenied ? "permission-fallback" : "snapshot-fallback")
+                .catch(() => {
+                    leaderboardRealtimeDocs = [];
+                    const fallbackData = buildLeaderboardViewModelFromDocs();
+                    if (fallbackData.length) {
+                        renderLiveLeaderboardFromDocs();
+                    } else if (listContainer) {
+                        listContainer.innerHTML = permissionDenied
+                            ? '<p style="text-align:center; color:#facc15;">Lider tablosu Firestore izinleri nedeniyle sadece bu cihazdaki veriyi gosterebiliyor.</p>'
+                            : '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+                    }
+                });
         });
 
         if (!leaderboardLiveInterval) {
@@ -4357,6 +4531,7 @@
             leaderboardRealtimeUnsubscribe();
             leaderboardRealtimeUnsubscribe = null;
         }
+        stopLeaderboardCloudPolling();
         if (leaderboardLiveInterval) {
             clearInterval(leaderboardLiveInterval);
             leaderboardLiveInterval = null;
