@@ -35,6 +35,8 @@
     let currentUserResetUnsubscribe = null;
     let currentUserLiveDoc = null;
     let leaderboardRealtimeDocs = [];
+    let leaderboardProfileSourceDocs = [];
+    let leaderboardLiveSourceDocs = [];
     let leaderboardLiveInterval = null;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
@@ -4315,6 +4317,93 @@
         })));
     }
 
+    function getLeaderboardSourceRecency(data = {}) {
+        return Math.max(
+            parseInteger(data?.lastTimerSyncAt, 0),
+            parseInteger(data?.updatedAtMs, 0),
+            parseInteger(data?.activeTimer?.lastSeenAtMs, 0),
+            parseInteger(data?.activeTimer?.updatedAtMs, 0),
+            parseInteger(data?.activeTimer?.startedAtMs, 0)
+        );
+    }
+
+    function mergeLeaderboardSourceDocs(profileDocs = [], liveDocs = []) {
+        const profileMap = new Map(normalizeLeaderboardCloudDocs(profileDocs).map(item => [item.id, item.data || {}]));
+        const liveMap = new Map(normalizeLeaderboardCloudDocs(liveDocs).map(item => [item.id, item.data || {}]));
+        const docIds = new Set([...profileMap.keys(), ...liveMap.keys()]);
+
+        return normalizeLeaderboardCloudDocs([...docIds].map(docId => {
+            const profileData = profileMap.get(docId) || {};
+            const liveData = liveMap.get(docId) || {};
+            const profileRecency = getLeaderboardSourceRecency(profileData);
+            const liveRecency = getLeaderboardSourceRecency(liveData);
+            const prefersLive = liveRecency > profileRecency
+                || (!profileData.activeTimer && !!liveData.activeTimer)
+                || (parseInteger(profileData.currentSessionTime, 0) <= 0 && parseInteger(liveData.currentSessionTime, 0) > 0)
+                || (!profileData.isWorking && !!liveData.isWorking);
+
+            const mergedData = {
+                ...liveData,
+                ...profileData
+            };
+
+            if (prefersLive) {
+                mergedData.schedule = sanitizeScheduleData(liveData.schedule || profileData.schedule || {});
+                mergedData.dailyStudyTime = Math.max(
+                    parseInteger(profileData.dailyStudyTime, 0),
+                    parseInteger(liveData.dailyStudyTime, 0),
+                    parseInteger(liveData.todayStudyTime, 0),
+                    parseInteger(liveData.todayWorkedSeconds, 0)
+                );
+                mergedData.dailyStudyDateKey = liveData.dailyStudyDateKey || liveData.todayDateKey || profileData.dailyStudyDateKey || "";
+                mergedData.weeklyStudyTime = Math.max(
+                    parseInteger(profileData.weeklyStudyTime, 0),
+                    parseInteger(profileData.currentWeekSeconds, 0),
+                    parseInteger(liveData.weeklyStudyTime, 0),
+                    parseInteger(liveData.currentWeekSeconds, 0)
+                );
+                mergedData.currentWeekSeconds = Math.max(
+                    parseInteger(profileData.currentWeekSeconds, 0),
+                    parseInteger(profileData.weeklyStudyTime, 0),
+                    parseInteger(liveData.currentWeekSeconds, 0),
+                    parseInteger(liveData.weeklyStudyTime, 0)
+                );
+                mergedData.currentSessionTime = Math.max(
+                    parseInteger(profileData.currentSessionTime, 0),
+                    parseInteger(liveData.currentSessionTime, 0)
+                );
+                mergedData.activeTimer = liveData.activeTimer || profileData.activeTimer || null;
+                mergedData.isWorking = !!(liveData.isWorking || profileData.isWorking || isTimerRecordRunning(mergedData.activeTimer));
+                mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
+                mergedData.totalWorkedSeconds = Math.max(
+                    parseInteger(profileData.totalWorkedSeconds, 0),
+                    parseInteger(profileData.totalStudyTime, 0),
+                    parseInteger(liveData.totalWorkedSeconds, 0),
+                    parseInteger(liveData.totalStudyTime, 0)
+                );
+                mergedData.totalStudyTime = Math.max(
+                    parseInteger(profileData.totalStudyTime, 0),
+                    parseInteger(profileData.totalWorkedSeconds, 0),
+                    parseInteger(liveData.totalStudyTime, 0),
+                    parseInteger(liveData.totalWorkedSeconds, 0)
+                );
+                mergedData.totalQuestionsAllTime = Math.max(
+                    parseInteger(profileData.totalQuestionsAllTime, 0),
+                    parseInteger(liveData.totalQuestionsAllTime, 0)
+                );
+            } else {
+                mergedData.schedule = sanitizeScheduleData(profileData.schedule || liveData.schedule || {});
+                mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
+                mergedData.isWorking = !!(profileData.isWorking || liveData.isWorking || isTimerRecordRunning(mergedData.activeTimer));
+            }
+
+            return {
+                id: docId,
+                data: mergedData
+            };
+        }));
+    }
+
     function applyLeaderboardCloudDocs(rawDocs = []) {
         leaderboardRealtimeDocs = normalizeLeaderboardCloudDocs(rawDocs);
 
@@ -4375,9 +4464,6 @@
         if (currentUser?.uid) {
             try {
                 usersDocs = await fetchLeaderboardDocsFromUsersCollection();
-                if (usersDocs.length) {
-                    return usersDocs;
-                }
             } catch (error) {
                 usersError = error;
             }
@@ -4419,6 +4505,13 @@
                 if (!sdkDocs.length) {
                     throw (sdkError || usersCollectionError);
                 }
+            }
+        }
+
+        if (currentUser?.uid) {
+            const mergedDocs = mergeLeaderboardSourceDocs(usersDocs, sdkDocs);
+            if (mergedDocs.length) {
+                return mergedDocs;
             }
         }
 
@@ -4650,17 +4743,7 @@
         }
         ensureLeaderboardCloudPolling();
 
-        const realtimeQuery = currentUser?.uid
-            ? db.collection("users")
-            : db.collection(LEADERBOARD_COLLECTION);
-
-        leaderboardRealtimeUnsubscribe = realtimeQuery.onSnapshot(snapshot => {
-            const nextDocs = currentUser?.uid
-                ? mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs)
-                : snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} }));
-            applyLeaderboardCloudDocs(nextDocs);
-            renderLiveLeaderboardFromDocs();
-        }, error => {
+        const handleRealtimeError = error => {
             const permissionDenied = String(error?.code || "").toLowerCase() === "permission-denied"
                 || String(error?.message || "").toLowerCase().includes("insufficient permissions");
             if (permissionDenied) {
@@ -4681,7 +4764,39 @@
                             : '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
                     }
                 });
-        });
+        };
+
+        if (currentUser?.uid) {
+            const renderMergedRealtimeDocs = () => {
+                applyLeaderboardCloudDocs(mergeLeaderboardSourceDocs(leaderboardProfileSourceDocs, leaderboardLiveSourceDocs));
+                renderLiveLeaderboardFromDocs();
+            };
+
+            leaderboardProfileSourceDocs = [];
+            leaderboardLiveSourceDocs = [];
+
+            const unsubscribeUsers = db.collection("users").onSnapshot(snapshot => {
+                leaderboardProfileSourceDocs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
+                renderMergedRealtimeDocs();
+            }, handleRealtimeError);
+
+            const unsubscribeLeaderboard = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
+                leaderboardLiveSourceDocs = normalizeLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+                renderMergedRealtimeDocs();
+            }, handleRealtimeError);
+
+            leaderboardRealtimeUnsubscribe = () => {
+                unsubscribeUsers();
+                unsubscribeLeaderboard();
+                leaderboardProfileSourceDocs = [];
+                leaderboardLiveSourceDocs = [];
+            };
+        } else {
+            leaderboardRealtimeUnsubscribe = db.collection(LEADERBOARD_COLLECTION).onSnapshot(snapshot => {
+                applyLeaderboardCloudDocs(snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() || {} })));
+                renderLiveLeaderboardFromDocs();
+            }, handleRealtimeError);
+        }
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
@@ -4697,6 +4812,8 @@
             leaderboardRealtimeUnsubscribe();
             leaderboardRealtimeUnsubscribe = null;
         }
+        leaderboardProfileSourceDocs = [];
+        leaderboardLiveSourceDocs = [];
         stopLeaderboardCloudPolling();
         if (leaderboardLiveInterval) {
             clearInterval(leaderboardLiveInterval);
