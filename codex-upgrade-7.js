@@ -4196,6 +4196,34 @@
         };
     }
 
+    function getLeaderboardTitlePriority(user = {}) {
+        const titleLevels = ensureRollingTwoDayTitleConfig();
+        const titlePriorityMap = new Map(titleLevels.map((level, index) => [level.id, index + 1]));
+        const currentTitleId = String(
+            user?.titleInfo?.currentTitle?.id
+            || user?.selectedTitleId
+            || ""
+        ).trim();
+        const basePriority = titlePriorityMap.get(currentTitleId) || 0;
+        return user?.isAdmin ? Math.max(basePriority, titleLevels.length + 1) : basePriority;
+    }
+
+    function compareLeaderboardEntries(left = {}, right = {}) {
+        const secondsDiff = parseInteger(right.seconds, 0) - parseInteger(left.seconds, 0);
+        if (secondsDiff !== 0) return secondsDiff;
+
+        const titleDiff = getLeaderboardTitlePriority(right) - getLeaderboardTitlePriority(left);
+        if (titleDiff !== 0) return titleDiff;
+
+        const workingDiff = Number(!!right.isWorking) - Number(!!left.isWorking);
+        if (workingDiff !== 0) return workingDiff;
+
+        const questionsDiff = parseInteger(right.currentPeriodQuestions ?? right.questions, 0) - parseInteger(left.currentPeriodQuestions ?? left.questions, 0);
+        if (questionsDiff !== 0) return questionsDiff;
+
+        return String(left.username || "").localeCompare(String(right.username || ""), "tr");
+    }
+
     function mergeForcedLocalLeaderboardEntry(leaderboardData) {
         const nextData = Array.isArray(leaderboardData) ? [...leaderboardData] : [];
         const localEntry = buildForcedLocalLeaderboardEntry();
@@ -4215,7 +4243,7 @@
             nextData.push(localEntry);
         }
 
-        return nextData.sort((a, b) => (b.seconds - a.seconds) || Number(b.isWorking) - Number(a.isWorking));
+        return nextData.sort(compareLeaderboardEntries);
     }
 
     function decodeFirestoreRestValue(value) {
