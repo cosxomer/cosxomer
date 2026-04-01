@@ -4222,6 +4222,53 @@
         );
     }
 
+    function getTrustedLeaderboardPresenceState(rawData = {}, docId = "", now = Date.now()) {
+        const rawCurrentSessionTime = Math.max(0, parseInteger(rawData?.currentSessionTime, 0));
+        const activeTimer = rawData?.activeTimer || null;
+        const activeTimerRunning = isTimerRecordRunning(activeTimer, now);
+        const explicitWorkingFlag = !!rawData?.isWorking || !!rawData?.isRunning || activeTimerRunning;
+        const lastSyncAt = getLeaderboardSessionLastSyncAt(rawData);
+        const syncLooksFresh = lastSyncAt > 0 && (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
+        let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData?.legacyWorkingStartedAt, 0));
+
+        if (activeTimerRunning) {
+            legacyWorkingStartedAt = Math.max(
+                legacyWorkingStartedAt,
+                parseInteger(activeTimer?.startedAtMs, 0)
+            );
+            if (!legacyWorkingStartedAt && rawCurrentSessionTime > 0 && lastSyncAt > 0) {
+                legacyWorkingStartedAt = Math.max(0, lastSyncAt - (rawCurrentSessionTime * 1000));
+            }
+        } else {
+            const explicitLegacyFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
+            if (!explicitLegacyFresh) {
+                legacyWorkingStartedAt = 0;
+            }
+
+            if (!legacyWorkingStartedAt && explicitWorkingFlag && rawCurrentSessionTime > 0 && syncLooksFresh) {
+                legacyWorkingStartedAt = Math.max(0, lastSyncAt - (rawCurrentSessionTime * 1000));
+            }
+        }
+
+        const legacyLooksFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
+        const isWorking = activeTimerRunning || (explicitWorkingFlag && legacyLooksFresh && (rawCurrentSessionTime > 0 || syncLooksFresh));
+
+        if (isWorking && legacyWorkingStartedAt > 0) {
+            legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
+        } else if (docId) {
+            legacyWorkingPresenceByUserId.delete(docId);
+            legacyWorkingStartedAt = 0;
+        }
+
+        return {
+            currentSessionTime: rawCurrentSessionTime,
+            isWorking,
+            isRunning: isWorking,
+            legacyWorkingStartedAt,
+            lastSyncAt
+        };
+    }
+
     function getLeaderboardLiveSessionSnapshot(userData = {}, now = Date.now()) {
         const activeTimer = userData?.activeTimer || null;
         const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
@@ -4256,21 +4303,19 @@
 
         if (lastSyncAt <= 0) {
             return {
-                seconds: currentSessionTime,
-                isLive: isRunning,
+                seconds: isRunning ? currentSessionTime : 0,
+                isLive: isRunning && currentSessionTime > 0,
                 lastSyncAt
             };
         }
 
         const secondsSinceLastSync = Math.max(0, Math.floor((now - lastSyncAt) / 1000));
         const isFresh = (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
-        const fallbackSeconds = isRunning
-            ? Math.max(currentSessionTime, secondsSinceLastSync)
-            : currentSessionTime;
+        const fallbackSeconds = Math.max(currentSessionTime, secondsSinceLastSync);
 
         return {
-            seconds: isFresh ? fallbackSeconds : currentSessionTime,
-            isLive: isFresh && (isRunning || currentSessionTime > 0),
+            seconds: (isFresh && isRunning) ? fallbackSeconds : 0,
+            isLive: isFresh && isRunning,
             lastSyncAt
         };
     }
@@ -4496,42 +4541,20 @@
 
     function normalizeLiveLeaderboardDocData(rawData = {}, docId = "") {
         const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
-        const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
-        const rawIsWorking = !!rawData.isWorking || !!rawData.isRunning || isTimerRecordRunning(rawData.activeTimer);
-        const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(docId) || null;
         const sourceRecency = getLeaderboardSourceRecency(rawData);
-        let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
-
-        if (rawIsWorking) {
-            if (!legacyWorkingStartedAt && rawCurrentSessionTime > 0 && sourceRecency > 0) {
-                legacyWorkingStartedAt = Math.max(0, sourceRecency - (rawCurrentSessionTime * 1000));
-            }
-            if (!legacyWorkingStartedAt && rawData.activeTimer) {
-                legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.activeTimer.startedAtMs, 0));
-            }
-            if (!legacyWorkingStartedAt && cachedLegacyPresence?.startedAtMs) {
-                legacyWorkingStartedAt = parseInteger(cachedLegacyPresence.startedAtMs, 0);
-            }
-            if (!legacyWorkingStartedAt) {
-                legacyWorkingStartedAt = sourceRecency || Date.now();
-            }
-            legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
-        } else {
-            legacyWorkingPresenceByUserId.delete(docId);
-            legacyWorkingStartedAt = 0;
-        }
+        const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
         return {
             ...rawData,
             username: String(rawData.username || rawData.name || rawData.email?.split?.("@")?.[0] || "").trim(),
             schedule: safeSchedule,
-            currentSessionTime: rawCurrentSessionTime,
-            legacyWorkingStartedAt,
-            isWorking: rawIsWorking,
-            isRunning: rawIsWorking,
+            currentSessionTime: presenceState.currentSessionTime,
+            legacyWorkingStartedAt: presenceState.legacyWorkingStartedAt,
+            isWorking: presenceState.isWorking,
+            isRunning: presenceState.isRunning,
             totalTime: Math.max(parseInteger(rawData.totalTime, 0), parseInteger(rawData.totalWorkedSeconds, 0) * 1000, parseInteger(rawData.totalStudyTime, 0) * 1000),
             lastSyncTime: Math.max(parseInteger(rawData.lastSyncTime, 0), sourceRecency),
-            lastTimerSyncAt: Math.max(parseInteger(rawData.lastTimerSyncAt, 0), parseInteger(rawData.lastSyncTime, 0), sourceRecency, legacyWorkingStartedAt)
+            lastTimerSyncAt: Math.max(parseInteger(rawData.lastTimerSyncAt, 0), parseInteger(rawData.lastSyncTime, 0), sourceRecency, presenceState.lastSyncAt)
         };
     }
 
@@ -4547,29 +4570,7 @@
             const rawData = doc.data() || {};
             const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
-            const rawCurrentSessionTime = Math.max(0, parseInteger(rawData.currentSessionTime, 0));
-            const rawIsWorking = !!rawData.isWorking || !!rawData.isRunning || isTimerRecordRunning(rawData.activeTimer);
-            let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData.legacyWorkingStartedAt, 0));
-            const cachedLegacyPresence = legacyWorkingPresenceByUserId.get(doc.id) || null;
-
-            if (rawIsWorking) {
-                if (!legacyWorkingStartedAt && rawCurrentSessionTime > 0 && parseInteger(rawData.lastTimerSyncAt, 0) > 0) {
-                    legacyWorkingStartedAt = Math.max(
-                        0,
-                        parseInteger(rawData.lastTimerSyncAt, 0) - (rawCurrentSessionTime * 1000)
-                    );
-                }
-                if (!legacyWorkingStartedAt && cachedLegacyPresence?.startedAtMs) {
-                    legacyWorkingStartedAt = parseInteger(cachedLegacyPresence.startedAtMs, 0);
-                }
-                if (!legacyWorkingStartedAt) {
-                    legacyWorkingStartedAt = Date.now();
-                }
-                legacyWorkingPresenceByUserId.set(doc.id, { startedAtMs: legacyWorkingStartedAt });
-            } else {
-                legacyWorkingPresenceByUserId.delete(doc.id);
-                legacyWorkingStartedAt = 0;
-            }
+            const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
 
             const currentWeekSeconds = Math.max(
                 parseInteger(rawData.currentWeekSeconds, 0),
@@ -4625,13 +4626,13 @@
                     totalStudyTime: Math.max(parseInteger(rawData.totalStudyTime, 0), totalWorkedSeconds),
                     totalTime: Math.max(parseInteger(rawData.totalTime, 0), totalWorkedSeconds * 1000),
                     totalQuestionsAllTime,
-                    currentSessionTime: rawCurrentSessionTime,
-                    legacyWorkingStartedAt,
+                    currentSessionTime: presenceState.currentSessionTime,
+                    legacyWorkingStartedAt: presenceState.legacyWorkingStartedAt,
                     activeTimer: rawData.activeTimer || null,
-                    isWorking: rawIsWorking || isTimerRecordRunning(rawData.activeTimer),
-                    isRunning: rawIsWorking || isTimerRecordRunning(rawData.activeTimer),
+                    isWorking: presenceState.isWorking,
+                    isRunning: presenceState.isRunning,
                     lastSyncTime: Math.max(parseInteger(rawData.lastSyncTime, 0), getLeaderboardSourceRecency(rawData)),
-                    lastTimerSyncAt: Math.max(parseInteger(rawData.lastSyncTime, 0), getLeaderboardSourceRecency(rawData), legacyWorkingStartedAt)
+                    lastTimerSyncAt: Math.max(parseInteger(rawData.lastSyncTime, 0), getLeaderboardSourceRecency(rawData), presenceState.lastSyncAt)
                 }
             };
         }));
@@ -4711,10 +4712,7 @@
             mergedData.legacyWorkingStartedAt = Math.max(
                 profileLegacyWorkingStartedAt,
                 liveLegacyWorkingStartedAt,
-                parseInteger(mergedData.activeTimer?.startedAtMs, 0),
-                (mergedData.currentSessionTime > 0 && mergedData.lastTimerSyncAt > 0)
-                    ? Math.max(0, mergedData.lastTimerSyncAt - (mergedData.currentSessionTime * 1000))
-                    : 0
+                parseInteger(mergedData.activeTimer?.startedAtMs, 0)
             );
             mergedData.totalWorkedSeconds = Math.max(
                 parseInteger(profileData.totalWorkedSeconds, 0),
@@ -4732,13 +4730,10 @@
                 parseInteger(profileData.totalQuestionsAllTime, 0),
                 parseInteger(liveData.totalQuestionsAllTime, 0)
             );
-            mergedData.isWorking = !!(
-                profileData.isWorking
-                || liveData.isWorking
-                || isTimerRecordRunning(profileTimer)
-                || isTimerRecordRunning(liveTimer)
-                || (mergedData.currentSessionTime > 0 && mergedData.lastTimerSyncAt > 0 && (Date.now() - mergedData.lastTimerSyncAt) < REMOTE_TIMER_STALE_MS)
-            );
+            const mergedPresenceState = getTrustedLeaderboardPresenceState(mergedData, docId);
+            mergedData.legacyWorkingStartedAt = mergedPresenceState.legacyWorkingStartedAt;
+            mergedData.isWorking = mergedPresenceState.isWorking;
+            mergedData.isRunning = mergedPresenceState.isRunning;
 
             return {
                 id: docId,
