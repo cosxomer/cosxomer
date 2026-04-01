@@ -4308,13 +4308,69 @@
     }
 
     function mapUserSnapshotDocsToLeaderboardDocs(snapshotDocs = []) {
-        return normalizeLeaderboardCloudDocs((Array.isArray(snapshotDocs) ? snapshotDocs : []).map(doc => ({
-            id: doc.id,
-            data: buildLeaderboardDocumentPayload({
-                ...(doc.data() || {}),
-                uid: doc.id
-            })
-        })));
+        return normalizeLeaderboardCloudDocs((Array.isArray(snapshotDocs) ? snapshotDocs : []).map(doc => {
+            const rawData = doc.data() || {};
+            const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
+            const questionCounters = buildQuestionCounterPayload(safeSchedule);
+            const currentWeekSeconds = Math.max(
+                parseInteger(rawData.currentWeekSeconds, 0),
+                parseInteger(rawData.weeklyStudyTime, 0),
+                typeof getCurrentWeekTotalsFromSchedule === "function"
+                    ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
+                    : 0
+            );
+            const totalWorkedSeconds = Math.max(
+                parseInteger(rawData.totalWorkedSeconds, 0),
+                parseInteger(rawData.totalStudyTime, 0),
+                typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                    ? calculateTotalWorkedSecondsFromSchedule(safeSchedule)
+                    : 0
+            );
+            const totalQuestionsAllTime = Math.max(
+                parseInteger(rawData.totalQuestionsAllTime, 0),
+                questionCounters.dailyQuestions,
+                questionCounters.weeklyQuestions,
+                typeof calculateTotalQuestionsFromSchedule === "function"
+                    ? calculateTotalQuestionsFromSchedule(safeSchedule)
+                    : 0
+            );
+
+            return {
+                id: doc.id,
+                data: {
+                    ...rawData,
+                    uid: doc.id,
+                    email: rawData.email || "",
+                    username: String(rawData.username || rawData.email?.split?.("@")?.[0] || "").trim(),
+                    studyTrack: rawData.studyTrack || "",
+                    selectedSubjects: typeof normalizeSelectedSubjects === "function"
+                        ? normalizeSelectedSubjects(rawData.studyTrack || "", rawData.selectedSubjects || [])
+                        : (rawData.selectedSubjects || []),
+                    schedule: safeSchedule,
+                    dailyQuestions: Math.max(
+                        parseInteger(rawData.dailyQuestions, 0),
+                        parseInteger(rawData.dailyQuestionCount, 0),
+                        parseInteger(rawData.daily, 0),
+                        questionCounters.dailyQuestions
+                    ),
+                    weeklyQuestions: Math.max(
+                        parseInteger(rawData.weeklyQuestions, 0),
+                        parseInteger(rawData.weeklyQuestionCount, 0),
+                        parseInteger(rawData.weekly, 0),
+                        questionCounters.weeklyQuestions
+                    ),
+                    weeklyStudyTime: Math.max(parseInteger(rawData.weeklyStudyTime, 0), currentWeekSeconds),
+                    currentWeekSeconds,
+                    totalWorkedSeconds,
+                    totalStudyTime: Math.max(parseInteger(rawData.totalStudyTime, 0), totalWorkedSeconds),
+                    totalQuestionsAllTime,
+                    currentSessionTime: Math.max(0, parseInteger(rawData.currentSessionTime, 0)),
+                    activeTimer: rawData.activeTimer || null,
+                    isWorking: !!rawData.isWorking || isTimerRecordRunning(rawData.activeTimer),
+                    lastTimerSyncAt: getLeaderboardSourceRecency(rawData)
+                }
+            };
+        }));
     }
 
     function getLeaderboardSourceRecency(data = {}) {
@@ -4337,65 +4393,77 @@
             const liveData = liveMap.get(docId) || {};
             const profileRecency = getLeaderboardSourceRecency(profileData);
             const liveRecency = getLeaderboardSourceRecency(liveData);
-            const prefersLive = liveRecency > profileRecency
-                || (!profileData.activeTimer && !!liveData.activeTimer)
-                || (parseInteger(profileData.currentSessionTime, 0) <= 0 && parseInteger(liveData.currentSessionTime, 0) > 0)
-                || (!profileData.isWorking && !!liveData.isWorking);
-
             const mergedData = {
                 ...liveData,
                 ...profileData
             };
+            const profileSessionSeconds = Math.max(0, parseInteger(profileData.currentSessionTime, 0));
+            const liveSessionSeconds = Math.max(0, parseInteger(liveData.currentSessionTime, 0));
+            const profileTimer = profileData.activeTimer || null;
+            const liveTimer = liveData.activeTimer || null;
+            const profileTimerRecency = getLeaderboardSourceRecency({ activeTimer: profileTimer });
+            const liveTimerRecency = getLeaderboardSourceRecency({ activeTimer: liveTimer });
+            const liveTimerLooksFresher = !!liveTimer && (
+                !profileTimer
+                || liveTimerRecency >= profileTimerRecency
+                || liveSessionSeconds > profileSessionSeconds
+                || !!liveData.isWorking
+            );
 
-            if (prefersLive) {
-                mergedData.schedule = sanitizeScheduleData(liveData.schedule || profileData.schedule || {});
-                mergedData.dailyStudyTime = Math.max(
-                    parseInteger(profileData.dailyStudyTime, 0),
-                    parseInteger(liveData.dailyStudyTime, 0),
-                    parseInteger(liveData.todayStudyTime, 0),
-                    parseInteger(liveData.todayWorkedSeconds, 0)
-                );
-                mergedData.dailyStudyDateKey = liveData.dailyStudyDateKey || liveData.todayDateKey || profileData.dailyStudyDateKey || "";
-                mergedData.weeklyStudyTime = Math.max(
-                    parseInteger(profileData.weeklyStudyTime, 0),
-                    parseInteger(profileData.currentWeekSeconds, 0),
-                    parseInteger(liveData.weeklyStudyTime, 0),
-                    parseInteger(liveData.currentWeekSeconds, 0)
-                );
-                mergedData.currentWeekSeconds = Math.max(
-                    parseInteger(profileData.currentWeekSeconds, 0),
-                    parseInteger(profileData.weeklyStudyTime, 0),
-                    parseInteger(liveData.currentWeekSeconds, 0),
-                    parseInteger(liveData.weeklyStudyTime, 0)
-                );
-                mergedData.currentSessionTime = Math.max(
-                    parseInteger(profileData.currentSessionTime, 0),
-                    parseInteger(liveData.currentSessionTime, 0)
-                );
-                mergedData.activeTimer = liveData.activeTimer || profileData.activeTimer || null;
-                mergedData.isWorking = !!(liveData.isWorking || profileData.isWorking || isTimerRecordRunning(mergedData.activeTimer));
-                mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
-                mergedData.totalWorkedSeconds = Math.max(
-                    parseInteger(profileData.totalWorkedSeconds, 0),
-                    parseInteger(profileData.totalStudyTime, 0),
-                    parseInteger(liveData.totalWorkedSeconds, 0),
-                    parseInteger(liveData.totalStudyTime, 0)
-                );
-                mergedData.totalStudyTime = Math.max(
-                    parseInteger(profileData.totalStudyTime, 0),
-                    parseInteger(profileData.totalWorkedSeconds, 0),
-                    parseInteger(liveData.totalStudyTime, 0),
-                    parseInteger(liveData.totalWorkedSeconds, 0)
-                );
-                mergedData.totalQuestionsAllTime = Math.max(
-                    parseInteger(profileData.totalQuestionsAllTime, 0),
-                    parseInteger(liveData.totalQuestionsAllTime, 0)
-                );
-            } else {
-                mergedData.schedule = sanitizeScheduleData(profileData.schedule || liveData.schedule || {});
-                mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
-                mergedData.isWorking = !!(profileData.isWorking || liveData.isWorking || isTimerRecordRunning(mergedData.activeTimer));
-            }
+            mergedData.schedule = sanitizeScheduleData(profileData.schedule || liveData.schedule || {});
+            mergedData.dailyStudyTime = Math.max(
+                parseInteger(profileData.dailyStudyTime, 0),
+                parseInteger(profileData.todayStudyTime, 0),
+                parseInteger(profileData.todayWorkedSeconds, 0),
+                parseInteger(liveData.dailyStudyTime, 0),
+                parseInteger(liveData.todayStudyTime, 0),
+                parseInteger(liveData.todayWorkedSeconds, 0)
+            );
+            mergedData.dailyStudyDateKey = profileData.dailyStudyDateKey
+                || profileData.todayDateKey
+                || liveData.dailyStudyDateKey
+                || liveData.todayDateKey
+                || "";
+            mergedData.weeklyStudyTime = Math.max(
+                parseInteger(profileData.weeklyStudyTime, 0),
+                parseInteger(profileData.currentWeekSeconds, 0),
+                parseInteger(liveData.weeklyStudyTime, 0),
+                parseInteger(liveData.currentWeekSeconds, 0)
+            );
+            mergedData.currentWeekSeconds = Math.max(
+                parseInteger(profileData.currentWeekSeconds, 0),
+                parseInteger(profileData.weeklyStudyTime, 0),
+                parseInteger(liveData.currentWeekSeconds, 0),
+                parseInteger(liveData.weeklyStudyTime, 0)
+            );
+            mergedData.currentSessionTime = Math.max(profileSessionSeconds, liveSessionSeconds);
+            mergedData.activeTimer = liveTimerLooksFresher
+                ? (liveTimer || profileTimer || null)
+                : (profileTimer || liveTimer || null);
+            mergedData.lastTimerSyncAt = Math.max(profileRecency, liveRecency);
+            mergedData.totalWorkedSeconds = Math.max(
+                parseInteger(profileData.totalWorkedSeconds, 0),
+                parseInteger(profileData.totalStudyTime, 0),
+                parseInteger(liveData.totalWorkedSeconds, 0),
+                parseInteger(liveData.totalStudyTime, 0)
+            );
+            mergedData.totalStudyTime = Math.max(
+                parseInteger(profileData.totalStudyTime, 0),
+                parseInteger(profileData.totalWorkedSeconds, 0),
+                parseInteger(liveData.totalStudyTime, 0),
+                parseInteger(liveData.totalWorkedSeconds, 0)
+            );
+            mergedData.totalQuestionsAllTime = Math.max(
+                parseInteger(profileData.totalQuestionsAllTime, 0),
+                parseInteger(liveData.totalQuestionsAllTime, 0)
+            );
+            mergedData.isWorking = !!(
+                profileData.isWorking
+                || liveData.isWorking
+                || isTimerRecordRunning(profileTimer)
+                || isTimerRecordRunning(liveTimer)
+                || (mergedData.currentSessionTime > 0 && mergedData.lastTimerSyncAt > 0 && (Date.now() - mergedData.lastTimerSyncAt) < REMOTE_TIMER_STALE_MS)
+            );
 
             return {
                 id: docId,
