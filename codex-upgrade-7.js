@@ -38,6 +38,7 @@
     let leaderboardProfileSourceDocs = [];
     let leaderboardLiveSourceDocs = [];
     let legacyWorkingPresenceByUserId = new Map();
+    let inferredWorkingPresenceByUserId = new Map();
     let leaderboardLiveInterval = null;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
@@ -4222,6 +4223,48 @@
         );
     }
 
+    function getObservedLeaderboardDailySeconds(rawData = {}, referenceDate = new Date()) {
+        const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
+        return Math.max(
+            getCurrentDayWorkedSecondsFromSchedule(safeSchedule, referenceDate),
+            parseInteger(rawData?.dailyStudyTime, 0),
+            parseInteger(rawData?.todayStudyTime, 0),
+            parseInteger(rawData?.todayWorkedSeconds, 0)
+        );
+    }
+
+    function updateInferredWorkingPresence(rawData = {}, docId = "", now = Date.now()) {
+        if (!docId) return null;
+
+        const referenceDate = new Date(now);
+        const currentDayMeta = getCurrentDayMeta(referenceDate);
+        const lastSyncAt = getLeaderboardSessionLastSyncAt(rawData);
+        const dailySeconds = getObservedLeaderboardDailySeconds(rawData, referenceDate);
+        const previousState = inferredWorkingPresenceByUserId.get(docId) || null;
+        const sameDay = previousState?.dateKey === currentDayMeta.dateKey;
+        const previousDailySeconds = sameDay ? parseInteger(previousState?.dailySeconds, 0) : 0;
+        const previousLastSyncAt = sameDay ? parseInteger(previousState?.lastSyncAt, 0) : 0;
+        const explicitWorkingFlag = !!rawData?.isWorking || !!rawData?.isRunning || isTimerRecordRunning(rawData?.activeTimer, now);
+        let inferredStartedAtMs = sameDay ? parseInteger(previousState?.inferredStartedAtMs, 0) : 0;
+
+        if (explicitWorkingFlag) {
+            inferredStartedAtMs = 0;
+        } else if (lastSyncAt > 0 && sameDay && lastSyncAt >= previousLastSyncAt && dailySeconds > previousDailySeconds) {
+            inferredStartedAtMs = lastSyncAt;
+        } else if (!(lastSyncAt > 0 && (now - lastSyncAt) < REMOTE_TIMER_STALE_MS)) {
+            inferredStartedAtMs = 0;
+        }
+
+        const nextState = {
+            dateKey: currentDayMeta.dateKey,
+            dailySeconds,
+            lastSyncAt,
+            inferredStartedAtMs
+        };
+        inferredWorkingPresenceByUserId.set(docId, nextState);
+        return nextState;
+    }
+
     function getTrustedLeaderboardPresenceState(rawData = {}, docId = "", now = Date.now()) {
         const rawCurrentSessionTime = Math.max(0, parseInteger(rawData?.currentSessionTime, 0));
         const activeTimer = rawData?.activeTimer || null;
@@ -4229,6 +4272,8 @@
         const explicitWorkingFlag = !!rawData?.isWorking || !!rawData?.isRunning || activeTimerRunning;
         const lastSyncAt = getLeaderboardSessionLastSyncAt(rawData);
         const syncLooksFresh = lastSyncAt > 0 && (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
+        const inferredPresence = inferredWorkingPresenceByUserId.get(docId) || null;
+        const inferredStartedAtMs = Math.max(0, parseInteger(inferredPresence?.inferredStartedAtMs, 0));
         let legacyWorkingStartedAt = Math.max(0, parseInteger(rawData?.legacyWorkingStartedAt, 0));
 
         if (activeTimerRunning) {
@@ -4250,8 +4295,13 @@
             }
         }
 
+        if (!legacyWorkingStartedAt && !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh) {
+            legacyWorkingStartedAt = inferredStartedAtMs;
+        }
+
         const legacyLooksFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
-        const isWorking = activeTimerRunning || (explicitWorkingFlag && legacyLooksFresh && (rawCurrentSessionTime > 0 || syncLooksFresh));
+        const inferredWorking = !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh && legacyLooksFresh;
+        const isWorking = activeTimerRunning || (explicitWorkingFlag && legacyLooksFresh && (rawCurrentSessionTime > 0 || syncLooksFresh)) || inferredWorking;
 
         if (isWorking && legacyWorkingStartedAt > 0) {
             legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
@@ -4542,6 +4592,7 @@
     function normalizeLiveLeaderboardDocData(rawData = {}, docId = "") {
         const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
         const sourceRecency = getLeaderboardSourceRecency(rawData);
+        updateInferredWorkingPresence(rawData, docId);
         const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
         return {
@@ -4570,6 +4621,7 @@
             const rawData = doc.data() || {};
             const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
+            updateInferredWorkingPresence(rawData, doc.id);
             const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
 
             const currentWeekSeconds = Math.max(
@@ -5064,6 +5116,8 @@
         hasBootstrappedUsersRealtime = false;
         leaderboardProfileSourceDocs = [];
         leaderboardLiveSourceDocs = [];
+        inferredWorkingPresenceByUserId = new Map();
+        legacyWorkingPresenceByUserId = new Map();
         stopLeaderboardCloudPolling();
         if (leaderboardLiveInterval) {
             clearInterval(leaderboardLiveInterval);
