@@ -3972,6 +3972,7 @@
         let totalSeconds = 0;
         let dayStartMs = 0;
         const now = Date.now();
+        const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(normalizedUserData, now);
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(normalizedUserData?.activeTimer, now);
         const explicitDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate);
         const explicitWeeklySeconds = Math.max(
@@ -4007,12 +4008,78 @@
             }
         }
 
+        if (!hasVisibleActiveTimer && liveSessionSnapshot.seconds > 0) {
+            if (currentLeaderboardTab === "daily") {
+                totalSeconds = Math.max(
+                    totalSeconds,
+                    liveSessionSnapshot.seconds,
+                    explicitDailySeconds + liveSessionSnapshot.seconds
+                );
+            } else {
+                totalSeconds = Math.max(
+                    totalSeconds,
+                    liveSessionSnapshot.seconds,
+                    explicitWeeklySeconds + liveSessionSnapshot.seconds
+                );
+            }
+        }
+
         if (currentLeaderboardTab === "daily" && dayStartMs > 0) {
             const maxTodaySeconds = Math.max(0, Math.floor((now - dayStartMs) / 1000));
             totalSeconds = Math.min(totalSeconds, maxTodaySeconds);
         }
 
         return totalSeconds;
+    }
+
+    function getLeaderboardSessionLastSyncAt(userData = {}) {
+        return Math.max(
+            parseInteger(userData?.lastTimerSyncAt, 0),
+            parseInteger(userData?.updatedAtMs, 0),
+            parseInteger(userData?.activeTimer?.lastSeenAtMs, 0),
+            parseInteger(userData?.activeTimer?.updatedAtMs, 0),
+            parseInteger(userData?.activeTimer?.startedAtMs, 0)
+        );
+    }
+
+    function getLeaderboardLiveSessionSnapshot(userData = {}, now = Date.now()) {
+        const activeTimer = userData?.activeTimer || null;
+        const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
+        const lastSyncAt = getLeaderboardSessionLastSyncAt(userData);
+        const activeTimerVisible = isTimerVisibleForLeaderboard(activeTimer, now);
+
+        if (activeTimerVisible) {
+            return {
+                seconds: Math.max(currentSessionTime, getTimerElapsedSeconds(activeTimer, now)),
+                isLive: true,
+                lastSyncAt
+            };
+        }
+
+        if (currentSessionTime <= 0) {
+            return {
+                seconds: 0,
+                isLive: false,
+                lastSyncAt
+            };
+        }
+
+        if (lastSyncAt <= 0) {
+            return {
+                seconds: currentSessionTime,
+                isLive: !!userData?.isWorking,
+                lastSyncAt
+            };
+        }
+
+        const secondsSinceLastSync = Math.max(0, Math.floor((now - lastSyncAt) / 1000));
+        const isFresh = (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
+
+        return {
+            seconds: isFresh ? (currentSessionTime + secondsSinceLastSync) : currentSessionTime,
+            isLive: isFresh && (!!userData?.isWorking || currentSessionTime > 0),
+            lastSyncAt
+        };
     }
 
     function getLeaderboardQuestionBreakdown(userData, referenceDate = new Date()) {
@@ -4414,9 +4481,10 @@
                 });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
                 const resolvedUsername = String(data.username || data.email?.split?.("@")?.[0] || "Kullanici").trim();
+                const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data);
 
                 const isWorking = currentLeaderboardTab === "daily"
-                    && isTimerVisibleForLeaderboard(data.activeTimer);
+                    && liveSessionSnapshot.isLive;
 
                 if (!resolvedUsername) return null;
 
