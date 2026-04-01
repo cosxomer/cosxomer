@@ -53,6 +53,7 @@
     let hasTimerControl = false;
     let requiresEmailVerification = false;
     let taskDragState = null;
+    let lastAutoDailyResetSyncSignature = "";
 
     const timerState = {
         mode: localStorage.getItem(TIMER_MODE_KEY) || "pomodoro",
@@ -229,6 +230,13 @@
         refreshLeaderboardOptimistically();
         if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
             renderLiveLeaderboardFromDocs();
+        }
+        if (currentUser?.uid && !isTimerVisibleForLeaderboard(timerState.session, referenceDate.getTime())) {
+            const resetState = getDailySnapshotResetState(currentUserLiveDoc || {}, referenceDate);
+            currentUserLiveDoc = resetState.normalizedData;
+            if (resetState.needsSync) {
+                queueAutoDailyResetSync(referenceDate);
+            }
         }
 
         return nextMeta;
@@ -478,8 +486,12 @@
     }
 
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
-        currentUserLiveDoc = userData || {};
+        const dailyResetState = getDailySnapshotResetState(userData || {});
+        currentUserLiveDoc = dailyResetState.normalizedData;
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
+        if (dailyResetState.needsSync) {
+            queueAutoDailyResetSync();
+        }
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
@@ -2361,16 +2373,93 @@
         return lastTimerSyncAt >= dayStart.getTime();
     }
 
+    function getDailySnapshotResetState(userData = {}, referenceDate = new Date()) {
+        const safeData = userData && typeof userData === "object" ? userData : {};
+        const currentMeta = getCurrentDayMeta(referenceDate);
+        const explicitDateKey = String(
+            safeData?.dailyStudyDateKey
+            || safeData?.todayDateKey
+            || ""
+        ).trim();
+        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(safeData.schedule || {}, referenceDate);
+        const explicitDailySeconds = Math.max(
+            parseInteger(safeData?.dailyStudyTime, 0),
+            parseInteger(safeData?.todayStudyTime, 0),
+            parseInteger(safeData?.todayWorkedSeconds, 0)
+        );
+        const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(safeData?.activeTimer, referenceDate.getTime());
+        const isFreshSnapshot = isDailyStudySnapshotFresh(safeData, referenceDate);
+        const shouldReset = !hasVisibleActiveTimer && (
+            !isFreshSnapshot
+            || (!explicitDateKey && explicitDailySeconds > scheduleSeconds && scheduleSeconds <= 0)
+        );
+
+        if (!shouldReset) {
+            return {
+                normalizedData: safeData,
+                needsSync: false
+            };
+        }
+
+        const normalizedDailySeconds = scheduleSeconds;
+        const normalizedData = {
+            ...safeData,
+            dailyStudyTime: normalizedDailySeconds,
+            todayStudyTime: normalizedDailySeconds,
+            todayWorkedSeconds: normalizedDailySeconds,
+            currentSessionTime: 0,
+            activeTimer: null,
+            isWorking: false,
+            dailyStudyDateKey: currentMeta.dateKey,
+            todayDateKey: currentMeta.dateKey
+        };
+        const needsSync = (
+            parseInteger(safeData?.dailyStudyTime, 0) !== normalizedDailySeconds
+            || parseInteger(safeData?.todayStudyTime, 0) !== normalizedDailySeconds
+            || parseInteger(safeData?.todayWorkedSeconds, 0) !== normalizedDailySeconds
+            || parseInteger(safeData?.currentSessionTime, 0) !== 0
+            || !!safeData?.activeTimer
+            || !!safeData?.isWorking
+            || explicitDateKey !== currentMeta.dateKey
+        );
+
+        return {
+            normalizedData,
+            needsSync
+        };
+    }
+
+    function queueAutoDailyResetSync(referenceDate = new Date()) {
+        if (!currentUser?.uid) return false;
+
+        const signature = `${currentUser.uid}:${getCurrentDayMeta(referenceDate).dateKey}`;
+        if (lastAutoDailyResetSyncSignature === signature) {
+            return false;
+        }
+        lastAutoDailyResetSyncSignature = signature;
+
+        setTimeout(() => {
+            saveData({ authorized: true, immediate: true });
+        }, 0);
+
+        return true;
+    }
+
     function getFreshDailyStudySeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
-        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(schedule || {}, referenceDate);
-        if (!isDailyStudySnapshotFresh(userData, referenceDate)) {
+        const resetState = getDailySnapshotResetState({
+            ...(userData || {}),
+            schedule: sanitizeScheduleData(schedule || userData?.schedule || {})
+        }, referenceDate);
+        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(resetState.normalizedData.schedule || {}, referenceDate);
+        if (!isDailyStudySnapshotFresh(resetState.normalizedData, referenceDate)) {
             return scheduleSeconds;
         }
 
         return Math.max(
             scheduleSeconds,
-            parseInteger(userData?.dailyStudyTime, 0),
-            parseInteger(userData?.todayStudyTime, 0)
+            parseInteger(resetState.normalizedData?.dailyStudyTime, 0),
+            parseInteger(resetState.normalizedData?.todayStudyTime, 0),
+            parseInteger(resetState.normalizedData?.todayWorkedSeconds, 0)
         );
     }
 
@@ -3876,30 +3965,31 @@
 
     function getLiveLeaderboardSeconds(userData) {
         const currentDate = new Date();
+        const normalizedUserData = getDailySnapshotResetState(userData || {}, currentDate).normalizedData;
         const { weekKey, dayIdx } = getCurrentDayMeta(currentDate);
         let totalSeconds = 0;
         let dayStartMs = 0;
         const now = Date.now();
-        const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(userData?.activeTimer, now);
-        const explicitDailySeconds = getFreshDailyStudySeconds(userData, userData?.schedule || {}, currentDate);
+        const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(normalizedUserData?.activeTimer, now);
+        const explicitDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate);
         const explicitWeeklySeconds = Math.max(
-            parseInteger(userData?.weeklyStudyTime, 0),
-            parseInteger(userData?.currentWeekSeconds, 0)
+            parseInteger(normalizedUserData?.weeklyStudyTime, 0),
+            parseInteger(normalizedUserData?.currentWeekSeconds, 0)
         );
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
             dayStartMs = dayStart.getTime();
-            totalSeconds = clampWorkedSecondsForDisplay(userData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
+            totalSeconds = clampWorkedSecondsForDisplay(normalizedUserData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
             totalSeconds = Math.max(totalSeconds, explicitDailySeconds);
         } else {
             totalSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
-                ? getCurrentWeekTotalsFromSchedule(userData?.schedule || {}).seconds
-                : getRollingSevenDayTotalsFromSchedule(userData?.schedule || {}, currentDate).seconds;
+                ? getCurrentWeekTotalsFromSchedule(normalizedUserData?.schedule || {}).seconds
+                : getRollingSevenDayTotalsFromSchedule(normalizedUserData?.schedule || {}, currentDate).seconds;
             totalSeconds = Math.max(totalSeconds, explicitWeeklySeconds);
         }
 
-        const activeTimer = userData?.activeTimer;
+        const activeTimer = normalizedUserData?.activeTimer;
         if (hasVisibleActiveTimer) {
             const pendingInterval = getPendingTimerInterval(activeTimer, now);
 
@@ -5248,10 +5338,13 @@
         totalWorkedSecondsAllTime = 0;
         totalQuestionsAllTime = 0;
         activeNoteFolderId = NOTE_FOLDER_ALL_ID;
+        lastAutoDailyResetSyncSignature = "";
     }
 
     function bootstrapExtendedUserData(userData = {}) {
-        const safeData = userData && typeof userData === "object" ? userData : {};
+        const rawData = userData && typeof userData === "object" ? userData : {};
+        const dailyResetState = getDailySnapshotResetState(rawData);
+        const safeData = dailyResetState.normalizedData;
         clearLoadedUserData();
 
         if (typeof currentUsername !== "undefined") {
@@ -5283,6 +5376,13 @@
         const restoredTimerRecovery = mergeTimerRecoveryScheduleIntoLocalState();
         totalWorkedSecondsAllTime = Math.max(parseInteger(safeData.totalWorkedSeconds, 0), parseInteger(safeData.totalStudyTime, 0), typeof calculateTotalWorkedSecondsFromSchedule === "function" ? calculateTotalWorkedSecondsFromSchedule(scheduleData) : 0);
         totalQuestionsAllTime = Math.max(parseInteger(safeData.totalQuestionsAllTime, 0), typeof calculateTotalQuestionsFromSchedule === "function" ? calculateTotalQuestionsFromSchedule(scheduleData) : 0);
+        if (currentUser?.uid) {
+            currentUserLiveDoc = {
+                ...(currentUserLiveDoc || rawData || {}),
+                ...safeData,
+                schedule: sanitizeScheduleData(scheduleData || {})
+            };
+        }
         if (restoredTimerRecovery && currentUser?.uid) {
             currentUserLiveDoc = {
                 ...(currentUserLiveDoc || safeData || {}),
@@ -5300,6 +5400,8 @@
                 saveData({ authorized: true, immediate: true });
             }, 0);
             safeShowAlert("Kaydedilemeyen sure geri yüklendi. Buluta tekrar gonderiliyor.", "info");
+        } else if (dailyResetState.needsSync) {
+            queueAutoDailyResetSync();
         }
         renderNoteFolderControls();
         restoreTimerFromPersistence(safeData);
