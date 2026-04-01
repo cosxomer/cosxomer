@@ -5928,6 +5928,47 @@
             return `${weekYear}-W${weekNumber}`;
         }
 
+        function getInlineDateKey(referenceDate = new Date()) {
+            return referenceDate.toLocaleDateString('sv-SE');
+        }
+
+        function getInlineDailyScheduleSeconds(data, referenceDate = new Date()) {
+            const weekKey = getWeekKey(referenceDate);
+            const dayIdx = (referenceDate.getDay() + 6) % 7;
+            const dayData = data && data.schedule && data.schedule[weekKey] ? data.schedule[weekKey][dayIdx] : null;
+            return Math.max(0, parseInt(dayData && dayData.workedSeconds, 10) || 0);
+        }
+
+        function getSafeInlineDailySeconds(data, referenceDate = new Date()) {
+            const scheduleSeconds = getInlineDailyScheduleSeconds(data, referenceDate);
+            const explicitDateKey = String((data && (data.dailyStudyDateKey || data.todayDateKey)) || '').trim();
+            const currentDateKey = getInlineDateKey(referenceDate);
+
+            if (explicitDateKey && explicitDateKey !== currentDateKey) {
+                return scheduleSeconds;
+            }
+
+            if (!explicitDateKey) {
+                const dayStart = new Date(referenceDate);
+                dayStart.setHours(0, 0, 0, 0);
+                const lastSyncAt = Math.max(
+                    parseInt(data && data.lastTimerSyncAt, 10) || 0,
+                    parseInt(data && data.updatedAtMs, 10) || 0,
+                    parseInt(data && data.updatedAt, 10) || 0
+                );
+                if (lastSyncAt > 0 && lastSyncAt < dayStart.getTime()) {
+                    return scheduleSeconds;
+                }
+            }
+
+            return Math.max(
+                scheduleSeconds,
+                parseInt(data && data.dailyStudyTime, 10) || 0,
+                parseInt(data && data.todayStudyTime, 10) || 0,
+                parseInt(data && data.todayWorkedSeconds, 10) || 0
+            );
+        }
+
         function renderSchedule() {
             const grid = document.querySelector('.schedule-grid');
             grid.innerHTML = '';
@@ -7039,13 +7080,14 @@
                     let targetQuestions = 0;
                     const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
+                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, parseInt(data.dailyStudyTime, 10) || 0);
+                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, explicitDailySeconds);
                             targetQuestions = Math.max(data.schedule[todayWeekKey][todayDayIdx].questions || 0, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                         }
-                        targetSeconds = Math.max(targetSeconds, parseInt(data.dailyStudyTime, 10) || 0);
+                        targetSeconds = Math.max(targetSeconds, explicitDailySeconds);
                         targetQuestions = Math.max(targetQuestions, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     } else if (data.schedule && data.schedule[todayWeekKey]) {
                         for (let i = 0; i < 7; i++) {
@@ -7168,7 +7210,7 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
                     const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
@@ -8307,7 +8349,7 @@
                     const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
-                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
                     const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
@@ -10826,7 +10868,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260329-0508"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js?v=20260401-0915"></script>
+    <script src="codex-upgrade-7.js?v=20260401-0945"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
