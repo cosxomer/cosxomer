@@ -61,6 +61,7 @@
     let requiresEmailVerification = false;
     let taskDragState = null;
     let lastAutoDailyResetSyncSignature = "";
+    let lastTimerDayBoundaryResetSignature = "";
     let hasBootstrappedUsersRealtime = false;
 
     const timerState = {
@@ -208,6 +209,176 @@
         };
     }
 
+    function getDateKeyFromTimestamp(timestamp = 0) {
+        const safeTimestamp = Math.max(0, parseInteger(timestamp, 0));
+        if (!safeTimestamp) return "";
+        return getCurrentDayMeta(new Date(safeTimestamp)).dateKey;
+    }
+
+    function getNextDayStartMsForDateKey(dateKey = "") {
+        const normalizedDateKey = String(dateKey || "").trim();
+        if (!normalizedDateKey) return 0;
+
+        const dayStart = new Date(`${normalizedDateKey}T00:00:00`);
+        if (Number.isNaN(dayStart.getTime())) return 0;
+
+        const nextDay = new Date(dayStart);
+        nextDay.setDate(nextDay.getDate() + 1);
+        return nextDay.getTime();
+    }
+
+    function getTimerSessionDateKey(session = null, referenceDate = new Date()) {
+        if (!session || typeof session !== "object") {
+            return getCurrentDayMeta(referenceDate).dateKey;
+        }
+
+        const explicitDateKey = String(
+            session.sessionDateKey
+            || session.dayDateKey
+            || session.dateKey
+            || ""
+        ).trim();
+        if (explicitDateKey) return explicitDateKey;
+
+        const inferredDateKey = getDateKeyFromTimestamp(
+            parseInteger(session.startedAtMs, 0)
+            || getTimerLastSeenAt(session)
+            || parseInteger(session.updatedAtMs, 0)
+        );
+
+        return inferredDateKey || getCurrentDayMeta(referenceDate).dateKey;
+    }
+
+    function hasTimerSessionCrossedDayBoundary(session = null, referenceDate = new Date()) {
+        if (!session) return false;
+        return getTimerSessionDateKey(session, referenceDate) !== getCurrentDayMeta(referenceDate).dateKey;
+    }
+
+    function buildFreshTimerSession(mode = timerState.mode, referenceDate = new Date(), sourceSession = null) {
+        const normalizedMode = mode === "stopwatch" ? "stopwatch" : "pomodoro";
+        const freshSession = createEmptyTimerSession(normalizedMode, referenceDate);
+
+        if (normalizedMode === "pomodoro") {
+            const preservedTargetDuration = Math.max(0, parseInteger(sourceSession?.targetDurationSeconds, 0));
+            freshSession.targetDurationSeconds = preservedTargetDuration || getPomodoroSeedSeconds();
+        }
+
+        return freshSession;
+    }
+
+    function finalizeTimerSessionForNewDay(session = timerState.session, referenceDate = new Date(), options = {}) {
+        if (!session) {
+            return {
+                didReset: false,
+                committedSeconds: 0,
+                nextSession: null,
+                resetSignature: ""
+            };
+        }
+
+        const todayMeta = getCurrentDayMeta(referenceDate);
+        const sessionDateKey = getTimerSessionDateKey(session, referenceDate);
+
+        if (!sessionDateKey || sessionDateKey === todayMeta.dateKey) {
+            return {
+                didReset: false,
+                committedSeconds: 0,
+                nextSession: null,
+                resetSignature: ""
+            };
+        }
+
+        const boundaryMs = getNextDayStartMsForDateKey(sessionDateKey) || referenceDate.getTime();
+        let committedSeconds = 0;
+
+        if (options.commitElapsed !== false) {
+            committedSeconds = applyPendingTimerDelta(session, boundaryMs);
+            const boundaryElapsedSeconds = getTimerElapsedSeconds(session, boundaryMs);
+            session.lastPersistedElapsedSeconds = Math.max(
+                parseInteger(session.lastPersistedElapsedSeconds, 0),
+                boundaryElapsedSeconds
+            );
+            session.baseElapsedSeconds = boundaryElapsedSeconds;
+        }
+
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+
+        if (options.persistRecovery !== false && currentUser?.uid && (committedSeconds > 0 || hasAnyScheduleEntries(scheduleData || {}))) {
+            persistTimerRecoverySnapshot();
+        }
+
+        return {
+            didReset: true,
+            committedSeconds,
+            nextSession: buildFreshTimerSession(session.mode, referenceDate, session),
+            wasRunning: !!session.isRunning,
+            sessionDateKey,
+            todayDateKey: todayMeta.dateKey,
+            resetSignature: currentUser?.uid ? `${currentUser.uid}:${sessionDateKey}:${todayMeta.dateKey}` : ""
+        };
+    }
+
+    function scheduleTimerDayBoundaryResetSync(referenceDate = new Date(), resetSignature = "") {
+        if (!currentUser?.uid) return false;
+
+        queueAutoDailyResetSync(referenceDate);
+
+        const safeSignature = String(resetSignature || "").trim();
+        if (!safeSignature || lastTimerDayBoundaryResetSignature === safeSignature) {
+            return false;
+        }
+
+        lastTimerDayBoundaryResetSignature = safeSignature;
+        setTimeout(() => {
+            syncRealtimeTimer("day-boundary-reset", {
+                activeSession: null,
+                currentSessionTime: 0,
+                clearActive: true,
+                userTriggeredWrite: true,
+                authorized: true
+            }).catch(error => {
+                if (lastTimerDayBoundaryResetSignature === safeSignature) {
+                    lastTimerDayBoundaryResetSignature = "";
+                }
+                console.error("Gun degisim timer sifirlama senkronu basarisiz:", error);
+            });
+        }, 0);
+
+        return true;
+    }
+
+    function resetLocalTimerSessionForNewDay(referenceDate = new Date(), options = {}) {
+        const resetState = finalizeTimerSessionForNewDay(timerState.session, referenceDate, options);
+        if (!resetState.didReset) return resetState;
+
+        stopTimerLoops();
+        releaseTimerOwnership();
+        isRunning = false;
+        timerState.session = resetState.nextSession;
+        timerDrafts[resetState.nextSession.mode] = { ...resetState.nextSession };
+        persistTimerSessionLocally(null);
+        updateLocalActiveTimerSnapshot(null);
+
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            activeTimer: null,
+            isWorking: false,
+            isRunning: false,
+            currentSessionTime: 0,
+            dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
+        };
+
+        if (options.syncRemote !== false) {
+            scheduleTimerDayBoundaryResetSync(referenceDate, resetState.resetSignature);
+        } else if (currentUser?.uid) {
+            queueAutoDailyResetSync(referenceDate);
+        }
+
+        return resetState;
+    }
+
     function getMondayWeekStart(date = new Date()) {
         const weekStart = new Date(date);
         weekStart.setHours(0, 0, 0, 0);
@@ -223,6 +394,7 @@
             && typeof getWeekKey === "function"
             && getWeekKey(currentWeekStart) === previousMeta.weekKey
         );
+        const dayBoundaryResetState = resetLocalTimerSessionForNewDay(referenceDate);
 
         if (wasViewingCurrentWeek) {
             currentWeekStart = getMondayWeekStart(referenceDate);
@@ -236,6 +408,9 @@
         }
 
         refreshLeaderboardOptimistically();
+        if (dayBoundaryResetState.didReset) {
+            refreshLeaderboardOptimistically(null);
+        }
         if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
             renderLiveLeaderboardFromDocs();
         }
@@ -528,7 +703,8 @@
         const baseDoc = currentUserLiveDoc && typeof currentUserLiveDoc === "object"
             ? currentUserLiveDoc
             : {};
-        const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
+        const visibleSession = hasTimerSessionCrossedDayBoundary(activeSession) ? null : activeSession;
+        const activeTimerRecord = visibleSession ? serializeTimerSession(visibleSession) : null;
 
         currentUserLiveDoc = {
             ...baseDoc,
@@ -1136,6 +1312,7 @@
             lastPersistedElapsedSeconds: Math.max(0, parseInteger(session.lastPersistedElapsedSeconds, 0)),
             targetDurationSeconds: Math.max(0, parseInteger(session.targetDurationSeconds, 0)),
             startedAtMs: session.isRunning ? parseInteger(session.startedAtMs, Date.now()) : 0,
+            sessionDateKey: getTimerSessionDateKey(session),
             updatedAtMs: Date.now(),
             ownerId: timerInstanceId,
             modalOpen,
@@ -1360,7 +1537,7 @@
         return changed;
     }
 
-    function createEmptyTimerSession(mode = timerState.mode) {
+    function createEmptyTimerSession(mode = timerState.mode, referenceDate = new Date()) {
         return {
             mode,
             isRunning: false,
@@ -1368,6 +1545,7 @@
             lastPersistedElapsedSeconds: 0,
             targetDurationSeconds: mode === "pomodoro" ? getPomodoroSeedSeconds() : 0,
             startedAtMs: 0,
+            sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
             modalOpen: false,
             lastSeenAtMs: 0
         };
@@ -1400,6 +1578,7 @@
 
     function isTimerRecordRunning(timerRecord, now = Date.now()) {
         if (!timerRecord || !timerRecord.isRunning) return false;
+        if (hasTimerSessionCrossedDayBoundary(timerRecord, new Date(now))) return false;
         const lastSeenAtMs = getTimerLastSeenAt(timerRecord);
         if (lastSeenAtMs > 0 && (now - lastSeenAtMs) >= TIMER_AUTO_STOP_MS) return false;
         return true;
@@ -1407,6 +1586,11 @@
 
     function getTimerDisplaySeconds(session = timerState.session) {
         if (!session) return timerState.mode === "pomodoro" ? getPomodoroInputSeconds() : 0;
+        if (hasTimerSessionCrossedDayBoundary(session)) {
+            return session.mode === "pomodoro"
+                ? Math.max(0, parseInteger(session.targetDurationSeconds, getPomodoroSeedSeconds()))
+                : 0;
+        }
         const elapsed = getTimerElapsedSeconds(session);
         if (session.mode === "stopwatch") return elapsed;
         return Math.max(0, parseInteger(session.targetDurationSeconds, 0) - elapsed);
@@ -1647,14 +1831,19 @@
 
         if (!options.keepSession) {
             const savedDraft = timerDrafts[normalizedMode];
+            const freshDraft = hasTimerSessionCrossedDayBoundary(savedDraft) ? null : savedDraft;
             if (!timerState.session || timerState.session.mode !== normalizedMode || !timerState.session.isRunning) {
-                timerState.session = savedDraft
-                    ? { ...savedDraft }
+                if (savedDraft && !freshDraft) {
+                    timerDrafts[normalizedMode] = buildFreshTimerSession(normalizedMode);
+                }
+
+                timerState.session = freshDraft
+                    ? { ...freshDraft }
                     : (normalizedMode === "pomodoro"
                         ? createEmptyTimerSession("pomodoro")
                         : createEmptyTimerSession("stopwatch"));
 
-                if (normalizedMode === "pomodoro" && !savedDraft) {
+                if (normalizedMode === "pomodoro" && !freshDraft) {
                     timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
                 }
             }
@@ -3708,7 +3897,10 @@
         const resolvedSelectedTitleId = getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {});
         const resolvedTitleAwards = getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {});
         const currentDayWorkedSeconds = getCurrentDayWorkedSeconds();
-        const activeSession = options.activeSession === undefined ? timerState.session : options.activeSession;
+        const requestedActiveSession = options.activeSession === undefined ? timerState.session : options.activeSession;
+        const activeSession = hasTimerSessionCrossedDayBoundary(requestedActiveSession, new Date(syncTimestamp))
+            ? null
+            : requestedActiveSession;
         const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
         const sessionPendingSeconds = activeSession && activeSession.isRunning
             ? getPendingTimerDelta(activeSession)
@@ -3846,10 +4038,11 @@
         const totalLocalQuestions = typeof calculateTotalQuestionsFromSchedule === "function"
             ? calculateTotalQuestionsFromSchedule(safeSchedule)
             : parseInteger(totalQuestionsAllTime, 0);
+        const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
 
         return totalLocalSeconds > 0
             || totalLocalQuestions > 0
-            || !!timerState.session?.isRunning;
+            || !!visibleSession?.isRunning;
     }
 
     function buildLocalLeaderboardPreviewDoc(activeSessionOverride) {
@@ -3936,7 +4129,8 @@
     }
 
     function updateLiveStudyPreview() {
-        const unsavedDelta = timerState.session?.isRunning ? getPendingTimerDelta(timerState.session) : 0;
+        const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
+        const unsavedDelta = visibleSession?.isRunning ? getPendingTimerDelta(visibleSession) : 0;
         const currentDayWorked = getCurrentDayWorkedSeconds() + unsavedDelta;
         const currentWeekTotals = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds + unsavedDelta
@@ -4170,13 +4364,32 @@
         stopTimerLoops();
         releaseTimerOwnership();
         isRunning = false;
+        const referenceDate = new Date();
         const storedSession = readStoredTimerSession();
         const storedSessionMatchesUser = !!storedSession
             && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
-        const remoteSession = userData?.activeTimer && isTimerRecordRunning(userData.activeTimer)
-            ? userData.activeTimer
+        const remoteTimerRecord = userData?.activeTimer || null;
+        const remoteSession = remoteTimerRecord && isTimerRecordRunning(remoteTimerRecord)
+            ? remoteTimerRecord
             : null;
-        const seedSession = storedSessionMatchesUser ? storedSession : (remoteSession || null);
+        const storedResetState = storedSessionMatchesUser
+            ? finalizeTimerSessionForNewDay(storedSession, referenceDate, {
+                commitElapsed: true,
+                persistRecovery: true
+            })
+            : { didReset: false, resetSignature: "" };
+        const remoteResetState = remoteTimerRecord
+            ? finalizeTimerSessionForNewDay(remoteTimerRecord, referenceDate, {
+                commitElapsed: false,
+                persistRecovery: false
+            })
+            : { didReset: false, resetSignature: "" };
+        const hasFreshRemoteSession = !!remoteSession && !remoteResetState.didReset;
+        const shouldClearRemoteTimer = remoteResetState.didReset || (storedResetState.didReset && !hasFreshRemoteSession);
+        const resetSignature = remoteResetState.resetSignature || storedResetState.resetSignature || "";
+        const seedSession = storedSessionMatchesUser && !storedResetState.didReset
+            ? storedSession
+            : (!remoteResetState.didReset ? (remoteSession || null) : null);
 
         if (seedSession?.mode) {
             timerState.mode = seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro";
@@ -4199,22 +4412,45 @@
                 lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
                 targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
                 startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
+                sessionDateKey: getTimerSessionDateKey(seedSession, referenceDate),
                 updatedAtMs: Math.max(0, parseInteger(seedSession.updatedAtMs, Date.now())),
                 lastSeenAtMs: getTimerLastSeenAt(seedSession),
                 modalOpen: seedSessionRunning ? !!seedSession.modalOpen : false,
                 ownerId: String(seedSession.ownerId || timerInstanceId)
             };
         } else {
-            timerState.session = createEmptyTimerSession(timerState.mode);
+            timerState.session = buildFreshTimerSession(timerState.mode, referenceDate);
             if (timerState.mode === "pomodoro") {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
+        }
+
+        if (storedResetState.didReset) {
+            persistTimerSessionLocally(null);
+        }
+
+        if (storedResetState.didReset || remoteResetState.didReset) {
+            currentUserLiveDoc = {
+                ...(currentUserLiveDoc || {}),
+                activeTimer: null,
+                isWorking: false,
+                isRunning: false,
+                currentSessionTime: 0,
+                dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
+            };
+        }
+
+        if ((storedResetState.didReset || remoteResetState.didReset) && !shouldClearRemoteTimer && currentUser?.uid) {
+            queueAutoDailyResetSync(referenceDate);
         }
 
         timerDrafts[timerState.mode] = { ...timerState.session };
         if (timerState.session?.isRunning) {
             isRunning = true;
             startTimerLoops();
+        } else if (shouldClearRemoteTimer) {
+            updateLocalActiveTimerSnapshot(null);
+            scheduleTimerDayBoundaryResetSync(referenceDate, resetSignature);
         }
         renderTimerUi();
     }
@@ -6269,6 +6505,7 @@
         totalQuestionsAllTime = 0;
         activeNoteFolderId = NOTE_FOLDER_ALL_ID;
         lastAutoDailyResetSyncSignature = "";
+        lastTimerDayBoundaryResetSignature = "";
     }
 
     function bootstrapExtendedUserData(userData = {}) {
@@ -7057,6 +7294,10 @@
             const mode = timerState.mode;
             let session = timerState.session;
 
+            if (hasTimerSessionCrossedDayBoundary(session)) {
+                session = buildFreshTimerSession(mode);
+            }
+
             if (!session || session.mode !== mode) {
                 session = createEmptyTimerSession(mode);
             }
@@ -7079,6 +7320,7 @@
             session.mode = mode;
             session.isRunning = true;
             session.startedAtMs = Date.now();
+            session.sessionDateKey = getCurrentDayMeta(new Date(session.startedAtMs)).dateKey;
             session.modalOpen = isTimerModalOpen();
             session.lastSeenAtMs = Date.now();
 
