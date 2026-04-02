@@ -333,11 +333,13 @@
     }
 
     function normalizeAdminTimeAdjustmentScope(scope) {
-        return ['today', 'week', 'total'].includes(scope) ? scope : 'today';
+        return ['today', 'yesterday', 'week', 'total'].includes(scope) ? scope : 'today';
     }
 
     function getAdminTimeAdjustmentScopeLabel(scope) {
         switch (normalizeAdminTimeAdjustmentScope(scope)) {
+            case 'yesterday':
+                return 'Dun';
             case 'week':
                 return 'Haftalik';
             case 'total':
@@ -486,12 +488,13 @@
                 </button>
                 <div id="support-admin-time-adjust-panel" style="display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:16px; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.08);">
                     <div style="font-weight:700;">Tek Kullanici Suresi Ayarla</div>
-                    <div style="font-size:0.88rem; line-height:1.45; opacity:0.78;">Ayni isimli kullanicilari karistirmamak icin asagidaki listeden sec. Sureyi bugun, bu hafta veya toplam bazda ayarlayabilirsin.</div>
+                    <div style="font-size:0.88rem; line-height:1.45; opacity:0.78;">Ayni isimli kullanicilari karistirmamak icin asagidaki listeden sec. Sureyi bugun, dun, bu hafta veya toplam bazda ayarlayabilirsin.</div>
                     <input id="support-admin-time-target" type="text" placeholder="Kullanici adi veya e-posta" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
                     <div id="support-admin-time-selected" style="display:none; padding:10px 12px; border-radius:12px; background:rgba(37,99,235,0.16); border:1px solid rgba(37,99,235,0.3); font-size:0.88rem; line-height:1.45;"></div>
                     <div id="support-admin-time-user-results" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow:auto; padding-right:2px;"></div>
                     <select id="support-admin-time-scope" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
                         <option value="today">Bugun</option>
+                        <option value="yesterday">Dun</option>
                         <option value="week">Haftalik</option>
                         <option value="total">Toplam</option>
                     </select>
@@ -615,6 +618,17 @@
             weekKey,
             dayIdx
         };
+    }
+
+    function getAdminTimeAdjustmentReferenceDate(scope = 'today') {
+        const normalizedScope = normalizeAdminTimeAdjustmentScope(scope);
+        const referenceDate = new Date();
+
+        if (normalizedScope === 'yesterday') {
+            referenceDate.setDate(referenceDate.getDate() - 1);
+        }
+
+        return referenceDate;
     }
 
     async function loadAdminTimeAdjustmentUserChoices(forceRefresh = false) {
@@ -932,7 +946,7 @@
         const nextSchedule = cloneAdminScheduleData(existingSchedule || {});
         const safeTargetSeconds = Math.max(0, parseAdminTimeValue(targetSeconds, 0));
 
-        if (normalizedScope === 'today') {
+        if (normalizedScope === 'today' || normalizedScope === 'yesterday') {
             ensureAdminScheduleDay(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx).workedSeconds = safeTargetSeconds;
         } else if (normalizedScope === 'week') {
             const weekEntries = collectAdminScheduleEntries(nextSchedule, entry => entry.weekKey === currentMeta.weekKey);
@@ -946,8 +960,8 @@
             nextSchedule,
             currentMeta,
             normalizedScope,
-            appliedTodaySeconds: getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx),
-            appliedWeekSeconds: getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey),
+            appliedTargetDaySeconds: getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx),
+            appliedTargetWeekSeconds: getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey),
             appliedTotalSeconds: getWorkedSecondsTotal(nextSchedule)
         };
     }
@@ -958,17 +972,19 @@
         const adjustmentRequestedAtMs = Date.now();
         const scheduleUpdate = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, scope, referenceDate);
         const nextSchedule = scheduleUpdate.nextSchedule;
-        const currentMeta = scheduleUpdate.currentMeta;
+        const targetMeta = scheduleUpdate.currentMeta;
+        const currentMeta = getAdminAdjustmentDateMeta(new Date());
         const totalWorkedSeconds = scheduleUpdate.appliedTotalSeconds;
-        const weeklyStudyTime = scheduleUpdate.appliedWeekSeconds;
+        const dailyStudyTime = getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx);
+        const weeklyStudyTime = getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey);
         const totalQuestionsAllTime = typeof calculateTotalQuestionsFromSchedule === 'function'
             ? calculateTotalQuestionsFromSchedule(nextSchedule)
             : Math.max(0, parseAdminTimeValue(userData.totalQuestionsAllTime, 0));
         const dailyQuestions = typeof getCurrentDayQuestionsFromSchedule === 'function'
-            ? getCurrentDayQuestionsFromSchedule(nextSchedule, referenceDate)
+            ? getCurrentDayQuestionsFromSchedule(nextSchedule, new Date())
             : Math.max(0, parseAdminTimeValue(userData.dailyQuestionCount, 0));
         const weeklyQuestions = typeof getCurrentWeekQuestionsFromSchedule === 'function'
-            ? getCurrentWeekQuestionsFromSchedule(nextSchedule, referenceDate)
+            ? getCurrentWeekQuestionsFromSchedule(nextSchedule, new Date())
             : Math.max(dailyQuestions, parseAdminTimeValue(userData.weeklyQuestionCount, 0));
         const nowMs = Date.now();
         const identityPatch = {
@@ -992,9 +1008,9 @@
             totalStudyTime: totalWorkedSeconds,
             totalTime: Math.max(0, totalWorkedSeconds) * 1000,
             totalQuestionsAllTime,
-            dailyStudyTime: scheduleUpdate.appliedTodaySeconds,
-            todayStudyTime: scheduleUpdate.appliedTodaySeconds,
-            todayWorkedSeconds: scheduleUpdate.appliedTodaySeconds,
+            dailyStudyTime,
+            todayStudyTime: dailyStudyTime,
+            todayWorkedSeconds: dailyStudyTime,
             dailyStudyDateKey: currentMeta.dateKey,
             todayDateKey: currentMeta.dateKey,
             weeklyStudyTime,
@@ -1008,12 +1024,12 @@
             adminTimeAdjustment: {
                 token: `adjust_${adjustmentRequestedAtMs}`,
                 scope: scheduleUpdate.normalizedScope,
-                dateKey: currentMeta.dateKey,
-                weekKey: currentMeta.weekKey,
+                dateKey: targetMeta.dateKey,
+                weekKey: targetMeta.weekKey,
                 requestedAt: adjustmentRequestedAt,
                 requestedAtMs: adjustmentRequestedAtMs,
                 targetSeconds: normalizedSeconds,
-                appliedDaySeconds: scheduleUpdate.appliedTodaySeconds
+                appliedDaySeconds: scheduleUpdate.appliedTargetDaySeconds
             },
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
@@ -1082,7 +1098,8 @@
         try {
             const { userDoc, userChoice } = await resolveAdminTimeAdjustmentUser(normalizedTarget, selectedUid);
             const userData = userDoc.data() || {};
-            const patches = buildAdminTimeAdjustmentPatches(userDoc.id, userData, safeSeconds, normalizedScope);
+            const adjustmentReferenceDate = getAdminTimeAdjustmentReferenceDate(normalizedScope);
+            const patches = buildAdminTimeAdjustmentPatches(userDoc.id, userData, safeSeconds, normalizedScope, adjustmentReferenceDate);
 
             if (currentUser.uid === userDoc.id && typeof pauseRealtimeTimer === 'function') {
                 try {
