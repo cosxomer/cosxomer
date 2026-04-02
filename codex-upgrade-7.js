@@ -2626,13 +2626,16 @@
             parseInteger(safeData?.todayStudyTime, 0),
             parseInteger(safeData?.todayWorkedSeconds, 0)
         );
+        const maxPossibleDailySeconds = clampWorkedSecondsForDisplay(86400, referenceDate, displayReferenceMs);
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(safeData?.activeTimer, referenceDate.getTime());
         const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(safeData, referenceDate.getTime());
         const hasVisibleLiveSession = hasVisibleActiveTimer || liveSessionSnapshot.isLive;
         const isFreshSnapshot = isDailyStudySnapshotFresh(safeData, referenceDate);
+        const hasImpossibleDailyOverflow = explicitDailySeconds > maxPossibleDailySeconds;
         const shouldReset = !hasVisibleLiveSession && (
             !isFreshSnapshot
             || (!explicitDateKey && explicitDailySeconds > scheduleSeconds && scheduleSeconds <= 0)
+            || hasImpossibleDailyOverflow
         );
 
         if (!shouldReset) {
