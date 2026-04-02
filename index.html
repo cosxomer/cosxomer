@@ -3620,6 +3620,9 @@
                     <button class="theme-button active" data-theme="luxury" onclick="setTheme('luxury')" title="Luxury Dark Theme">
                         <i class="fas fa-moon"></i>
                     </button>
+                    <button class="theme-button" data-theme="violet" onclick="setTheme('violet')" title="Violet Dream Theme">
+                        <i class="fas fa-gem"></i>
+                    </button>
                     <button class="theme-button" data-theme="kitty" onclick="setTheme('kitty')" title="Hello Kitty Theme">
                         <i class="fas fa-cat"></i>
                     </button>
@@ -10949,10 +10952,261 @@
                 padding-right: 58px;
             }
         }
+        body[data-theme="violet"] {
+            --bg-color: #140918;
+            --container-bg: rgba(31, 15, 46, 0.92);
+            --header-bg: rgba(49, 24, 74, 0.9);
+            --header-text: #fff5ff;
+            --text-color: #eadcf9;
+            --border-color: rgba(204, 168, 255, 0.22);
+            --day-bg: rgba(38, 19, 57, 0.88);
+            --accent-color: #d78cff;
+            --accent-glow: rgba(215, 140, 255, 0.46);
+            --button-bg: #6b35a8;
+            --button-hover: #8446c3;
+            --progress-bg: rgba(255, 255, 255, 0.1);
+            --progress-fill: #f28cff;
+            --progress-complete: #ffd166;
+            --pomodoro-bg: rgba(39, 18, 58, 0.94);
+            --pomodoro-accent: #ff89d6;
+            --logo-content: "MOR MOD TAM ODAK";
+            --logo-accent: #ffc9f3;
+            --task-bg: rgba(48, 24, 71, 0.92);
+            --task-completed-bg: rgba(88, 48, 123, 0.82);
+            --day-header-color: #fff5ff;
+            --task-text-color: #fff7ff;
+            --theme-icon-color: #f5dbff;
+            --day-border: 1px solid rgba(214, 174, 255, 0.18);
+            --instagram-bg: #ff89d6;
+            --instagram-text: #ffffff;
+            --theme-controls-bg: rgba(40, 18, 61, 0.76);
+            --countdown-bg: rgba(42, 18, 64, 0.92);
+            --countdown-fill: #8be9ff;
+            --countdown-text: #fff5ff;
+            --countdown-shadow: rgba(139, 233, 255, 0.55);
+            background:
+                radial-gradient(circle at 12% 12%, rgba(255, 153, 247, 0.22), transparent 24%),
+                radial-gradient(circle at 85% 15%, rgba(179, 128, 255, 0.2), transparent 22%),
+                radial-gradient(circle at 78% 82%, rgba(255, 194, 240, 0.16), transparent 20%),
+                linear-gradient(180deg, #120716 0%, #1e0d2d 42%, #28123d 100%);
+            background-attachment: fixed;
+        }
+
+        body[data-theme="violet"]::before,
+        body[data-theme="violet"]::after {
+            content: "";
+            position: fixed;
+            pointer-events: none;
+            z-index: 0;
+            border-radius: 999px;
+            filter: blur(6px);
+            opacity: 0.8;
+        }
+
+        body[data-theme="violet"]::before {
+            top: 7%;
+            left: 4%;
+            width: 180px;
+            height: 180px;
+            background: radial-gradient(circle, rgba(255, 168, 241, 0.3) 0%, rgba(255, 168, 241, 0) 72%);
+        }
+
+        body[data-theme="violet"]::after {
+            right: 6%;
+            bottom: 10%;
+            width: 220px;
+            height: 220px;
+            background: radial-gradient(circle, rgba(147, 197, 253, 0.18) 0%, rgba(147, 197, 253, 0) 76%);
+        }
+
+        body[data-theme="violet"] header,
+        body[data-theme="violet"] .container,
+        body[data-theme="violet"] .quote-container,
+        body[data-theme="violet"] #yks-countdown-container,
+        body[data-theme="violet"] .subject-reminder-banner,
+        body[data-theme="violet"] .day-cell,
+        body[data-theme="violet"] .theme-controls,
+        body[data-theme="violet"] .auth-section,
+        body[data-theme="violet"] .study-insight-card,
+        body[data-theme="violet"] .leaderboard-panel,
+        body[data-theme="violet"] .pomodoro-content,
+        body[data-theme="violet"] .notes-modal-content,
+        body[data-theme="violet"] .support-modal-content,
+        body[data-theme="violet"] .notes-editor-panel,
+        body[data-theme="violet"] .notes-list-panel,
+        body[data-theme="violet"] .support-compose-panel,
+        body[data-theme="violet"] .support-messages-panel,
+        body[data-theme="violet"] .support-section,
+        body[data-theme="violet"] #profile-modal .profile-modal-content,
+        body[data-theme="violet"] .profile-avatar-section,
+        body[data-theme="violet"] .profile-stat-card,
+        body[data-theme="violet"] .profile-title-card,
+        body[data-theme="violet"] .profile-note-card,
+        body[data-theme="violet"] .support-message-card {
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
+                rgba(30, 13, 45, 0.9) !important;
+            border: 1px solid rgba(214, 174, 255, 0.16) !important;
+            box-shadow: 0 22px 42px rgba(9, 4, 18, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+            color: #f4e9ff !important;
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+        }
+
+        body[data-theme="violet"] header {
+            background:
+                radial-gradient(circle at top left, rgba(255, 178, 242, 0.16), transparent 28%),
+                linear-gradient(180deg, rgba(73, 34, 110, 0.96), rgba(35, 15, 52, 0.92)) !important;
+        }
+
+        body[data-theme="violet"] h1,
+        body[data-theme="violet"] h2,
+        body[data-theme="violet"] h3,
+        body[data-theme="violet"] .support-titlebox h2,
+        body[data-theme="violet"] .notes-panel-header h3,
+        body[data-theme="violet"] #profile-modal .profile-modal-header h2 {
+            color: #fff3ff !important;
+            font-family: 'Playfair Display', 'Inter', serif;
+            text-shadow: 0 8px 24px rgba(255, 160, 240, 0.12);
+            letter-spacing: 0.01em;
+        }
+
+        body[data-theme="violet"] .quote-text,
+        body[data-theme="violet"] .quote-author,
+        body[data-theme="violet"] .support-modal-subtitle,
+        body[data-theme="violet"] .support-card-meta,
+        body[data-theme="violet"] .support-message-body,
+        body[data-theme="violet"] .support-reply-text,
+        body[data-theme="violet"] .notes-panel-header p,
+        body[data-theme="violet"] .profile-member-since,
+        body[data-theme="violet"] .profile-title-card p,
+        body[data-theme="violet"] .profile-note-card .note-card-content,
+        body[data-theme="violet"] .header-stats > span,
+        body[data-theme="violet"] .subject-hint,
+        body[data-theme="violet"] .support-admin-stat span,
+        body[data-theme="violet"] .support-private-note {
+            color: rgba(244, 233, 255, 0.82) !important;
+        }
+
+        body[data-theme="violet"] button,
+        body[data-theme="violet"] .profile-chip,
+        body[data-theme="violet"] #instagram-link,
+        body[data-theme="violet"] .leaderboard-tab,
+        body[data-theme="violet"] .support-card-actions button {
+            color: #fff7ff !important;
+            background:
+                linear-gradient(135deg, rgba(255, 139, 214, 0.95), rgba(123, 67, 201, 0.96)) !important;
+            border: 1px solid rgba(255, 203, 246, 0.24) !important;
+            box-shadow: 0 16px 30px rgba(18, 7, 27, 0.28), 0 0 18px rgba(215, 140, 255, 0.2) !important;
+        }
+
+        body[data-theme="violet"] button:hover,
+        body[data-theme="violet"] .profile-chip:hover,
+        body[data-theme="violet"] #instagram-link:hover,
+        body[data-theme="violet"] .leaderboard-tab:hover,
+        body[data-theme="violet"] .support-card-actions button:hover {
+            filter: brightness(1.06) saturate(1.06);
+            box-shadow: 0 20px 36px rgba(18, 7, 27, 0.34), 0 0 22px rgba(255, 166, 240, 0.26) !important;
+        }
+
+        body[data-theme="violet"] .theme-button {
+            color: #f6e6ff !important;
+            background:
+                linear-gradient(180deg, rgba(93, 52, 144, 0.86), rgba(48, 24, 71, 0.92)) !important;
+            border-color: rgba(221, 188, 255, 0.18) !important;
+        }
+
+        body[data-theme="violet"] .theme-button.active,
+        body[data-theme="violet"] .timer-mode-toggle__button.is-active,
+        body[data-theme="violet"] .leaderboard-tab.active,
+        body[data-theme="violet"] .support-pill.unread,
+        body[data-theme="violet"] .support-pill.private,
+        body[data-theme="violet"] .notes-folder-chip.is-active {
+            background:
+                linear-gradient(135deg, rgba(255, 198, 244, 0.96), rgba(216, 150, 255, 0.96)) !important;
+            color: #3b1657 !important;
+            box-shadow: 0 14px 28px rgba(255, 178, 242, 0.22) !important;
+        }
+
+        body[data-theme="violet"] #support-submit-btn,
+        body[data-theme="violet"] #save-btn,
+        body[data-theme="violet"] #start-pause-btn,
+        body[data-theme="violet"] #leaderboard-toggle-btn,
+        body[data-theme="violet"] #profile-save-btn,
+        body[data-theme="violet"] #my-note-save-btn {
+            background:
+                linear-gradient(135deg, rgba(120, 246, 255, 0.95), rgba(107, 53, 168, 0.96)) !important;
+            color: #ffffff !important;
+        }
+
+        body[data-theme="violet"] #support-submit-btn:hover,
+        body[data-theme="violet"] #save-btn:hover,
+        body[data-theme="violet"] #start-pause-btn:hover,
+        body[data-theme="violet"] #leaderboard-toggle-btn:hover,
+        body[data-theme="violet"] #profile-save-btn:hover,
+        body[data-theme="violet"] #my-note-save-btn:hover {
+            color: #ffffff !important;
+        }
+
+        body[data-theme="violet"] .leaderboard-panel {
+            background:
+                linear-gradient(180deg, rgba(40, 18, 61, 0.98), rgba(24, 10, 37, 0.98)) !important;
+        }
+
+        body[data-theme="violet"] .leaderboard-item {
+            background:
+                linear-gradient(135deg, rgba(93, 52, 144, 0.22), rgba(34, 16, 51, 0.86)) !important;
+            border-color: rgba(226, 195, 255, 0.18) !important;
+            box-shadow: 0 18px 32px rgba(8, 4, 16, 0.24) !important;
+        }
+
+        body[data-theme="violet"] .leaderboard-item.rank-1 {
+            background:
+                linear-gradient(135deg, rgba(255, 199, 246, 0.18), rgba(130, 72, 214, 0.82)) !important;
+        }
+
+        body[data-theme="violet"] .leaderboard-item.rank-2,
+        body[data-theme="violet"] .leaderboard-item.rank-3 {
+            background:
+                linear-gradient(135deg, rgba(181, 142, 255, 0.18), rgba(57, 25, 86, 0.86)) !important;
+        }
+
+        body[data-theme="violet"] .leaderboard-name,
+        body[data-theme="violet"] .leaderboard-score,
+        body[data-theme="violet"] .leaderboard-questions,
+        body[data-theme="violet"] .leaderboard-header h3,
+        body[data-theme="violet"] .close-leaderboard {
+            color: #fff5ff !important;
+        }
+
+        body[data-theme="violet"] .profile-field-group input,
+        body[data-theme="violet"] .profile-field-group textarea,
+        body[data-theme="violet"] .profile-track-select,
+        body[data-theme="violet"] .support-compose-fields textarea,
+        body[data-theme="violet"] .support-reply-box textarea,
+        body[data-theme="violet"] .notes-editor-fields input,
+        body[data-theme="violet"] .notes-editor-fields textarea,
+        body[data-theme="violet"] .question-input-box input,
+        body[data-theme="violet"] .pomodoro-time-inputs input,
+        body[data-theme="violet"] .question-subject-select {
+            background: rgba(80, 42, 118, 0.42) !important;
+            border-color: rgba(229, 198, 255, 0.16) !important;
+            color: #fff5ff !important;
+        }
+
+        body[data-theme="violet"] .profile-field-group input::placeholder,
+        body[data-theme="violet"] .profile-field-group textarea::placeholder,
+        body[data-theme="violet"] .support-compose-fields textarea::placeholder,
+        body[data-theme="violet"] .support-reply-box textarea::placeholder,
+        body[data-theme="violet"] .notes-editor-fields input::placeholder,
+        body[data-theme="violet"] .notes-editor-fields textarea::placeholder,
+        body[data-theme="violet"] .question-input-box input::placeholder {
+            color: rgba(244, 233, 255, 0.5) !important;
+        }
     </style>
 <script src="codex-hotfix-4.js?v=20260402-0712"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js?v=20260402-1118"></script>
+    <script src="codex-upgrade-7.js?v=20260402-1238"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

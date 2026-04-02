@@ -4553,9 +4553,8 @@
         updateLiveStudyPreview();
         refreshLeaderboardOptimistically(null);
 
-        if (!options.silent) {
-            safeShowAlert("Admin bugunku calisma suresini sifirladi.", "success");
-        }
+        // Admin bakim aksiyonlari kullaniciya toast olarak gorunmesin;
+        // arka planda sessizce uygulanip sadece veriyi yenilesin.
 
         return true;
     }
