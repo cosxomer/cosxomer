@@ -1894,12 +1894,28 @@
                 description: "Zirvenin kapısındasın. Bu seviyeye çıkanlar yarışa katılmaz, yarışın şeklini değiştirir."
             },
             {
-                id: "fatih",
+                id: "as1",
                 minAvgHours: 10,
+                label: "AS I",
+                icon: "⚔",
+                className: "title-as-1",
+                description: "2 günlük 10 saatlik ortalama artık normal tempo değil, savaş temposu. Çoğu kişinin dağıldığı yerde sen masayı ele geçiriyor, iradeni her oturuşta kanıtlıyorsun."
+            },
+            {
+                id: "as2",
+                minAvgHours: 11,
+                label: "AS II",
+                icon: "⚡",
+                className: "title-as-2",
+                description: "11 saatlik ortalama, iradenin gösteri yaptığı seviye. Yorulmak seni yavaşlatmıyor; daha keskin, daha saldırgan ve daha kararlı hale getiriyor."
+            },
+            {
+                id: "fatih",
+                minAvgHours: 12,
                 label: "Fatih",
-                icon: "♔",
+                icon: "👑",
                 className: "title-fatih",
-                description: "En üst mertebe. Sen artık sadece hedefin peşinden giden değil, onu fetheden kişisin. Bu ünvan, masaya hükmedenlerin ünvanı."
+                description: "En üst mertebe. 12 saatlik 2 günlük ortalama ile artık hedef kovalamıyorsun; hedefi kuşatıp fethediyorsun. Fatih ünvanı, masaya hükmeden ve çevresindeki herkesi gaza getiren çalışma iradesinin simgesidir."
             }
         ].map(level => ({
             ...level,
@@ -2358,9 +2374,21 @@
             .title-badge.title-diamond-2,
             .title-badge.title-crown-1,
             .title-badge.title-crown-2,
+            .title-badge.title-as-1,
+            .title-badge.title-as-2,
             .title-badge.title-fatih {
                 border-width: 1px;
                 box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 10px 22px rgba(15, 23, 42, 0.18);
+            }
+            .title-badge {
+                position: relative;
+                overflow: hidden;
+                isolation: isolate;
+                transition: transform 0.28s ease, box-shadow 0.32s ease, filter 0.32s ease;
+            }
+            .title-badge > span {
+                position: relative;
+                z-index: 1;
             }
             .title-badge.title-bronze-1 {
                 background: linear-gradient(135deg, rgba(205, 127, 50, 0.26), rgba(120, 53, 15, 0.12));
@@ -2412,11 +2440,80 @@
                 color: #fae8ff;
                 border-color: rgba(233, 213, 255, 0.42);
             }
+            .title-badge.title-as-1,
+            .title-badge.title-as-2,
             .title-badge.title-fatih {
-                background: linear-gradient(135deg, rgba(255, 215, 0, 0.34), rgba(220, 38, 38, 0.2), rgba(126, 34, 206, 0.22));
-                color: #fff7cc;
-                border-color: rgba(255, 215, 0, 0.5);
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 14px 28px rgba(234, 179, 8, 0.18);
+                text-shadow: 0 0 12px rgba(255,255,255,0.18);
+            }
+            .title-badge.title-as-1::after,
+            .title-badge.title-as-2::after,
+            .title-badge.title-fatih::after {
+                content: "";
+                position: absolute;
+                top: -120%;
+                left: -24%;
+                width: 42%;
+                height: 260%;
+                background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.04) 20%, rgba(255,255,255,0.72) 50%, rgba(255,255,255,0.05) 80%, transparent 100%);
+                transform: rotate(22deg);
+                animation: codexTitleShine 3.6s linear infinite;
+                opacity: 0.74;
+                pointer-events: none;
+                z-index: 0;
+            }
+            .title-badge.title-as-1 {
+                background: linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(220, 38, 38, 0.78), rgba(248, 113, 113, 0.34));
+                color: #ffe4e6;
+                border-color: rgba(254, 202, 202, 0.44);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px rgba(127, 29, 29, 0.32), 0 14px 26px rgba(153, 27, 27, 0.22), 0 0 18px rgba(248, 113, 113, 0.16);
+                animation: codexAsPulse 3.8s ease-in-out infinite;
+            }
+            .title-badge.title-as-2 {
+                background: linear-gradient(135deg, rgba(127, 29, 29, 0.96), rgba(239, 68, 68, 0.84), rgba(251, 146, 60, 0.44));
+                color: #fff1f2;
+                border-color: rgba(255, 228, 230, 0.52);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 0 1px rgba(153, 27, 27, 0.34), 0 16px 28px rgba(185, 28, 28, 0.24), 0 0 22px rgba(248, 113, 113, 0.22);
+                animation: codexAsPulseStrong 3.2s ease-in-out infinite;
+            }
+            .title-badge.title-fatih {
+                padding: 7px 14px;
+                font-size: 0.9em;
+                letter-spacing: 0.55px;
+                background: linear-gradient(135deg, rgba(255, 244, 179, 0.96), rgba(255, 215, 0, 0.86), rgba(245, 158, 11, 0.82), rgba(255, 232, 153, 0.92));
+                color: #4a2a00;
+                border-color: rgba(255, 243, 176, 0.92);
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 0 0 1px rgba(255, 215, 0, 0.34), 0 18px 34px rgba(217, 119, 6, 0.28), 0 0 30px rgba(255, 215, 0, 0.36);
+                filter: saturate(1.08);
+                animation: codexFatihPulse 2.5s ease-in-out infinite;
+            }
+            .title-badge.small.title-as-1,
+            .title-badge.small.title-as-2 {
+                font-size: 0.71em;
+                min-height: 26px;
+            }
+            .title-badge.small.title-fatih {
+                padding: 4px 10px;
+                font-size: 0.76em;
+                min-height: 28px;
+            }
+            @keyframes codexTitleShine {
+                0% { transform: translateX(-165%) rotate(22deg); opacity: 0; }
+                18% { opacity: 0.7; }
+                46% { opacity: 0.88; }
+                72% { opacity: 0.18; }
+                100% { transform: translateX(305%) rotate(22deg); opacity: 0; }
+            }
+            @keyframes codexAsPulse {
+                0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px rgba(127, 29, 29, 0.32), 0 14px 26px rgba(153, 27, 27, 0.22), 0 0 16px rgba(248, 113, 113, 0.14); transform: translateY(0); }
+                50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 0 0 1px rgba(127, 29, 29, 0.38), 0 16px 30px rgba(185, 28, 28, 0.28), 0 0 24px rgba(248, 113, 113, 0.22); transform: translateY(-1px); }
+            }
+            @keyframes codexAsPulseStrong {
+                0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 0 1px rgba(153, 27, 27, 0.34), 0 16px 28px rgba(185, 28, 28, 0.24), 0 0 20px rgba(248, 113, 113, 0.2); transform: translateY(0) scale(1); }
+                50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 0 0 1px rgba(185, 28, 28, 0.42), 0 18px 32px rgba(185, 28, 28, 0.3), 0 0 28px rgba(251, 146, 60, 0.24); transform: translateY(-1px) scale(1.01); }
+            }
+            @keyframes codexFatihPulse {
+                0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 0 0 1px rgba(255, 215, 0, 0.34), 0 18px 34px rgba(217, 119, 6, 0.28), 0 0 28px rgba(255, 215, 0, 0.32); transform: translateY(0) scale(1); }
+                50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 0 0 1px rgba(255, 240, 180, 0.48), 0 22px 38px rgba(217, 119, 6, 0.34), 0 0 40px rgba(255, 215, 0, 0.48); transform: translateY(-1px) scale(1.02); }
             }
         `;
         document.head.appendChild(style);
