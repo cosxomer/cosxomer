@@ -1017,10 +1017,12 @@
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: 0,
             activeTimer: null,
+            legacyWorkingStartedAt: 0,
             isWorking: false,
             isRunning: false,
             lastSyncTime: nowMs,
             lastTimerSyncAt: nowMs,
+            updatedAtMs: nowMs,
             adminTimeAdjustment: {
                 token: `adjust_${adjustmentRequestedAtMs}`,
                 scope: scheduleUpdate.normalizedScope,

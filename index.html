@@ -3879,10 +3879,10 @@
             <div id="profile-quick-actions" class="profile-quick-actions" style="display:none;">
                 <div class="profile-quick-actions-note">
                     <i class="fas fa-circle-check"></i>
-                    <span>Profil resmi ekledikten sonra kaydetmeyi unutma.</span>
+                    <span>Diğer profil değişikliklerini buradan kaydedebilirsin.</span>
                 </div>
                 <button id="profile-save-btn-top" onclick="saveProfileChanges()" style="display:none; background-color: var(--countdown-fill); color: var(--header-text);">
-                    <i class="fas fa-save"></i> Kaydet
+                    <i class="fas fa-save"></i> Profili Kaydet
                 </button>
             </div>
             <div class="profile-modal-body">
@@ -5785,7 +5785,7 @@
             updateCropperPreview();
         }
 
-        function applyCroppedProfileImage() {
+        async function applyCroppedProfileImage() {
             const cropperImage = document.getElementById('cropper-image');
             const stage = document.getElementById('cropper-stage');
             if (!cropperImage || !stage || !cropBaseWidth || !cropBaseHeight) return;
@@ -5816,7 +5816,65 @@
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
             closeImageCropper();
-            showAlert("Profil resmi hazır. Üstteki Kaydet butonuna basmayı unutma.", "success");
+
+            if (!currentUser) {
+                showAlert("Profil resmi hazır.", "success");
+                return;
+            }
+
+            const quickSaveButton = document.getElementById('profile-save-btn-top');
+            const bottomSaveButton = document.getElementById('profile-save-btn');
+            const saveButtons = [quickSaveButton, bottomSaveButton].filter(Boolean);
+            const originalLabels = new Map(saveButtons.map(button => [button.id, button.innerHTML]));
+
+            saveButtons.forEach(button => {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Profil resmi kaydediliyor';
+            });
+
+            try {
+                if (typeof currentUserLiveDoc === 'object' && currentUserLiveDoc) {
+                    currentUserLiveDoc = {
+                        ...currentUserLiveDoc,
+                        profileImage: currentProfileImage
+                    };
+                }
+
+                if (typeof refreshCurrentTotals === 'function') {
+                    refreshCurrentTotals();
+                }
+
+                if (typeof saveData === 'function') {
+                    await saveData({ authorized: true, immediate: true });
+                }
+
+                const latestPayload = typeof buildUserPayload === 'function' ? buildUserPayload() : null;
+                if (typeof syncPublicProfileSnapshotSafely === 'function') {
+                    syncPublicProfileSnapshotSafely(latestPayload);
+                }
+                if (typeof refreshLeaderboardOptimistically === 'function') {
+                    refreshLeaderboardOptimistically(null);
+                }
+                if (typeof renderLiveLeaderboardFromDocs === 'function') {
+                    renderLiveLeaderboardFromDocs();
+                }
+                if (typeof updateProfileButton === 'function') {
+                    updateProfileButton();
+                }
+                if (typeof renderSchedule === 'function') {
+                    renderSchedule();
+                }
+
+                showAlert("Profil resmi kaydedildi.", "success");
+            } catch (error) {
+                console.error("Profil resmi otomatik kaydedilemedi:", error);
+                showAlert("Profil resmi seçildi ama otomatik kaydedilemedi. Üstteki Profili Kaydet butonunu kullan.");
+            } finally {
+                saveButtons.forEach(button => {
+                    button.disabled = false;
+                    button.innerHTML = originalLabels.get(button.id) || '<i class="fas fa-save"></i> Profili Kaydet';
+                });
+            }
         }
 
         function initializeCropperEvents() {
@@ -11276,7 +11334,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260402-0712"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js?v=20260402-1416"></script>
+    <script src="codex-upgrade-7.js?v=20260402-1454"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

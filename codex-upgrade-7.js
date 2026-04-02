@@ -5258,7 +5258,9 @@
     function mergeForcedLocalLeaderboardEntry(leaderboardData) {
         const nextData = Array.isArray(leaderboardData) ? [...leaderboardData] : [];
         const localEntry = buildForcedLocalLeaderboardEntry();
-        if (!localEntry) return nextData;
+        if (!localEntry) {
+            return nextData.sort(compareLeaderboardEntries);
+        }
 
         const localIndex = nextData.findIndex(user => {
             if (currentUser?.uid) return user.uid === currentUser.uid;
@@ -5640,6 +5642,8 @@
         return mergeForcedLocalLeaderboardEntry(getLeaderboardSourceDocs()
             .map(doc => {
                 const data = doc.data || {};
+                const now = Date.now();
+                const referenceDate = new Date(now);
                 const seconds = getLiveLeaderboardSeconds(data);
                 const questionBreakdown = getLeaderboardQuestionBreakdown(data);
                 const currentPeriodQuestions = questionBreakdown.activeQuestions;
@@ -5666,13 +5670,25 @@
                 });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
                 const resolvedUsername = String(data.username || data.name || data.email?.split?.("@")?.[0] || "Kullanici").trim();
-                const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data);
+                const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data, now);
+                const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(data.activeTimer || null, now);
+                const isFreshDailySnapshot = isDailyStudySnapshotFresh(data, referenceDate);
+                const todayScheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(
+                    sanitizeScheduleData(data.schedule || {}),
+                    referenceDate,
+                    getLeaderboardDayDisplayReferenceMs(data, referenceDate, now)
+                );
 
                 const isWorking = currentLeaderboardTab === "daily"
                     && resolveObservedWorkingBadge(doc.id, seconds, liveSessionSnapshot.isLive);
+                const shouldShowForCurrentTab = currentLeaderboardTab !== "daily"
+                    || isFreshDailySnapshot
+                    || todayScheduleSeconds > 0
+                    || hasVisibleActiveTimer
+                    || liveSessionSnapshot.isLive;
                 const hasVisibleStats = seconds > 0 || isWorking;
 
-                if (!resolvedUsername || !hasVisibleStats) return null;
+                if (!resolvedUsername || !hasVisibleStats || !shouldShowForCurrentTab) return null;
 
                 return {
                     uid: doc.id,
@@ -7289,13 +7305,25 @@
 
     function syncProfileSaveActionVisibility(editable = false) {
         const quickActions = document.getElementById("profile-quick-actions");
+        const bottomActions = document.querySelector("#profile-modal .profile-modal-actions");
+        const topButton = document.getElementById("profile-save-btn-top");
+        const bottomButton = document.getElementById("profile-save-btn");
+
         if (quickActions) {
             quickActions.style.display = editable ? "flex" : "none";
         }
 
-        getProfileSaveButtons().forEach(button => {
-            button.style.display = editable ? "inline-flex" : "none";
-        });
+        if (topButton) {
+            topButton.style.display = editable ? "inline-flex" : "none";
+        }
+
+        if (bottomButton) {
+            bottomButton.style.display = "none";
+        }
+
+        if (bottomActions) {
+            bottomActions.style.display = "none";
+        }
     }
 
     function patchProfileSaveFlow() {
