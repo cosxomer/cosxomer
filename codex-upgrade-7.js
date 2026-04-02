@@ -1478,6 +1478,50 @@
         return promise;
     }
 
+    function commitTimerSessionLocally(commitSourceSession = null, options = {}) {
+        if (!commitSourceSession) {
+            return {
+                committedDeltaSeconds: 0,
+                committedElapsedSeconds: 0,
+                referenceMs: Math.max(0, parseInteger(options.referenceMs, Date.now()))
+            };
+        }
+
+        const referenceMs = Math.max(0, parseInteger(options.referenceMs, Date.now()));
+        const committedDeltaSeconds = applyPendingTimerDelta(commitSourceSession, referenceMs);
+        const committedElapsedSeconds = Math.max(
+            parseInteger(options.committedElapsedSeconds, 0),
+            getTimerElapsedSeconds(commitSourceSession, referenceMs)
+        );
+
+        commitSourceSession.lastPersistedElapsedSeconds = Math.max(
+            parseInteger(commitSourceSession.lastPersistedElapsedSeconds, 0),
+            committedElapsedSeconds
+        );
+
+        if (timerState.session) {
+            timerState.session.lastPersistedElapsedSeconds = Math.max(
+                parseInteger(timerState.session.lastPersistedElapsedSeconds, 0),
+                committedElapsedSeconds
+            );
+            timerDrafts[timerState.session.mode] = { ...timerState.session };
+        }
+
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+
+        if (committedDeltaSeconds > 0 || options.persistRecovery === true) {
+            persistTimerRecoverySnapshot();
+        }
+
+        return {
+            committedDeltaSeconds,
+            committedElapsedSeconds,
+            referenceMs
+        };
+    }
+
     function mergeTimerRecoveryScheduleIntoLocalState() {
         const snapshot = readTimerRecoverySnapshot();
         if (!snapshot || !currentUser?.uid || snapshot.uid !== currentUser.uid) {
@@ -7348,15 +7392,23 @@
 
             const session = timerState.session;
             const commitSourceSession = createCommitSourceSession(session);
-            const elapsed = getTimerElapsedSeconds(commitSourceSession);
+            const commitState = commitTimerSessionLocally(commitSourceSession, {
+                referenceMs: Date.now(),
+                persistRecovery: true
+            });
+            const elapsed = commitState.committedElapsedSeconds;
             session.baseElapsedSeconds = elapsed;
+            session.lastPersistedElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
             session.modalOpen = false;
+            session.lastSeenAtMs = commitState.referenceMs;
+            session.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
             timerState.session = session;
             timerDrafts[session.mode] = { ...session };
             isRunning = false;
             stopTimerLoops();
+            persistTimerSessionLocally(session);
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
             monitorTimerSyncPromise(syncRealtimeTimer("pause", {
@@ -7381,10 +7433,20 @@
 
             const session = timerState.session;
             const commitSourceSession = createCommitSourceSession(session);
-            const elapsed = Math.max(parseInteger(session.targetDurationSeconds, 0), getTimerElapsedSeconds(commitSourceSession));
+            const commitState = commitTimerSessionLocally(commitSourceSession, {
+                referenceMs: Date.now(),
+                persistRecovery: true
+            });
+            const elapsed = Math.max(
+                parseInteger(session.targetDurationSeconds, 0),
+                commitState.committedElapsedSeconds
+            );
             session.baseElapsedSeconds = elapsed;
+            session.lastPersistedElapsedSeconds = elapsed;
             session.isRunning = false;
             session.startedAtMs = 0;
+            session.lastSeenAtMs = commitState.referenceMs;
+            session.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
             stopTimerLoops();
             isRunning = false;
             releaseTimerOwnership();
@@ -7605,18 +7667,30 @@
                 try {
                     const activeSession = timerState.session ? { ...timerState.session } : null;
                     const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
-                    const committedElapsedSeconds = commitSourceSession
-                        ? getTimerElapsedSeconds(commitSourceSession)
-                        : 0;
+                    const commitState = commitSourceSession
+                        ? commitTimerSessionLocally(commitSourceSession, {
+                            referenceMs: Date.now(),
+                            persistRecovery: true
+                        })
+                        : {
+                            committedElapsedSeconds: 0,
+                            referenceMs: Date.now()
+                        };
+                    const committedElapsedSeconds = commitState.committedElapsedSeconds;
 
                     if (activeSession) {
                         activeSession.baseElapsedSeconds = committedElapsedSeconds;
+                        activeSession.lastPersistedElapsedSeconds = committedElapsedSeconds;
                         activeSession.isRunning = false;
                         activeSession.startedAtMs = 0;
                         activeSession.modalOpen = false;
+                        activeSession.lastSeenAtMs = commitState.referenceMs;
+                        activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+                        timerState.session = activeSession;
                         timerDrafts[activeSession.mode] = { ...activeSession };
                         isRunning = false;
                         stopTimerLoops();
+                        persistTimerSessionLocally(activeSession);
                     }
 
                     const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
@@ -7630,8 +7704,6 @@
                         authorized: true
                     }));
 
-                    timerState.session = null;
-                    persistTimerSessionLocally(null);
                     releaseTimerOwnership();
                     refreshLeaderboardOptimistically(null);
                     renderTimerUi();
@@ -8246,6 +8318,20 @@
                     authorized: true
                 }).catch(error => {
                     console.error("Gorunur sekme timer senkronu basarisiz:", error);
+                });
+            }
+        });
+
+        window.addEventListener("pagehide", () => {
+            if (timerState.session?.isRunning) {
+                touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                syncRealtimeTimer("pagehide", {
+                    activeSession: timerState.session,
+                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                    userTriggeredWrite: true,
+                    authorized: true
+                }).catch(error => {
+                    console.error("Pagehide timer senkronu basarisiz:", error);
                 });
             }
         });
