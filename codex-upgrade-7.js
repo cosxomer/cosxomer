@@ -2464,10 +2464,30 @@
         };
     }
 
-    function getCurrentDayWorkedSecondsFromSchedule(schedule, referenceDate = new Date()) {
+    function getCurrentDayWorkedSecondsFromSchedule(schedule, referenceDate = new Date(), displayReferenceMs = Date.now()) {
         const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
         const dayData = ensureDayObject(schedule?.[weekKey]?.[dayIdx] || {});
-        return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, Date.now());
+        return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, displayReferenceMs);
+    }
+
+    function getLeaderboardDayDisplayReferenceMs(userData = {}, referenceDate = new Date(), now = Date.now()) {
+        const safeNow = Math.max(0, parseInteger(now, Date.now()));
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayStartMs = dayStart.getTime();
+        const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(userData?.activeTimer, safeNow);
+        const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(userData || {}, safeNow);
+
+        if (hasVisibleActiveTimer || liveSessionSnapshot.isLive) {
+            return safeNow;
+        }
+
+        const lastSyncAt = getLeaderboardSessionLastSyncAt(userData || {});
+        if (lastSyncAt <= 0) {
+            return dayStartMs;
+        }
+
+        return Math.max(dayStartMs, Math.min(safeNow, lastSyncAt));
     }
 
     function isDailyStudySnapshotFresh(userData = {}, referenceDate = new Date()) {
@@ -2496,12 +2516,14 @@
     function getDailySnapshotResetState(userData = {}, referenceDate = new Date()) {
         const safeData = userData && typeof userData === "object" ? userData : {};
         const currentMeta = getCurrentDayMeta(referenceDate);
+        const displayReferenceMs = getLeaderboardDayDisplayReferenceMs(safeData, referenceDate, referenceDate.getTime());
         const explicitDateKey = String(
             safeData?.dailyStudyDateKey
             || safeData?.todayDateKey
             || ""
         ).trim();
-        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(safeData.schedule || {}, referenceDate);
+        const safeSchedule = sanitizeScheduleData(safeData.schedule || {});
+        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(safeSchedule, referenceDate, displayReferenceMs);
         const explicitDailySeconds = Math.max(
             parseInteger(safeData?.dailyStudyTime, 0),
             parseInteger(safeData?.todayStudyTime, 0),
@@ -2524,8 +2546,18 @@
         }
 
         const normalizedDailySeconds = scheduleSeconds;
+        const normalizedSchedule = sanitizeScheduleData(safeSchedule);
+        const currentDayData = ensureDayObject(normalizedSchedule?.[currentMeta.weekKey]?.[currentMeta.dayIdx] || {});
+        if (parseInteger(currentDayData.workedSeconds, 0) !== normalizedDailySeconds) {
+            if (!normalizedSchedule[currentMeta.weekKey]) normalizedSchedule[currentMeta.weekKey] = {};
+            normalizedSchedule[currentMeta.weekKey][currentMeta.dayIdx] = ensureDayObject({
+                ...currentDayData,
+                workedSeconds: normalizedDailySeconds
+            });
+        }
         const normalizedData = {
             ...safeData,
+            schedule: normalizedSchedule,
             dailyStudyTime: normalizedDailySeconds,
             todayStudyTime: normalizedDailySeconds,
             todayWorkedSeconds: normalizedDailySeconds,
@@ -2542,6 +2574,7 @@
             || parseInteger(safeData?.currentSessionTime, 0) !== 0
             || !!safeData?.activeTimer
             || !!safeData?.isWorking
+            || parseInteger(safeSchedule?.[currentMeta.weekKey]?.[currentMeta.dayIdx]?.workedSeconds, 0) !== normalizedDailySeconds
             || explicitDateKey !== currentMeta.dateKey
         );
 
@@ -2567,12 +2600,13 @@
         return true;
     }
 
-    function getFreshDailyStudySeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
+    function getFreshDailyStudySeconds(userData = {}, schedule = {}, referenceDate = new Date(), options = {}) {
+        const safeReferenceMs = Math.max(0, parseInteger(options?.displayReferenceMs, Date.now()));
         const resetState = getDailySnapshotResetState({
             ...(userData || {}),
             schedule: sanitizeScheduleData(schedule || userData?.schedule || {})
         }, referenceDate);
-        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(resetState.normalizedData.schedule || {}, referenceDate);
+        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(resetState.normalizedData.schedule || {}, referenceDate, safeReferenceMs);
         if (!isDailyStudySnapshotFresh(resetState.normalizedData, referenceDate)) {
             return scheduleSeconds;
         }
@@ -4155,7 +4189,10 @@
         const now = Date.now();
         const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(normalizedUserData, now);
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(normalizedUserData?.activeTimer, now);
-        const explicitDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate);
+        const dayDisplayReferenceMs = getLeaderboardDayDisplayReferenceMs(normalizedUserData, currentDate, now);
+        const explicitDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate, {
+            displayReferenceMs: dayDisplayReferenceMs
+        });
         const explicitWeeklySeconds = Math.max(
             parseInteger(normalizedUserData?.weeklyStudyTime, 0),
             parseInteger(normalizedUserData?.currentWeekSeconds, 0)
@@ -4164,7 +4201,7 @@
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
             dayStartMs = dayStart.getTime();
-            totalSeconds = clampWorkedSecondsForDisplay(normalizedUserData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, now);
+            totalSeconds = clampWorkedSecondsForDisplay(normalizedUserData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, dayDisplayReferenceMs);
             totalSeconds = Math.max(totalSeconds, explicitDailySeconds);
         } else {
             totalSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
