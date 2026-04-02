@@ -3,6 +3,7 @@
     const RESET_PASSWORD_MESSAGE = "Sifre sifirlama baglantisi e-posta adresine gonderildi. Spam/junk klasorunu da kontrol et.";
     const VERIFY_COOLDOWN_MS = 30000;
     const TIMER_SYNC_MS = 10 * 60 * 1000;
+    const TIMER_FORCED_CHECKPOINT_MS = 60 * 60 * 1000;
     const TIMER_OWNER_TTL_MS = 15000;
     const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
@@ -15,6 +16,9 @@
     const TIMER_RECOVERY_KEY = "codexRealtimeTimerRecoveryV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
     const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
+    const DAILY_SUPPORT_NOTICE_KEY = "codexDailySupportNoticeV1";
+    const DAILY_TIMER_NOTICE_KEY = "codexDailyTimerNoticeV1";
+    const TIMER_NOTICE_DISABLE_KEY = "codexTimerNoticeDisabledV1";
     const VERIFY_EMAIL_KEY = "codexVerifyEmailV1";
     const VERIFY_COOLDOWN_KEY = "codexVerifyCooldownUntilV1";
     const NOTE_FOLDER_ALL_ID = "__all__";
@@ -81,6 +85,248 @@
         if (typeof showAlert === "function") {
             showAlert(message, type);
         }
+    }
+
+    function safeStorageGet(key, fallback = "") {
+        try {
+            return localStorage.getItem(key) ?? fallback;
+        } catch (error) {
+            return fallback;
+        }
+    }
+
+    function safeStorageSet(key, value) {
+        try {
+            localStorage.setItem(key, value);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    function buildPerUserDailyNoticeKey(baseKey, user = currentUser, referenceDate = new Date()) {
+        const dateKey = getCurrentDayMeta(referenceDate).dateKey;
+        const uid = String(user?.uid || "guest");
+        return `${baseKey}:${uid}:${dateKey}`;
+    }
+
+    function hasDailyNoticeBeenHandled(baseKey, user = currentUser, referenceDate = new Date()) {
+        const key = buildPerUserDailyNoticeKey(baseKey, user, referenceDate);
+        return safeStorageGet(key, "") === "1";
+    }
+
+    function markDailyNoticeHandled(baseKey, user = currentUser, referenceDate = new Date()) {
+        const key = buildPerUserDailyNoticeKey(baseKey, user, referenceDate);
+        safeStorageSet(key, "1");
+    }
+
+    function ensureCodexGuidanceModal() {
+        let modal = document.getElementById("codex-guidance-modal");
+        if (modal) return modal;
+
+        if (!document.getElementById("codex-guidance-modal-style")) {
+            const style = document.createElement("style");
+            style.id = "codex-guidance-modal-style";
+            style.textContent = `
+                #codex-guidance-modal {
+                    position: fixed;
+                    inset: 0;
+                    display: none;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 18px;
+                    background: rgba(7, 10, 19, 0.62);
+                    backdrop-filter: blur(12px);
+                    -webkit-backdrop-filter: blur(12px);
+                    z-index: 6500;
+                }
+                #codex-guidance-modal.is-visible {
+                    display: flex;
+                }
+                #codex-guidance-modal .codex-guidance-card {
+                    width: min(100%, 560px);
+                    padding: 24px 22px 20px;
+                    border-radius: 28px;
+                    background:
+                        linear-gradient(180deg, rgba(255,255,255,0.11), rgba(255,255,255,0.04)),
+                        rgba(25, 14, 41, 0.96);
+                    border: 1px solid rgba(220, 196, 255, 0.16);
+                    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.34);
+                    color: #f6ebff;
+                }
+                #codex-guidance-modal .codex-guidance-badge {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    margin-bottom: 12px;
+                    padding: 8px 12px;
+                    border-radius: 999px;
+                    background: rgba(236, 184, 255, 0.12);
+                    color: #ffd8fb;
+                    font-size: 0.82rem;
+                    font-weight: 800;
+                    letter-spacing: 0.02em;
+                    text-transform: uppercase;
+                }
+                #codex-guidance-modal .codex-guidance-title {
+                    margin: 0 0 10px;
+                    color: #fff7ff;
+                    font-size: clamp(1.2rem, 4.3vw, 1.65rem);
+                    line-height: 1.2;
+                }
+                #codex-guidance-modal .codex-guidance-body {
+                    color: rgba(246, 235, 255, 0.86);
+                    font-size: 0.98rem;
+                    line-height: 1.7;
+                }
+                #codex-guidance-modal .codex-guidance-body strong {
+                    color: #fff4ff;
+                }
+                #codex-guidance-modal .codex-guidance-actions {
+                    display: flex;
+                    flex-wrap: wrap;
+                    justify-content: flex-end;
+                    gap: 10px;
+                    margin-top: 18px;
+                }
+                #codex-guidance-modal .codex-guidance-actions button {
+                    min-height: 46px;
+                    padding: 11px 16px;
+                    border-radius: 16px;
+                }
+                #codex-guidance-modal .codex-guidance-secondary {
+                    background: rgba(255, 255, 255, 0.08) !important;
+                    color: #f6ebff !important;
+                }
+                #codex-guidance-modal .codex-guidance-primary {
+                    background: linear-gradient(135deg, #ff8bd6, #7b43c9) !important;
+                    color: #ffffff !important;
+                }
+                @media (max-width: 560px) {
+                    #codex-guidance-modal {
+                        padding: 12px;
+                    }
+                    #codex-guidance-modal .codex-guidance-card {
+                        padding: 20px 16px 16px;
+                        border-radius: 22px;
+                    }
+                    #codex-guidance-modal .codex-guidance-actions {
+                        flex-direction: column-reverse;
+                    }
+                    #codex-guidance-modal .codex-guidance-actions button {
+                        width: 100%;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+
+        modal = document.createElement("div");
+        modal.id = "codex-guidance-modal";
+        modal.innerHTML = `
+            <div class="codex-guidance-card" role="dialog" aria-modal="true" aria-labelledby="codex-guidance-title">
+                <div class="codex-guidance-badge"><i class="fas fa-circle-info"></i><span>Bilgilendirme</span></div>
+                <h3 id="codex-guidance-title" class="codex-guidance-title"></h3>
+                <div id="codex-guidance-body" class="codex-guidance-body"></div>
+                <div class="codex-guidance-actions">
+                    <button id="codex-guidance-secondary" type="button" class="codex-guidance-secondary" style="display:none;"></button>
+                    <button id="codex-guidance-primary" type="button" class="codex-guidance-primary">Tamam</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        return modal;
+    }
+
+    function hideCodexGuidanceModal() {
+        const modal = document.getElementById("codex-guidance-modal");
+        if (!modal) return;
+        modal.classList.remove("is-visible");
+    }
+
+    function showCodexGuidanceModal(options = {}) {
+        const modal = ensureCodexGuidanceModal();
+        const titleNode = document.getElementById("codex-guidance-title");
+        const bodyNode = document.getElementById("codex-guidance-body");
+        const primaryButton = document.getElementById("codex-guidance-primary");
+        const secondaryButton = document.getElementById("codex-guidance-secondary");
+
+        if (!modal || !titleNode || !bodyNode || !primaryButton || !secondaryButton) return;
+
+        titleNode.textContent = String(options.title || "Bilgilendirme");
+        bodyNode.innerHTML = String(options.bodyHtml || "");
+        primaryButton.textContent = String(options.primaryText || "Tamam");
+        primaryButton.onclick = () => {
+            hideCodexGuidanceModal();
+            if (typeof options.onPrimary === "function") {
+                options.onPrimary();
+            }
+        };
+
+        if (options.secondaryText) {
+            secondaryButton.style.display = "inline-flex";
+            secondaryButton.textContent = String(options.secondaryText);
+            secondaryButton.onclick = () => {
+                hideCodexGuidanceModal();
+                if (typeof options.onSecondary === "function") {
+                    options.onSecondary();
+                }
+            };
+        } else {
+            secondaryButton.style.display = "none";
+            secondaryButton.onclick = null;
+            secondaryButton.textContent = "";
+        }
+
+        modal.classList.add("is-visible");
+    }
+
+    function maybeShowDailySupportGuidance(referenceDate = new Date()) {
+        if (!currentUser || hasDailyNoticeBeenHandled(DAILY_SUPPORT_NOTICE_KEY, currentUser, referenceDate)) return false;
+
+        showCodexGuidanceModal({
+            title: "Kısa Bir Hatırlatma",
+            bodyHtml: `
+                <strong>Site içinde hata, bug, eksik gördüğün bir kısım ya da farklı bir fikrin varsa</strong>
+                ana ekrandaki <strong>Destek</strong> bölümünden admine yazabilirsin.
+                <br><br>
+                İstersen <strong>Instagram: @cosxomer</strong> hesabından da ulaşabilirsin.
+            `,
+            primaryText: "Tamam",
+            onPrimary: () => {
+                markDailyNoticeHandled(DAILY_SUPPORT_NOTICE_KEY, currentUser, referenceDate);
+            }
+        });
+
+        return true;
+    }
+
+    function maybeShowDailyTimerGuidance(referenceDate = new Date()) {
+        if (!currentUser) return false;
+        if (safeStorageGet(`${TIMER_NOTICE_DISABLE_KEY}:${currentUser.uid}`, "") === "1") return false;
+        if (hasDailyNoticeBeenHandled(DAILY_TIMER_NOTICE_KEY, currentUser, referenceDate)) return false;
+
+        showCodexGuidanceModal({
+            title: "Kronometre İçin Kısa Not",
+            bodyHtml: `
+                Sistem, süre kaybını azaltmak için güçlendirildi ve süreler arka planda da mümkün olduğunca korunmaya çalışıyor.
+                Yine de uygulama <strong>web tabanlı</strong> olduğu için bazı cihazlar sekmeyi uyku moduna alıp veri senkronunu geciktirebilir.
+                <br><br>
+                Bu yüzden daha güvenli kullanım için <strong>1-2 saatte bir kronometreyi durdurup yeniden başlatman ya da kaydetmen</strong> önerilir.
+                Beklenmedik bir sıfırlanma ya da süre eksilmesi görürsen admine bildirmen yeterli olur.
+            `,
+            primaryText: "Tamam",
+            secondaryText: "Bir Daha Hatırlatma",
+            onPrimary: () => {
+                markDailyNoticeHandled(DAILY_TIMER_NOTICE_KEY, currentUser, referenceDate);
+            },
+            onSecondary: () => {
+                markDailyNoticeHandled(DAILY_TIMER_NOTICE_KEY, currentUser, referenceDate);
+                safeStorageSet(`${TIMER_NOTICE_DISABLE_KEY}:${currentUser.uid}`, "1");
+            }
+        });
+
+        return true;
     }
 
     function escapeHtml(value) {
@@ -1312,6 +1558,10 @@
             lastPersistedElapsedSeconds: Math.max(0, parseInteger(session.lastPersistedElapsedSeconds, 0)),
             targetDurationSeconds: Math.max(0, parseInteger(session.targetDurationSeconds, 0)),
             startedAtMs: session.isRunning ? parseInteger(session.startedAtMs, Date.now()) : 0,
+            lastForcedCheckpointAtMs: Math.max(
+                0,
+                parseInteger(session.lastForcedCheckpointAtMs, parseInteger(session.startedAtMs, 0))
+            ),
             sessionDateKey: getTimerSessionDateKey(session),
             updatedAtMs: Date.now(),
             ownerId: timerInstanceId,
@@ -1589,10 +1839,56 @@
             lastPersistedElapsedSeconds: 0,
             targetDurationSeconds: mode === "pomodoro" ? getPomodoroSeedSeconds() : 0,
             startedAtMs: 0,
+            lastForcedCheckpointAtMs: 0,
             sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
             modalOpen: false,
             lastSeenAtMs: 0
         };
+    }
+
+    function getTimerForcedCheckpointAtMs(session = timerState.session, now = Date.now()) {
+        if (!session) return 0;
+        const explicitCheckpointAtMs = Math.max(0, parseInteger(session.lastForcedCheckpointAtMs, 0));
+        if (explicitCheckpointAtMs > 0) return explicitCheckpointAtMs;
+        return Math.max(0, parseInteger(session.startedAtMs, now));
+    }
+
+    function maybeTriggerForcedHourlyCheckpoint(now = Date.now()) {
+        const activeSession = timerState.session;
+        if (!activeSession?.isRunning || timerState.transitioning) return false;
+
+        const lastCheckpointAtMs = getTimerForcedCheckpointAtMs(activeSession, now);
+        if (!lastCheckpointAtMs || (now - lastCheckpointAtMs) < TIMER_FORCED_CHECKPOINT_MS) {
+            return false;
+        }
+
+        const commitSourceSession = createCommitSourceSession(activeSession);
+        const commitState = commitTimerSessionLocally(commitSourceSession, {
+            referenceMs: now,
+            persistRecovery: true
+        });
+
+        activeSession.lastPersistedElapsedSeconds = Math.max(
+            parseInteger(activeSession.lastPersistedElapsedSeconds, 0),
+            commitState.committedElapsedSeconds
+        );
+        activeSession.lastForcedCheckpointAtMs = now;
+        timerDrafts[activeSession.mode] = { ...activeSession };
+        persistTimerSessionLocally(activeSession);
+        updateLocalActiveTimerSnapshot(activeSession);
+
+        monitorTimerSyncPromise(syncRealtimeTimer("hourly-checkpoint", {
+            activeSession,
+            currentSessionTime: getTimerElapsedSeconds(activeSession, now),
+            userTriggeredWrite: true,
+            authorized: true
+        }), {
+            label: "timer-hourly-checkpoint",
+            timeoutMessage: "",
+            failureMessage: ""
+        });
+
+        return true;
     }
 
     function getPomodoroInputSeconds() {
@@ -1912,6 +2208,7 @@
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
+            maybeTriggerForcedHourlyCheckpoint(Date.now());
             renderTimerUi();
         }, 1000);
 
@@ -4456,6 +4753,10 @@
                 lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
                 targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
                 startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
+                lastForcedCheckpointAtMs: Math.max(
+                    0,
+                    parseInteger(seedSession.lastForcedCheckpointAtMs, parseInteger(seedSession.startedAtMs, 0))
+                ),
                 sessionDateKey: getTimerSessionDateKey(seedSession, referenceDate),
                 updatedAtMs: Math.max(0, parseInteger(seedSession.updatedAtMs, Date.now())),
                 lastSeenAtMs: getTimerLastSeenAt(seedSession),
@@ -6609,7 +6910,6 @@
             setTimeout(() => {
                 saveData({ authorized: true, immediate: true });
             }, 0);
-            safeShowAlert("Kaydedilemeyen sure geri yüklendi. Buluta tekrar gonderiliyor.", "info");
         } else if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
         }
@@ -7363,6 +7663,7 @@
             session.mode = mode;
             session.isRunning = true;
             session.startedAtMs = Date.now();
+            session.lastForcedCheckpointAtMs = session.startedAtMs;
             session.sessionDateKey = getCurrentDayMeta(new Date(session.startedAtMs)).dateKey;
             session.modalOpen = isTimerModalOpen();
             session.lastSeenAtMs = Date.now();
@@ -7384,6 +7685,9 @@
                 label: "timer-start",
                 failureMessage: "Canli senkron gecikti. Sure cihazda korunuyor."
             });
+            setTimeout(() => {
+                maybeShowDailyTimerGuidance();
+            }, 180);
         };
 
         pauseRealtimeTimer = async function(options = {}) {
@@ -8294,6 +8598,9 @@
 
             hideVerificationGate();
             hasBootstrappedUsersRealtime = false;
+            setTimeout(() => {
+                maybeShowDailySupportGuidance();
+            }, 220);
             subscribeRealtimeLeaderboard();
         });
 
@@ -8310,6 +8617,7 @@
                 });
             } else if (!document.hidden && timerState.session?.isRunning && isTimerModalOpen()) {
                 touchTimerVisibility(Date.now(), { modalOpen: true, persist: true });
+                maybeTriggerForcedHourlyCheckpoint(Date.now());
                 syncRealtimeTimer("visibility-visible", {
                     activeSession: timerState.session,
                     currentSessionTime: getTimerElapsedSeconds(timerState.session),
