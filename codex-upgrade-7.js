@@ -7077,6 +7077,7 @@
                         notes: resolvedProfile.notes
                     };
                 }
+                syncProfileSaveActionVisibility(!!editable);
                 return result;
             };
         }
@@ -7280,12 +7281,29 @@
         };
     }
 
+    function getProfileSaveButtons() {
+        return ["profile-save-btn-top", "profile-save-btn"]
+            .map(id => document.getElementById(id))
+            .filter(Boolean);
+    }
+
+    function syncProfileSaveActionVisibility(editable = false) {
+        const quickActions = document.getElementById("profile-quick-actions");
+        if (quickActions) {
+            quickActions.style.display = editable ? "flex" : "none";
+        }
+
+        getProfileSaveButtons().forEach(button => {
+            button.style.display = editable ? "inline-flex" : "none";
+        });
+    }
+
     function patchProfileSaveFlow() {
         saveProfileChanges = async function() {
             if (!currentUser) return;
 
-            const saveButton = document.getElementById("profile-save-btn");
-            const originalLabel = saveButton?.innerHTML || "";
+            const saveButtons = getProfileSaveButtons();
+            const originalLabels = new Map(saveButtons.map(button => [button.id, button.innerHTML]));
             const newUsername = sanitizeUsernameInput(document.getElementById("profile-username-input")?.value || "");
             const newAbout = document.getElementById("profile-about-input")?.value.trim() || "";
             const newTrack = document.getElementById("profile-track-select")?.value || "";
@@ -7295,10 +7313,10 @@
             if (!newTrack) return showAlert("Önce alanını seç.");
             if (newTrack !== "free" && !newSubjects.length) return showAlert("En az bir ders seç.");
 
-            if (saveButton) {
-                saveButton.disabled = true;
-                saveButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor';
-            }
+            saveButtons.forEach(button => {
+                button.disabled = true;
+                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Kaydediliyor';
+            });
 
             try {
                 await ensureUsernameAvailable(newUsername, { excludeUid: currentUser.uid });
@@ -7347,10 +7365,10 @@
                     showAlert("Profil güncellenemedi. Lütfen tekrar dene.");
                 }
             } finally {
-                if (saveButton) {
-                    saveButton.disabled = false;
-                    saveButton.innerHTML = originalLabel || '<i class="fas fa-save"></i> Profili Kaydet';
-                }
+                saveButtons.forEach(button => {
+                    button.disabled = false;
+                    button.innerHTML = originalLabels.get(button.id) || '<i class="fas fa-save"></i> Profili Kaydet';
+                });
             }
         };
     }

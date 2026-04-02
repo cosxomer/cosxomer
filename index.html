@@ -976,6 +976,49 @@
             margin-bottom: 20px;
         }
 
+        .profile-quick-actions {
+            position: sticky;
+            top: 10px;
+            z-index: 18;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 62px 18px 0;
+            padding: 10px 12px;
+            border-radius: 18px;
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
+                rgba(17, 20, 29, 0.82);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+
+        .profile-quick-actions-note {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            color: var(--text-color);
+            font-size: 0.9em;
+            font-weight: 700;
+            line-height: 1.35;
+            opacity: 0.92;
+        }
+
+        .profile-quick-actions-note i {
+            color: var(--countdown-fill);
+            flex-shrink: 0;
+        }
+
+        #profile-save-btn-top {
+            min-height: 44px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
         .profile-modal-body {
             display: flex;
             gap: 28px;
@@ -3435,6 +3478,7 @@
             .quote-container { padding: 15px 20px; }
             .quote-text { font-size: 1em; }
             .profile-modal-content { padding: 70px 18px 24px; width: min(96vw, 760px); max-height: calc(100vh - 20px); }
+            .profile-quick-actions { margin: 0 52px 16px 0; }
             .profile-modal-body { flex-direction: column; gap: 18px; }
             .profile-avatar-section { width: 100%; }
             .profile-avatar-badges { align-items: center; }
@@ -3479,6 +3523,19 @@
             .support-card-actions { width: 100%; }
             .support-card-actions button { flex: 1 1 calc(50% - 4px); }
             .profile-modal-content { padding: 68px 14px 18px; }
+            .profile-quick-actions {
+                margin: 0 48px 14px 0;
+                padding: 10px;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .profile-quick-actions-note {
+                font-size: 0.84em;
+            }
+            #profile-save-btn-top {
+                width: 100%;
+                justify-content: center;
+            }
             .profile-modal-close-btn { width: 42px; height: 42px; }
             .pomodoro-content { padding: 44px 14px 24px; border-radius: 28px; }
             .pomodoro-content h2 { padding: 0 32px; font-size: 1.3em; }
@@ -3818,6 +3875,15 @@
                 <h2 id="profile-modal-title">Profilim</h2>
                 <p id="profile-member-since" class="profile-member-since">Üyelik Başlangıcı: -</p>
                 <div id="profile-title-wrapper" class="profile-title-wrapper"></div>
+            </div>
+            <div id="profile-quick-actions" class="profile-quick-actions" style="display:none;">
+                <div class="profile-quick-actions-note">
+                    <i class="fas fa-circle-check"></i>
+                    <span>Profil resmi ekledikten sonra kaydetmeyi unutma.</span>
+                </div>
+                <button id="profile-save-btn-top" onclick="saveProfileChanges()" style="display:none; background-color: var(--countdown-fill); color: var(--header-text);">
+                    <i class="fas fa-save"></i> Kaydet
+                </button>
             </div>
             <div class="profile-modal-body">
                 <div class="profile-avatar-section">
@@ -5750,7 +5816,7 @@
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
             closeImageCropper();
-            showAlert("Profil resmi hazır.", "success");
+            showAlert("Profil resmi hazır. Üstteki Kaydet butonuna basmayı unutma.", "success");
         }
 
         function initializeCropperEvents() {
@@ -10869,6 +10935,7 @@
         body[data-theme="kitty"] #titles-info-btn,
         body[data-theme="kitty"] #profile-image-trigger,
         body[data-theme="kitty"] #profile-save-btn,
+        body[data-theme="kitty"] #profile-save-btn-top,
         body[data-theme="kitty"] #my-note-save-btn,
         body[data-theme="kitty"] #my-note-cancel-btn,
         body[data-theme="kitty"] #study-insight-prev-btn,
@@ -10891,6 +10958,7 @@
         body[data-theme="kitty"] #titles-info-btn:hover,
         body[data-theme="kitty"] #profile-image-trigger:hover,
         body[data-theme="kitty"] #profile-save-btn:hover,
+        body[data-theme="kitty"] #profile-save-btn-top:hover,
         body[data-theme="kitty"] #my-note-save-btn:hover,
         body[data-theme="kitty"] #my-note-cancel-btn:hover,
         body[data-theme="kitty"] #study-insight-prev-btn:hover,
@@ -11133,6 +11201,7 @@
         body[data-theme="violet"] #start-pause-btn,
         body[data-theme="violet"] #leaderboard-toggle-btn,
         body[data-theme="violet"] #profile-save-btn,
+        body[data-theme="violet"] #profile-save-btn-top,
         body[data-theme="violet"] #my-note-save-btn {
             background:
                 linear-gradient(135deg, rgba(120, 246, 255, 0.95), rgba(107, 53, 168, 0.96)) !important;
@@ -11144,6 +11213,7 @@
         body[data-theme="violet"] #start-pause-btn:hover,
         body[data-theme="violet"] #leaderboard-toggle-btn:hover,
         body[data-theme="violet"] #profile-save-btn:hover,
+        body[data-theme="violet"] #profile-save-btn-top:hover,
         body[data-theme="violet"] #my-note-save-btn:hover {
             color: #ffffff !important;
         }
@@ -11206,7 +11276,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260402-0712"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js?v=20260402-1352"></script>
+    <script src="codex-upgrade-7.js?v=20260402-1416"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
