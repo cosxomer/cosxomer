@@ -3377,57 +3377,369 @@
         /* --------------------------------- */
         /* TOP 3 EFEKTLERİ */
         /* --------------------------------- */
-        @keyframes fireGlow {
-            0% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
-            50% { box-shadow: 0 0 20px #ffeb3b, 0 0 35px #ff9800, inset 0 0 15px #ffeb3b; }
-            100% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
+        @keyframes goldAuraLux {
+            0% { box-shadow: 0 12px 24px rgba(255, 176, 32, 0.18), 0 0 16px rgba(255, 205, 76, 0.12), inset 0 1px 0 rgba(255, 244, 194, 0.30); }
+            50% { box-shadow: 0 18px 36px rgba(255, 183, 54, 0.26), 0 0 28px rgba(255, 219, 123, 0.22), inset 0 1px 0 rgba(255, 250, 223, 0.46); }
+            100% { box-shadow: 0 14px 28px rgba(255, 176, 32, 0.2), 0 0 18px rgba(255, 205, 76, 0.16), inset 0 1px 0 rgba(255, 244, 194, 0.34); }
         }
-        @keyframes silverGlow {
-            0% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
-            50% { box-shadow: 0 0 15px #ffffff, inset 0 0 10px #ffffff; }
-            100% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
+        @keyframes silverAuraLux {
+            0% { box-shadow: 0 10px 22px rgba(204, 212, 230, 0.12), 0 0 12px rgba(244, 247, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
+            50% { box-shadow: 0 15px 28px rgba(214, 223, 242, 0.2), 0 0 18px rgba(248, 250, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.34); }
+            100% { box-shadow: 0 11px 24px rgba(204, 212, 230, 0.14), 0 0 14px rgba(244, 247, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.26); }
+        }
+        @keyframes bronzeAuraLux {
+            0% { box-shadow: 0 8px 18px rgba(201, 125, 65, 0.14), 0 0 10px rgba(214, 154, 87, 0.08), inset 0 1px 0 rgba(255, 219, 182, 0.18); }
+            50% { box-shadow: 0 12px 24px rgba(201, 125, 65, 0.2), 0 0 14px rgba(230, 171, 108, 0.14), inset 0 1px 0 rgba(255, 227, 197, 0.28); }
+            100% { box-shadow: 0 9px 19px rgba(201, 125, 65, 0.15), 0 0 10px rgba(214, 154, 87, 0.1), inset 0 1px 0 rgba(255, 219, 182, 0.2); }
+        }
+        @keyframes crownFloatLux {
+            0%, 100% { transform: rotate(-20deg) translateY(0); filter: drop-shadow(0 0 6px #ffd700); opacity: 0.92; }
+            50% { transform: rotate(-20deg) translateY(-1px); filter: drop-shadow(0 0 12px rgba(255, 221, 110, 0.98)); opacity: 1; }
+        }
+        @keyframes goldLeaderRingSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes goldLeaderRingPulse {
+            0%, 100% {
+                opacity: 0.58;
+                filter: drop-shadow(0 0 10px rgba(255, 206, 72, 0.38)) drop-shadow(0 0 22px rgba(255, 182, 37, 0.18));
+            }
+            50% {
+                opacity: 1;
+                filter: drop-shadow(0 0 16px rgba(255, 223, 128, 0.72)) drop-shadow(0 0 34px rgba(255, 188, 49, 0.3));
+            }
+        }
+        @keyframes silverLeaderRingSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes silverLeaderRingPulse {
+            0%, 100% {
+                opacity: 0.5;
+                filter: drop-shadow(0 0 8px rgba(223, 231, 247, 0.26)) drop-shadow(0 0 18px rgba(201, 210, 228, 0.12));
+            }
+            50% {
+                opacity: 0.96;
+                filter: drop-shadow(0 0 14px rgba(246, 249, 255, 0.54)) drop-shadow(0 0 24px rgba(223, 231, 247, 0.2));
+            }
+        }
+        @keyframes silverFrameBreathe {
+            0%, 100% {
+                opacity: 0.46;
+                border-color: rgba(215, 224, 241, 0.42);
+                box-shadow: 0 0 10px rgba(207, 216, 235, 0.08), inset 0 0 8px rgba(255, 255, 255, 0.04);
+            }
+            50% {
+                opacity: 0.98;
+                border-color: rgba(244, 247, 255, 0.96);
+                box-shadow: 0 0 18px rgba(232, 239, 255, 0.22), inset 0 0 10px rgba(255, 255, 255, 0.1);
+            }
+        }
+        @keyframes bronzeCornerSpark {
+            0%, 16%, 100% {
+                top: 9px;
+                left: 9px;
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            6%, 10% {
+                top: 9px;
+                left: 9px;
+                opacity: 0.92;
+                transform: scale(1);
+            }
+            24%, 40% {
+                top: 9px;
+                left: calc(100% - 23px);
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            30%, 34% {
+                top: 9px;
+                left: calc(100% - 23px);
+                opacity: 0.78;
+                transform: scale(0.92);
+            }
+            48%, 64% {
+                top: calc(100% - 23px);
+                left: calc(100% - 23px);
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            54%, 58% {
+                top: calc(100% - 23px);
+                left: calc(100% - 23px);
+                opacity: 0.68;
+                transform: scale(0.84);
+            }
+            72%, 88% {
+                top: calc(100% - 23px);
+                left: 9px;
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            78%, 82% {
+                top: calc(100% - 23px);
+                left: 9px;
+                opacity: 0.84;
+                transform: scale(0.96);
+            }
+        }
+        @keyframes bronzeCornerSparkAlt {
+            0%, 20%, 100% {
+                top: 10px;
+                left: calc(100% - 24px);
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            7%, 11% {
+                top: 10px;
+                left: calc(100% - 24px);
+                opacity: 0.76;
+                transform: scale(0.88);
+            }
+            36%, 56% {
+                top: calc(100% - 24px);
+                left: 10px;
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            43%, 47% {
+                top: calc(100% - 24px);
+                left: 10px;
+                opacity: 0.68;
+                transform: scale(0.8);
+            }
+            70%, 90% {
+                top: calc(100% - 24px);
+                left: calc(100% - 24px);
+                opacity: 0;
+                transform: scale(0.25);
+            }
+            78%, 82% {
+                top: calc(100% - 24px);
+                left: calc(100% - 24px);
+                opacity: 0.72;
+                transform: scale(0.86);
+            }
         }
 
-        /* 1. Sıra (KRAL - ALEVLİ) */
-        .leaderboard-item.rank-1 {
-            background: linear-gradient(45deg, #3d2c00, #5c4300);
-            border: 2px solid #ffd700;
-            animation: fireGlow 2s infinite alternate;
-            transform: scale(1.02);
-            margin: 2px 0;
+        /* 1. Sıra (LÜKS ALTIN - KENAR HALO) */
+        .leaderboard-item.rank-1,
+        .leaderboard-item.rank-2,
+        .leaderboard-item.rank-3 {
             position: relative;
+            overflow: hidden;
+            isolation: isolate;
         }
-        .leaderboard-item.rank-1:hover { transform: scale(1.03); }
-        .leaderboard-item.rank-1 .leaderboard-rank { font-size: 1.35em; text-shadow: 0 0 10px #ffd700; }
+        .leaderboard-item.rank-1 > *,
+        .leaderboard-item.rank-2 > *,
+        .leaderboard-item.rank-3 > * {
+            position: relative;
+            z-index: 4;
+        }
+        .leaderboard-item.rank-1 {
+            background:
+                radial-gradient(circle at top left, rgba(255, 235, 163, 0.22) 0%, rgba(255, 235, 163, 0) 36%),
+                radial-gradient(circle at bottom right, rgba(255, 188, 80, 0.12) 0%, rgba(255, 188, 80, 0) 34%),
+                linear-gradient(135deg, #2d1700 0%, #6c4200 42%, #3a2200 72%, #201103 100%);
+            border: 2px solid rgba(255, 215, 90, 0.82);
+            box-shadow:
+                0 16px 30px rgba(255, 179, 32, 0.14),
+                0 0 18px rgba(255, 208, 79, 0.1),
+                inset 0 1px 0 rgba(255, 244, 194, 0.2);
+            margin: 0;
+            animation: goldLeaderBorderPulse 2.6s ease-in-out infinite;
+        }
+        .leaderboard-item.rank-1 .leaderboard-rank {
+            font-size: 1.35em;
+            color: #ffe58f;
+            text-shadow: 0 0 12px rgba(255, 220, 118, 0.7);
+            animation: leaderboardRankPulseGold 2s ease-in-out infinite;
+        }
+        .leaderboard-item.rank-1 .leaderboard-name,
+        .leaderboard-item.rank-1 .leaderboard-score {
+            color: #fff4d0;
+            text-shadow: 0 0 16px rgba(255, 218, 114, 0.18), 0 0 26px rgba(255, 210, 88, 0.14);
+        }
         .leaderboard-item.rank-1::before {
             content: '👑';
             position: absolute;
             top: -10px;
             left: -6px;
             font-size: 1.2em;
-            transform: rotate(-20deg);
-            filter: drop-shadow(0 0 5px #ffd700);
+            filter: drop-shadow(0 0 8px rgba(255, 217, 94, 0.9));
             z-index: 10;
         }
+        .leaderboard-item.rank-1::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            pointer-events: none;
+            border: 1px solid rgba(255, 228, 140, 0.42);
+            box-shadow:
+                0 0 12px rgba(255, 213, 82, 0.22),
+                0 0 26px rgba(255, 195, 52, 0.16),
+                inset 0 0 8px rgba(255, 231, 156, 0.06);
+            opacity: 0.88;
+            z-index: 1;
+            animation: goldLeaderBorderGlow 2.6s ease-in-out infinite;
+        }
+        @keyframes goldLeaderBorderPulse {
+            0%, 100% {
+                border-color: rgba(255, 215, 90, 0.78);
+                box-shadow:
+                    0 14px 26px rgba(255, 179, 32, 0.12),
+                    0 0 14px rgba(255, 208, 79, 0.08),
+                    inset 0 1px 0 rgba(255, 244, 194, 0.14);
+            }
+            50% {
+                border-color: rgba(255, 231, 132, 0.98);
+                box-shadow:
+                    0 18px 34px rgba(255, 179, 32, 0.18),
+                    0 0 26px rgba(255, 208, 79, 0.18),
+                    0 0 40px rgba(255, 181, 49, 0.12),
+                    inset 0 1px 0 rgba(255, 246, 210, 0.28);
+            }
+        }
 
-        /* 2. Sıra (GÜMÜŞ - PARILTILI) */
+        @keyframes goldLeaderBorderGlow {
+            0%, 100% {
+                opacity: 0.62;
+                box-shadow:
+                    0 0 10px rgba(255, 213, 82, 0.14),
+                    0 0 22px rgba(255, 195, 52, 0.1),
+                    inset 0 0 6px rgba(255, 231, 156, 0.04);
+            }
+            50% {
+                opacity: 1;
+                box-shadow:
+                    0 0 18px rgba(255, 226, 112, 0.32),
+                    0 0 34px rgba(255, 195, 52, 0.2),
+                    inset 0 0 10px rgba(255, 236, 172, 0.1);
+            }
+        }
+
+        @keyframes leaderboardRankPulseGold {
+            0%, 100% {
+                opacity: 0.86;
+                text-shadow:
+                    0 0 9px rgba(255, 220, 118, 0.48),
+                    0 0 15px rgba(255, 196, 77, 0.24);
+            }
+            50% {
+                opacity: 1;
+                text-shadow:
+                    0 0 13px rgba(255, 235, 160, 0.92),
+                    0 0 20px rgba(255, 202, 84, 0.54),
+                    0 0 28px rgba(255, 170, 58, 0.24);
+            }
+        }
+
+        @keyframes leaderboardRankPulseSilver {
+            0%, 100% {
+                opacity: 0.86;
+                text-shadow:
+                    0 0 8px rgba(238, 244, 255, 0.42),
+                    0 0 14px rgba(195, 209, 232, 0.2);
+            }
+            50% {
+                opacity: 1;
+                text-shadow:
+                    0 0 12px rgba(248, 251, 255, 0.86),
+                    0 0 18px rgba(219, 230, 247, 0.42),
+                    0 0 24px rgba(173, 190, 214, 0.18);
+            }
+        }
+
+        @keyframes leaderboardRankPulseBronze {
+            0%, 100% {
+                opacity: 0.86;
+                text-shadow:
+                    0 0 7px rgba(229, 164, 108, 0.3),
+                    0 0 12px rgba(194, 126, 74, 0.14);
+            }
+            50% {
+                opacity: 1;
+                text-shadow:
+                    0 0 10px rgba(248, 194, 143, 0.72),
+                    0 0 16px rgba(216, 145, 89, 0.34),
+                    0 0 22px rgba(181, 110, 61, 0.16);
+            }
+        }
+
+        /* 2. Sıra (GÜMÜŞ - NEFES ALAN ÇERÇEVE) */
         .leaderboard-item.rank-2 {
-            background: linear-gradient(45deg, #1c1c24, #2a2a35);
-            border: 2px solid #c0c0c0;
-            animation: silverGlow 3s infinite alternate;
-            transform: scale(1.01);
-            margin: 1px 0;
+            background:
+                radial-gradient(circle at top left, rgba(245, 247, 255, 0.22) 0%, rgba(245, 247, 255, 0) 30%),
+                linear-gradient(135deg, #171b24 0%, #3a4150 44%, #252936 100%);
+            border: 2px solid rgba(224, 232, 248, 0.72);
+            animation: silverAuraLux 3.4s ease-in-out infinite;
+            margin: 0;
         }
-        .leaderboard-item.rank-2:hover { transform: scale(1.02); }
+        .leaderboard-item.rank-2 .leaderboard-rank {
+            color: #edf3ff;
+            text-shadow: 0 0 10px rgba(238, 244, 255, 0.5);
+            animation: leaderboardRankPulseSilver 2s ease-in-out infinite;
+        }
+        .leaderboard-item.rank-2 .leaderboard-name,
+        .leaderboard-item.rank-2 .leaderboard-score {
+            color: #f7f9ff;
+        }
+        .leaderboard-item.rank-2::after {
+            content: none;
+        }
+        .leaderboard-item.rank-2::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            border: 2px solid rgba(244, 247, 255, 0.56);
+            pointer-events: none;
+            z-index: 1;
+            animation: silverFrameBreathe 3.3s ease-in-out infinite;
+        }
 
-        /* 3. Sıra (BRONZ) */
+        /* 3. Sıra (BRONZ - KÖŞE KIVILCIMI) */
         .leaderboard-item.rank-3 {
-            background: linear-gradient(45deg, #2e1e14, #4a3020);
-            border: 2px solid #cd7f32;
-            box-shadow: 0 0 12px rgba(205, 127, 50, 0.5);
-            transform: scale(1);
+            background:
+                radial-gradient(circle at top left, rgba(240, 190, 136, 0.18) 0%, rgba(240, 190, 136, 0) 30%),
+                linear-gradient(135deg, #29170f 0%, #5a3523 46%, #2e1a13 100%);
+            border: 2px solid rgba(208, 136, 76, 0.84);
+            animation: bronzeAuraLux 4.2s ease-in-out infinite;
         }
-        .leaderboard-item.rank-3:hover { transform: scale(1.01); }
+        .leaderboard-item.rank-3 .leaderboard-rank {
+            color: #f1be97;
+            text-shadow: 0 0 8px rgba(229, 164, 108, 0.36);
+            animation: leaderboardRankPulseBronze 2s ease-in-out infinite;
+        }
+        .leaderboard-item.rank-3 .leaderboard-name,
+        .leaderboard-item.rank-3 .leaderboard-score {
+            color: #ffe5cf;
+        }
+        .leaderboard-item.rank-3::before,
+        .leaderboard-item.rank-3::after {
+            content: '';
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            border-radius: 999px;
+            pointer-events: none;
+            background: radial-gradient(circle, rgba(255, 250, 241, 1) 0%, rgba(249, 201, 153, 0.96) 34%, rgba(255,255,255,0) 74%);
+            box-shadow: 0 0 14px rgba(227, 166, 107, 0.48);
+            top: 9px;
+            left: 9px;
+            opacity: 0;
+            z-index: 1;
+        }
+        .leaderboard-item.rank-3::after {
+            animation: bronzeCornerSpark 7.2s ease-in-out infinite;
+        }
+        .leaderboard-item.rank-3::before {
+            animation: bronzeCornerSparkAlt 9.1s ease-in-out infinite;
+        }
 
         @keyframes pulse {
             0% { opacity: 1; }
@@ -11290,13 +11602,23 @@
 
         body[data-theme="violet"] .leaderboard-item.rank-1 {
             background:
-                linear-gradient(135deg, rgba(255, 199, 246, 0.18), rgba(130, 72, 214, 0.82)) !important;
+                radial-gradient(circle at top left, rgba(255, 241, 184, 0.28) 0%, rgba(255, 241, 184, 0) 34%),
+                linear-gradient(135deg, rgba(93, 42, 149, 0.92), rgba(175, 118, 35, 0.92), rgba(58, 24, 93, 0.96)) !important;
+            border-color: rgba(255, 220, 116, 0.92) !important;
         }
 
-        body[data-theme="violet"] .leaderboard-item.rank-2,
+        body[data-theme="violet"] .leaderboard-item.rank-2 {
+            background:
+                radial-gradient(circle at top left, rgba(243, 246, 255, 0.18) 0%, rgba(243, 246, 255, 0) 32%),
+                linear-gradient(135deg, rgba(101, 66, 162, 0.88), rgba(117, 126, 154, 0.88), rgba(45, 24, 73, 0.94)) !important;
+            border-color: rgba(224, 232, 252, 0.74) !important;
+        }
+
         body[data-theme="violet"] .leaderboard-item.rank-3 {
             background:
-                linear-gradient(135deg, rgba(181, 142, 255, 0.18), rgba(57, 25, 86, 0.86)) !important;
+                radial-gradient(circle at top left, rgba(231, 183, 145, 0.16) 0%, rgba(231, 183, 145, 0) 32%),
+                linear-gradient(135deg, rgba(101, 50, 106, 0.88), rgba(146, 93, 44, 0.86), rgba(45, 23, 58, 0.94)) !important;
+            border-color: rgba(216, 146, 93, 0.7) !important;
         }
 
         body[data-theme="violet"] .leaderboard-name,

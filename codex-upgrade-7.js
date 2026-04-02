@@ -5789,7 +5789,6 @@
             const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
             const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
             const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
-
             item.innerHTML = `
                 <div class="leaderboard-rank">#${index + 1}</div>
                 <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
