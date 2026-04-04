@@ -73,6 +73,7 @@
         session: null,
         syncing: false,
         transitioning: false,
+        reconciling: false,
         lastModalSeenAt: Date.now()
     };
 
@@ -951,11 +952,15 @@
             : {};
         const visibleSession = hasTimerSessionCrossedDayBoundary(activeSession) ? null : activeSession;
         const activeTimerRecord = visibleSession ? serializeTimerSession(visibleSession) : null;
+        const pendingSeconds = visibleSession?.isRunning ? getPendingTimerDelta(visibleSession) : 0;
 
         currentUserLiveDoc = {
             ...baseDoc,
             activeTimer: activeTimerRecord,
-            isWorking: isTimerVisibleForLeaderboard(activeTimerRecord)
+            isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
+            isRunning: !!visibleSession?.isRunning,
+            currentSessionTime: pendingSeconds,
+            lastTimerSyncAt: Date.now()
         };
     }
 
@@ -1853,30 +1858,195 @@
         return Math.max(0, parseInteger(session.startedAtMs, now));
     }
 
+    function getTimerAutoStopAtMs(session = timerState.session, now = Date.now()) {
+        if (!session?.isRunning) return 0;
+        const startedAtMs = Math.max(0, parseInteger(session.startedAtMs, 0));
+        if (!startedAtMs) return 0;
+
+        const baseElapsedMs = Math.max(0, parseInteger(session.baseElapsedSeconds, 0)) * 1000;
+        const remainingMs = Math.max(0, TIMER_AUTO_STOP_MS - baseElapsedMs);
+        return startedAtMs + remainingMs;
+    }
+
+    function captureRunningTimerCheckpoint(session = timerState.session, referenceMs = Date.now(), options = {}) {
+        if (!session?.isRunning) return null;
+
+        const safeReferenceMs = Math.max(0, parseInteger(referenceMs, Date.now()));
+        // Checkpoint saves the elapsed delta into today's schedule without ending the session.
+        const commitSourceSession = createCommitSourceSession(session);
+        const commitState = commitTimerSessionLocally(commitSourceSession, {
+            referenceMs: safeReferenceMs,
+            persistRecovery: options.persistRecovery !== false
+        });
+
+        session.lastPersistedElapsedSeconds = Math.max(
+            parseInteger(session.lastPersistedElapsedSeconds, 0),
+            commitState.committedElapsedSeconds
+        );
+
+        if (options.bumpCheckpoint !== false) {
+            session.lastForcedCheckpointAtMs = safeReferenceMs;
+        }
+
+        if (options.touchSeen === true) {
+            session.lastSeenAtMs = safeReferenceMs;
+        }
+
+        if (options.modalOpen !== undefined) {
+            session.modalOpen = !!options.modalOpen;
+        }
+        session.updatedAtMs = safeReferenceMs;
+
+        timerDrafts[session.mode] = { ...session };
+        persistTimerSessionLocally(session);
+        updateLocalActiveTimerSnapshot(session);
+        refreshLeaderboardOptimistically(session);
+
+        return {
+            session,
+            commitSourceSession,
+            commitState,
+            referenceMs: safeReferenceMs
+        };
+    }
+
+    function finalizeInactiveTimerSession(referenceMs = Date.now(), options = {}) {
+        const session = timerState.session;
+        if (!session?.isRunning) return null;
+
+        const safeReferenceMs = Math.max(0, parseInteger(referenceMs, Date.now()));
+        const commitSourceSession = createCommitSourceSession(session);
+        const commitState = commitTimerSessionLocally(commitSourceSession, {
+            referenceMs: safeReferenceMs,
+            persistRecovery: true
+        });
+        const elapsed = commitState.committedElapsedSeconds;
+
+        session.baseElapsedSeconds = elapsed;
+        session.lastPersistedElapsedSeconds = elapsed;
+        session.isRunning = false;
+        session.startedAtMs = 0;
+        session.modalOpen = false;
+        session.lastSeenAtMs = safeReferenceMs;
+        session.lastForcedCheckpointAtMs = Math.max(
+            getTimerForcedCheckpointAtMs(session, safeReferenceMs),
+            safeReferenceMs
+        );
+        session.sessionDateKey = getCurrentDayMeta(new Date(safeReferenceMs)).dateKey;
+        session.updatedAtMs = safeReferenceMs;
+
+        timerState.session = session;
+        timerDrafts[session.mode] = { ...session };
+        isRunning = false;
+        stopTimerLoops();
+        persistTimerSessionLocally(session);
+        updateLocalActiveTimerSnapshot(null);
+        refreshLeaderboardOptimistically(null);
+        renderTimerUi();
+        releaseTimerOwnership();
+
+        monitorTimerSyncPromise(syncRealtimeTimer(String(options.syncReason || "auto-finalize-inactive"), {
+            activeSession: null,
+            currentSessionTime: 0,
+            clearActive: true,
+            commitElapsed: true,
+            commitSourceSession,
+            committedElapsedSeconds: elapsed,
+            userTriggeredWrite: true,
+            authorized: true
+        }), {
+            label: "timer-auto-finalize",
+            timeoutMessage: "",
+            failureMessage: "",
+            persistRecovery: true
+        });
+
+        if (options.showAlert !== false) {
+            safeShowAlert("3 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
+        }
+
+        return {
+            action: "auto-finalized",
+            commitSourceSession,
+            commitState,
+            elapsed,
+            referenceMs: safeReferenceMs
+        };
+    }
+
+    function maybeRecoverInactiveTimerSession(now = Date.now(), options = {}) {
+        const session = timerState.session;
+        if (!session?.isRunning || timerState.transitioning || timerState.reconciling) {
+            return { action: "none" };
+        }
+
+        const safeNow = Math.max(0, parseInteger(now, Date.now()));
+        const autoStopAtMs = getTimerAutoStopAtMs(session, safeNow);
+        if (!autoStopAtMs) {
+            return { action: "none" };
+        }
+        timerState.reconciling = true;
+
+        try {
+            // A hidden/mobile session may wake up hours later; reconcile it before touching visibility state.
+            if (safeNow >= autoStopAtMs) {
+                return finalizeInactiveTimerSession(autoStopAtMs, {
+                    syncReason: options.syncReason || "inactive-auto-stop",
+                    showAlert: options.showAlert
+                }) || { action: "none" };
+            }
+
+            const lastCheckpointAtMs = getTimerForcedCheckpointAtMs(session, safeNow);
+            if (lastCheckpointAtMs && (safeNow - lastCheckpointAtMs) >= TIMER_FORCED_CHECKPOINT_MS) {
+                const checkpointState = captureRunningTimerCheckpoint(session, safeNow, {
+                    bumpCheckpoint: true,
+                    modalOpen: options.modalOpen,
+                    persistRecovery: true
+                });
+
+                if (checkpointState) {
+                    renderTimerUi();
+                    monitorTimerSyncPromise(syncRealtimeTimer(String(options.syncReason || "restore-hourly-checkpoint"), {
+                        activeSession: session,
+                        currentSessionTime: getPendingTimerDelta(session),
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }), {
+                        label: "timer-recovery-checkpoint",
+                        timeoutMessage: "",
+                        failureMessage: "",
+                        persistRecovery: true
+                    });
+                    return {
+                        action: "checkpoint",
+                        ...checkpointState
+                    };
+                }
+            }
+
+            return { action: "none" };
+        } finally {
+            timerState.reconciling = false;
+        }
+    }
+
     function maybeTriggerForcedHourlyCheckpoint(now = Date.now()) {
         const activeSession = timerState.session;
-        if (!activeSession?.isRunning || timerState.transitioning) return false;
+        if (!activeSession?.isRunning || timerState.transitioning || timerState.reconciling) return false;
 
         const lastCheckpointAtMs = getTimerForcedCheckpointAtMs(activeSession, now);
         if (!lastCheckpointAtMs || (now - lastCheckpointAtMs) < TIMER_FORCED_CHECKPOINT_MS) {
             return false;
         }
 
-        const commitSourceSession = createCommitSourceSession(activeSession);
-        const commitState = commitTimerSessionLocally(commitSourceSession, {
-            referenceMs: now,
+        const checkpointState = captureRunningTimerCheckpoint(activeSession, now, {
+            bumpCheckpoint: true,
+            modalOpen: isTimerModalOpen(),
             persistRecovery: true
         });
+        if (!checkpointState) return false;
 
-        activeSession.lastPersistedElapsedSeconds = Math.max(
-            parseInteger(activeSession.lastPersistedElapsedSeconds, 0),
-            commitState.committedElapsedSeconds
-        );
-        activeSession.lastForcedCheckpointAtMs = now;
-        timerDrafts[activeSession.mode] = { ...activeSession };
-        persistTimerSessionLocally(activeSession);
-        updateLocalActiveTimerSnapshot(activeSession);
-
+        renderTimerUi();
         monitorTimerSyncPromise(syncRealtimeTimer("hourly-checkpoint", {
             activeSession,
             currentSessionTime: getPendingTimerDelta(activeSession),
@@ -1905,9 +2075,9 @@
     function getTimerElapsedSeconds(session = timerState.session, now = Date.now()) {
         if (!session) return 0;
         const baseElapsed = Math.max(0, parseInteger(session.baseElapsedSeconds, 0));
-        const lastSeenAtMs = getTimerLastSeenAt(session);
-        const effectiveNow = lastSeenAtMs > 0
-            ? Math.min(now, lastSeenAtMs + TIMER_AUTO_STOP_MS)
+        const autoStopAtMs = getTimerAutoStopAtMs(session, now);
+        const effectiveNow = autoStopAtMs > 0
+            ? Math.min(now, autoStopAtMs)
             : now;
         if (!session.isRunning || !session.startedAtMs) {
             return baseElapsed;
@@ -1919,8 +2089,8 @@
     function isTimerRecordRunning(timerRecord, now = Date.now()) {
         if (!timerRecord || !timerRecord.isRunning) return false;
         if (hasTimerSessionCrossedDayBoundary(timerRecord, new Date(now))) return false;
-        const lastSeenAtMs = getTimerLastSeenAt(timerRecord);
-        if (lastSeenAtMs > 0 && (now - lastSeenAtMs) >= TIMER_AUTO_STOP_MS) return false;
+        const autoStopAtMs = getTimerAutoStopAtMs(timerRecord, now);
+        if (autoStopAtMs > 0 && now >= autoStopAtMs) return false;
         return true;
     }
 
@@ -2054,46 +2224,12 @@
     }
 
     async function maybeAutoStopHiddenTimer() {
-        if (timerState.transitioning || !timerState.session?.isRunning || isTimerModalOpen()) {
-            return false;
-        }
-        if (isTimerRecordRunning(timerState.session)) {
-            return false;
-        }
-
-        timerState.transitioning = true;
-
-        try {
-            const session = timerState.session;
-            const commitSourceSession = createCommitSourceSession(session);
-            const elapsed = getTimerElapsedSeconds(commitSourceSession);
-
-            session.baseElapsedSeconds = elapsed;
-            session.isRunning = false;
-            session.startedAtMs = 0;
-            session.modalOpen = false;
-            timerState.session = session;
-            timerDrafts[session.mode] = { ...session };
-            isRunning = false;
-            stopTimerLoops();
-
-            await syncRealtimeTimer("auto-stop-hidden", {
-                activeSession: session,
-                currentSessionTime: 0,
-                commitElapsed: true,
-                commitSourceSession,
-                committedElapsedSeconds: elapsed,
-                userTriggeredWrite: true,
-                authorized: true
-            });
-
-            releaseTimerOwnership();
-            renderTimerUi();
-            safeShowAlert("Timer 3 saat sonunda otomatik durduruldu.", "info");
-            return true;
-        } finally {
-            timerState.transitioning = false;
-        }
+        const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
+            syncReason: "auto-stop-hidden",
+            showAlert: true,
+            modalOpen: false
+        });
+        return recoveryState.action === "auto-finalized";
     }
 
     function ensureTimerModeUi() {
@@ -2208,6 +2344,12 @@
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
+            const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
+                syncReason: "interval-recovery",
+                showAlert: false,
+                modalOpen: isTimerModalOpen()
+            });
+            if (recoveryState.action === "auto-finalized") return;
             maybeTriggerForcedHourlyCheckpoint(Date.now());
             renderTimerUi();
         }, 1000);
@@ -4054,9 +4196,7 @@
     function isPresenceOnlyTimerSyncReason(reason = "") {
         const normalizedReason = String(reason || "").trim().toLowerCase();
         return normalizedReason === "modal-show"
-            || normalizedReason === "modal-hide"
-            || normalizedReason === "visibility-hidden"
-            || normalizedReason === "visibility-visible";
+            || normalizedReason === "modal-hide";
     }
 
     function buildRealtimeLeaderboardPresencePayload(basePayload = {}) {
@@ -4719,9 +4859,6 @@
         const storedSessionMatchesUser = !!storedSession
             && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
         const remoteTimerRecord = userData?.activeTimer || null;
-        const remoteSession = remoteTimerRecord && isTimerRecordRunning(remoteTimerRecord)
-            ? remoteTimerRecord
-            : null;
         const storedResetState = storedSessionMatchesUser
             ? finalizeTimerSessionForNewDay(storedSession, referenceDate, {
                 commitElapsed: true,
@@ -4734,12 +4871,16 @@
                 persistRecovery: false
             })
             : { didReset: false, resetSignature: "" };
-        const hasFreshRemoteSession = !!remoteSession && !remoteResetState.didReset;
+        const remoteSessionCandidate = remoteTimerRecord && !remoteResetState.didReset
+            ? remoteTimerRecord
+            : null;
+        const hasFreshRemoteSession = !!remoteSessionCandidate
+            && isTimerRecordRunning(remoteSessionCandidate, referenceDate.getTime());
         const shouldClearRemoteTimer = remoteResetState.didReset || (storedResetState.didReset && !hasFreshRemoteSession);
         const resetSignature = remoteResetState.resetSignature || storedResetState.resetSignature || "";
         const seedSession = storedSessionMatchesUser && !storedResetState.didReset
             ? storedSession
-            : (!remoteResetState.didReset ? (remoteSession || null) : null);
+            : remoteSessionCandidate;
 
         if (seedSession?.mode) {
             timerState.mode = seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro";
@@ -4751,8 +4892,9 @@
         }
 
         if (seedSession) {
-            const seedSessionRunning = isTimerRecordRunning(seedSession);
-            const frozenElapsedSeconds = getTimerElapsedSeconds(seedSession);
+            const seedSessionRunning = !!seedSession.isRunning
+                && !hasTimerSessionCrossedDayBoundary(seedSession, referenceDate);
+            const frozenElapsedSeconds = getTimerElapsedSeconds(seedSession, referenceDate.getTime());
             timerState.session = {
                 mode: seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro",
                 isRunning: seedSessionRunning,
@@ -4761,7 +4903,7 @@
                     : frozenElapsedSeconds,
                 lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
                 targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
-                startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, Date.now())) : 0,
+                startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, referenceDate.getTime())) : 0,
                 lastForcedCheckpointAtMs: Math.max(
                     0,
                     parseInteger(seedSession.lastForcedCheckpointAtMs, parseInteger(seedSession.startedAtMs, 0))
@@ -4778,6 +4920,12 @@
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
         }
+
+        const recoveryState = maybeRecoverInactiveTimerSession(referenceDate.getTime(), {
+            syncReason: "restore-recovery",
+            showAlert: false,
+            modalOpen: isTimerModalOpen()
+        });
 
         if (storedResetState.didReset) {
             persistTimerSessionLocally(null);
@@ -4802,9 +4950,11 @@
         if (timerState.session?.isRunning) {
             isRunning = true;
             startTimerLoops();
-        } else if (shouldClearRemoteTimer) {
+        } else if (shouldClearRemoteTimer || recoveryState.action === "auto-finalized") {
             updateLocalActiveTimerSnapshot(null);
-            scheduleTimerDayBoundaryResetSync(referenceDate, resetSignature);
+            if (shouldClearRemoteTimer) {
+                scheduleTimerDayBoundaryResetSync(referenceDate, resetSignature);
+            }
         }
         renderTimerUi();
     }
@@ -8074,12 +8224,26 @@
         };
 
         checkActiveTimer = function() {
+            if (timerState.session?.isRunning) {
+                maybeRecoverInactiveTimerSession(Date.now(), {
+                    syncReason: "ui-check",
+                    showAlert: false,
+                    modalOpen: isTimerModalOpen()
+                });
+            }
             renderTimerUi();
         };
 
         showPomodoroModal = (function(originalShowPomodoroModal) {
             return function() {
                 if (guardVerifiedAccess()) return;
+                if (timerState.session?.isRunning) {
+                    maybeRecoverInactiveTimerSession(Date.now(), {
+                        syncReason: "modal-show-recovery",
+                        showAlert: true,
+                        modalOpen: true
+                    });
+                }
                 touchTimerVisibility(Date.now(), { modalOpen: true, persist: !!timerState.session });
                 if (typeof originalShowPomodoroModal === "function") {
                     originalShowPomodoroModal();
@@ -8660,7 +8824,15 @@
 
         document.addEventListener("visibilitychange", () => {
             if (document.hidden && timerState.session?.isRunning) {
-                touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                const hiddenCheckpoint = captureRunningTimerCheckpoint(timerState.session, Date.now(), {
+                    bumpCheckpoint: true,
+                    touchSeen: true,
+                    modalOpen: isTimerModalOpen(),
+                    persistRecovery: true
+                });
+                if (!hiddenCheckpoint) {
+                    touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                }
                 syncRealtimeTimer("visibility-hidden", {
                     activeSession: timerState.session,
                     currentSessionTime: getPendingTimerDelta(timerState.session),
@@ -8669,23 +8841,38 @@
                 }).catch(error => {
                     console.error("Gizli sekme timer senkronu basarisiz:", error);
                 });
-            } else if (!document.hidden && timerState.session?.isRunning && isTimerModalOpen()) {
-                touchTimerVisibility(Date.now(), { modalOpen: true, persist: true });
-                maybeTriggerForcedHourlyCheckpoint(Date.now());
-                syncRealtimeTimer("visibility-visible", {
-                    activeSession: timerState.session,
-                    currentSessionTime: getPendingTimerDelta(timerState.session),
-                    userTriggeredWrite: true,
-                    authorized: true
-                }).catch(error => {
-                    console.error("Gorunur sekme timer senkronu basarisiz:", error);
+            } else if (!document.hidden && timerState.session?.isRunning) {
+                const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
+                    syncReason: "visibility-visible-recovery",
+                    showAlert: true,
+                    modalOpen: isTimerModalOpen()
                 });
+                if (recoveryState.action !== "auto-finalized" && timerState.session?.isRunning) {
+                    touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                    maybeTriggerForcedHourlyCheckpoint(Date.now());
+                    syncRealtimeTimer("visibility-visible", {
+                        activeSession: timerState.session,
+                        currentSessionTime: getPendingTimerDelta(timerState.session),
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }).catch(error => {
+                        console.error("Gorunur sekme timer senkronu basarisiz:", error);
+                    });
+                }
             }
         });
 
         window.addEventListener("pagehide", () => {
             if (timerState.session?.isRunning) {
-                touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                const hiddenCheckpoint = captureRunningTimerCheckpoint(timerState.session, Date.now(), {
+                    bumpCheckpoint: true,
+                    touchSeen: true,
+                    modalOpen: isTimerModalOpen(),
+                    persistRecovery: true
+                });
+                if (!hiddenCheckpoint) {
+                    touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                }
                 syncRealtimeTimer("pagehide", {
                     activeSession: timerState.session,
                     currentSessionTime: getPendingTimerDelta(timerState.session),
