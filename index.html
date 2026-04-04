@@ -946,6 +946,404 @@
             border-radius: 999px;
         }
 
+        .analytics-modal-content {
+            background-color: var(--container-bg);
+            width: min(960px, 96vw);
+            max-height: calc(100vh - 40px);
+            padding: 30px 24px 24px;
+            border-radius: 28px;
+            border: 1px solid rgba(255, 255, 255, 0.09);
+            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+            position: relative;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            background-image:
+                radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 30%),
+                radial-gradient(circle at top left, rgba(34, 211, 238, 0.1), transparent 26%);
+        }
+
+        .analytics-modal-header {
+            margin-bottom: 14px;
+            padding: 0 72px 0 8px;
+            text-align: center;
+        }
+
+        .analytics-modal-header h2 {
+            margin: 0 0 8px;
+            color: var(--accent-color);
+            font-size: 2em;
+        }
+
+        .analytics-modal-header p {
+            margin: 0;
+            color: var(--text-color);
+            opacity: 0.84;
+            line-height: 1.55;
+        }
+
+        .analytics-modal-content .profile-modal-close-btn {
+            top: 18px;
+            margin-right: 0;
+        }
+
+        .analytics-hero {
+            margin: 0 auto 18px;
+            padding: 18px 18px 16px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background:
+                radial-gradient(circle at top, rgba(168, 85, 247, 0.18), transparent 52%),
+                linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.03));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            text-align: center;
+            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analytics-hero-label {
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-weight: 800;
+            opacity: 0.72;
+        }
+
+        .analytics-hero-value {
+            font-size: clamp(2rem, 4vw, 3.4rem);
+            line-height: 1;
+            font-weight: 900;
+            color: var(--header-text);
+            text-shadow: 0 0 20px rgba(168, 85, 247, 0.18);
+        }
+
+        .analytics-hero-subtitle {
+            color: var(--text-color);
+            opacity: 0.88;
+            font-weight: 700;
+        }
+
+        .analytics-hero-meta {
+            color: var(--text-color);
+            opacity: 0.76;
+            font-size: 0.95em;
+        }
+
+        .analytics-hero-signature {
+            position: absolute;
+            right: 14px;
+            bottom: 12px;
+            font-size: 0.72em;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.34);
+            font-weight: 700;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 12px rgba(255, 255, 255, 0.06);
+            white-space: nowrap;
+        }
+
+        .analytics-insights-tabs {
+            display: inline-flex;
+            gap: 10px;
+            padding: 8px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 18px;
+        }
+
+        .analytics-insights-tab {
+            min-width: 126px;
+            border-radius: 14px;
+            padding: 11px 16px;
+            background: transparent;
+            color: var(--text-color);
+            border: 1px solid transparent;
+            font-weight: 800;
+            box-shadow: none;
+        }
+
+        .analytics-insights-tab.is-active {
+            background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(168, 85, 247, 0.22));
+            border-color: rgba(167, 139, 250, 0.38);
+            color: var(--header-text);
+        }
+
+        .analytics-pane {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .analytics-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            padding: 14px 16px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .analytics-toolbar label {
+            color: var(--text-color);
+            font-weight: 700;
+            opacity: 0.92;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .analytics-toolbar input,
+        .analytics-toolbar select {
+            min-width: 210px;
+            padding: 10px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: rgba(9, 12, 20, 0.72);
+            color: var(--header-text);
+        }
+
+        .analytics-summary-grid {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 14px;
+        }
+
+        .analytics-summary-card {
+            padding: 16px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.045);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .analytics-summary-label {
+            font-size: 0.82em;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.72;
+        }
+
+        .analytics-summary-card strong {
+            color: var(--header-text);
+            font-size: 1.1em;
+            line-height: 1.4;
+        }
+
+        .analytics-session-list,
+        .analytics-week-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .analytics-session-item,
+        .analytics-week-row {
+            padding: 15px 15px 14px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.045);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            min-height: 152px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .analytics-session-main,
+        .analytics-week-row-top {
+            display: flex;
+            justify-content: flex-start;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .analytics-session-main {
+            min-width: 0;
+        }
+
+        .analytics-session-head {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 10px;
+        }
+
+        .analytics-session-index {
+            width: 36px;
+            height: 36px;
+            border-radius: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(34, 211, 238, 0.14);
+            color: var(--countdown-fill);
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+
+        .analytics-session-body {
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+        }
+
+        .analytics-session-title {
+            color: var(--header-text);
+            font-size: 1.05em;
+            line-height: 1.35;
+            word-break: break-word;
+        }
+
+        .analytics-session-remove {
+            width: 36px;
+            height: 36px;
+            min-width: 36px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.06);
+            color: rgba(255, 255, 255, 0.82);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: none;
+            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+        }
+
+        .analytics-session-remove:hover {
+            transform: translateY(-1px);
+            background: rgba(248, 113, 113, 0.14);
+            border-color: rgba(248, 113, 113, 0.36);
+            color: #fecaca;
+        }
+
+        .analytics-session-meta,
+        .analytics-session-time,
+        .analytics-week-row-top span {
+            color: var(--text-color);
+            opacity: 0.82;
+            font-size: 0.95em;
+        }
+
+        .analytics-session-time {
+            margin-top: auto;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            width: 100%;
+            padding: 10px 12px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.045);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-weight: 700;
+        }
+
+        .analytics-week-bar-track {
+            margin-top: 12px;
+            height: 10px;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.08);
+            overflow: hidden;
+        }
+
+        .analytics-week-bar-fill {
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(90deg, rgba(34, 211, 238, 0.85), rgba(168, 85, 247, 0.9));
+            box-shadow: 0 0 18px rgba(34, 211, 238, 0.24);
+        }
+
+        .analytics-empty {
+            padding: 18px;
+            border-radius: 18px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px dashed rgba(255, 255, 255, 0.14);
+            color: var(--text-color);
+            line-height: 1.6;
+            opacity: 0.88;
+        }
+
+        @media (max-width: 768px) {
+            .analytics-modal-content {
+                width: min(96vw, 96vw);
+                padding: 24px 14px 18px;
+                border-radius: 24px;
+            }
+
+            .analytics-modal-header {
+                padding: 0 56px 0 4px;
+            }
+
+            .analytics-hero-signature {
+                right: 12px;
+                bottom: 10px;
+                font-size: 0.62em;
+                letter-spacing: 0.1em;
+            }
+
+            .analytics-summary-grid {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .analytics-session-main,
+            .analytics-week-row-top {
+                flex-direction: row;
+                align-items: flex-start;
+            }
+
+            .analytics-insights-tabs {
+                width: 100%;
+                display: grid;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .analytics-insights-tab {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .analytics-toolbar label {
+                width: 100%;
+            }
+
+            .analytics-toolbar input,
+            .analytics-toolbar select {
+                width: 100%;
+                min-width: 0;
+            }
+
+            .analytics-session-list,
+            .analytics-week-breakdown {
+                grid-template-columns: 1fr;
+            }
+
+            .analytics-session-item,
+            .analytics-week-row {
+                min-height: 0;
+            }
+        }
+
+        @media (max-width: 520px) {
+            .analytics-summary-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
         .profile-modal-close-btn {
             position: sticky;
             top: 0;
@@ -3767,11 +4165,44 @@
         @media (max-width: 768px) {
             body { padding: 10px; }
             .container { border-radius: 8px; }
-            header { padding: 15px 20px; }
+            header {
+                padding: 18px 18px 16px;
+                overflow: visible;
+            }
             .main-content { padding: 0 10px 10px 10px; }
-            header h1 { font-size: 1.8em; min-width: 100%; }
-            header h1::before { font-size: 1.5em; }
-            header h1::after { font-size: 0.5em; }
+            header h1 {
+                font-size: 1.6em;
+                min-width: 0;
+                width: 100%;
+                max-width: 100%;
+                padding-top: 0;
+                line-height: 1.06;
+                overflow: visible;
+            }
+            header h1::before {
+                font-size: clamp(1.85rem, 11vw, 3rem);
+                letter-spacing: 1px;
+                line-height: 0.96;
+                margin-bottom: 8px;
+                white-space: normal;
+                word-break: keep-all;
+                text-wrap: balance;
+            }
+            header h1::after {
+                font-size: 0.48em;
+                letter-spacing: 1.4px;
+                line-height: 1.25;
+                white-space: normal;
+                word-break: break-word;
+                text-wrap: balance;
+            }
+            body[data-theme="kitty"] header::after {
+                top: 10px;
+                right: 10px;
+                transform: scale(0.74);
+                transform-origin: top right;
+                opacity: 0.62;
+            }
             .header-stats > span { font-size: 0.9em; padding: 6px 12px; }
             .week-nav { padding: 12px 15px !important; flex-wrap: wrap; gap: 10px; justify-content: center !important; }
             .week-nav h3 { font-size: 1.05em; width: 100%; text-align: center; order: -1; }
@@ -3824,6 +4255,20 @@
             .cropper-stage { width: 240px; height: 240px; }
         }
         @media (max-width: 480px) {
+            header {
+                padding: 16px 14px 14px;
+            }
+            header h1 {
+                font-size: 1.42em;
+            }
+            header h1::before {
+                font-size: clamp(1.7rem, 12vw, 2.45rem);
+                letter-spacing: 0.5px;
+            }
+            header h1::after {
+                font-size: 0.44em;
+                letter-spacing: 1px;
+            }
             .header-stats { flex-direction: column; align-items: stretch; }
             .header-stats > span { width: 100%; text-align: center; }
             .leaderboard-panel { width: 100%; right: -100%; }
@@ -4008,6 +4453,9 @@
                 <button id="support-btn" class="support-launch-btn" onclick="openSupportModal()" style="background-color: var(--button-bg); color: var(--header-text); font-size: 1.02em; padding: 12px 18px;">
                     <i class="fas fa-life-ring"></i> <span id="support-btn-text">Destek</span>
                 </button>
+                <button id="analytics-btn" class="analytics-launch-btn" onclick="openAnalyticsModal()" style="background-color: var(--header-bg); color: var(--header-text); font-size: 1.02em; padding: 12px 18px;">
+                    <i class="fas fa-chart-line"></i> Analizim
+                </button>
                 <button id="view-toggle-btn" onclick="toggleScheduleView()" style="background-color: var(--countdown-fill); color: var(--header-text);">
                     <i class="fas fa-arrows-alt-h"></i> <span id="view-toggle-text">Yatay Kaydırma Modu</span>
                 </button>
@@ -4174,6 +4622,45 @@
                 <button id="reset-btn" onclick="runCodexTimerAction('reset', true, true)" style="background-color: var(--button-bg); color: var(--header-text);">
                     <i class="fas fa-undo"></i> Sıfırla
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="analytics-modal" class="modal-overlay">
+        <div class="analytics-modal-content">
+            <button class="profile-modal-close-btn" onclick="closeAnalyticsModal()" type="button" aria-label="Analiz panelini kapat">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="analytics-modal-header">
+                <h2>Analizim</h2>
+                <p>Gerçek çalışma ve mola oturumlarına göre hangi saatlerde çalıştığını, günlük toplamını ve haftalık temponu burada görebilirsin.</p>
+            </div>
+            <div id="analytics-hero" class="analytics-hero"></div>
+            <div class="analytics-insights-tabs">
+                <button id="analytics-tab-daily" class="analytics-insights-tab is-active" type="button" onclick="setAnalyticsTab('daily')">Günlük</button>
+                <button id="analytics-tab-weekly" class="analytics-insights-tab" type="button" onclick="setAnalyticsTab('weekly')">Haftalık</button>
+            </div>
+
+            <div id="analytics-daily-pane" class="analytics-pane">
+                <div class="analytics-toolbar">
+                    <label>
+                        Gün Seç
+                        <input id="analytics-date-input" type="date" onchange="handleAnalyticsDateChange(this.value)">
+                    </label>
+                </div>
+                <div id="analytics-daily-summary" class="analytics-summary-grid"></div>
+                <div id="analytics-daily-sessions" class="analytics-session-list"></div>
+            </div>
+
+            <div id="analytics-weekly-pane" class="analytics-pane" style="display:none;">
+                <div class="analytics-toolbar">
+                    <label>
+                        Hafta Seç
+                        <select id="analytics-week-select" onchange="handleAnalyticsWeekChange(this.value)"></select>
+                    </label>
+                </div>
+                <div id="analytics-weekly-summary" class="analytics-summary-grid"></div>
+                <div id="analytics-weekly-breakdown" class="analytics-week-breakdown"></div>
             </div>
         </div>
     </div>
@@ -11713,7 +12200,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260402-0712"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-    <script src="codex-upgrade-7.js?v=20260402-1454"></script>
+<script src="codex-upgrade-7.js?v=20260404-2208"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
@@ -11762,7 +12249,7 @@
                     modal.style.touchAction = 'pan-y';
                 });
 
-                Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content')).forEach(function (panel) {
+                Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content, .analytics-modal-content')).forEach(function (panel) {
                     panel.style.overflowY = 'auto';
                     panel.style.overflowX = 'hidden';
                     panel.style.maxHeight = mobileViewport ? '80vh' : panel.style.maxHeight;

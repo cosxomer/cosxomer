@@ -15,6 +15,7 @@
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
     const TIMER_RECOVERY_KEY = "codexRealtimeTimerRecoveryV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
+    const TIMER_TRACK_KEY = "codexRealtimeTimerTrackV1";
     const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
     const DAILY_SUPPORT_NOTICE_KEY = "codexDailySupportNoticeV1";
     const DAILY_TIMER_NOTICE_KEY = "codexDailyTimerNoticeV1";
@@ -69,7 +70,7 @@
     let hasBootstrappedUsersRealtime = false;
 
     const timerState = {
-        mode: localStorage.getItem(TIMER_MODE_KEY) || "pomodoro",
+        mode: normalizeTimerMode(localStorage.getItem(TIMER_MODE_KEY) || "pomodoro"),
         session: null,
         syncing: false,
         transitioning: false,
@@ -79,8 +80,63 @@
 
     const timerDrafts = {
         pomodoro: null,
-        stopwatch: null
+        stopwatch: null,
+        "break-pomodoro": null,
+        "break-stopwatch": null
     };
+
+    const analyticsState = {
+        tab: "daily",
+        selectedDateKey: "",
+        selectedWeekKey: ""
+    };
+
+    function normalizeTimerMode(mode = "") {
+        const normalizedMode = String(mode || "").trim().toLowerCase();
+        if (normalizedMode === "stopwatch") return "stopwatch";
+        if (normalizedMode === "break-pomodoro") return "break-pomodoro";
+        if (normalizedMode === "break-stopwatch") return "break-stopwatch";
+        return "pomodoro";
+    }
+
+    function isBreakTimerMode(mode = timerState.mode) {
+        return normalizeTimerMode(mode).startsWith("break-");
+    }
+
+    function isStopwatchTimerMode(mode = timerState.mode) {
+        const normalizedMode = normalizeTimerMode(mode);
+        return normalizedMode === "stopwatch" || normalizedMode === "break-stopwatch";
+    }
+
+    function isCountdownTimerMode(mode = timerState.mode) {
+        return !isStopwatchTimerMode(mode);
+    }
+
+    function getTimerTrack(mode = timerState.mode) {
+        return isBreakTimerMode(mode) ? "break" : "study";
+    }
+
+    function getTimerModeLabel(mode = timerState.mode) {
+        const normalizedMode = normalizeTimerMode(mode);
+        if (normalizedMode === "stopwatch") return "Kronometre";
+        if (normalizedMode === "break-stopwatch") return "Mola Kronometresi";
+        if (normalizedMode === "break-pomodoro") return "Mola Geri Sayımı";
+        return "Pomodoro";
+    }
+
+    function getTimerContextTitle(mode = timerState.mode) {
+        return isBreakTimerMode(mode) ? "MOLA ZAMANI" : "ODAK ZAMANI";
+    }
+
+    function getTimerDraft(mode = timerState.mode) {
+        return timerDrafts[normalizeTimerMode(mode)] || null;
+    }
+
+    function setTimerDraft(session = null, mode = session?.mode || timerState.mode) {
+        const normalizedMode = normalizeTimerMode(mode);
+        timerDrafts[normalizedMode] = session ? { ...session } : null;
+        return timerDrafts[normalizedMode];
+    }
 
     function safeShowAlert(message, type) {
         if (typeof showAlert === "function") {
@@ -502,10 +558,10 @@
     }
 
     function buildFreshTimerSession(mode = timerState.mode, referenceDate = new Date(), sourceSession = null) {
-        const normalizedMode = mode === "stopwatch" ? "stopwatch" : "pomodoro";
+        const normalizedMode = normalizeTimerMode(mode);
         const freshSession = createEmptyTimerSession(normalizedMode, referenceDate);
 
-        if (normalizedMode === "pomodoro") {
+        if (isCountdownTimerMode(normalizedMode)) {
             const preservedTargetDuration = Math.max(0, parseInteger(sourceSession?.targetDurationSeconds, 0));
             freshSession.targetDurationSeconds = preservedTargetDuration || getPomodoroSeedSeconds();
         }
@@ -933,7 +989,7 @@
         releaseTimerOwnership();
 
         timerState.session = createEmptyTimerSession(timerState.mode);
-        if (timerState.mode === "pomodoro") {
+        if (isCountdownTimerMode(timerState.mode)) {
             timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
         }
         timerDrafts[timerState.mode] = { ...timerState.session };
@@ -951,14 +1007,15 @@
             ? currentUserLiveDoc
             : {};
         const visibleSession = hasTimerSessionCrossedDayBoundary(activeSession) ? null : activeSession;
-        const activeTimerRecord = visibleSession ? serializeTimerSession(visibleSession) : null;
-        const pendingSeconds = visibleSession?.isRunning ? getPendingTimerDelta(visibleSession) : 0;
+        const shouldExposePresence = !!visibleSession && !isBreakTimerMode(visibleSession.mode);
+        const activeTimerRecord = shouldExposePresence ? serializeTimerSession(visibleSession) : null;
+        const pendingSeconds = shouldExposePresence && visibleSession?.isRunning ? getPendingTimerDelta(visibleSession) : 0;
 
         currentUserLiveDoc = {
             ...baseDoc,
             activeTimer: activeTimerRecord,
             isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
-            isRunning: !!visibleSession?.isRunning,
+            isRunning: shouldExposePresence && !!visibleSession?.isRunning,
             currentSessionTime: pendingSeconds,
             lastTimerSyncAt: Date.now()
         };
@@ -1026,8 +1083,135 @@
         return totalQuestions > 0 ? { [primarySubjectId]: totalQuestions } : {};
     }
 
+    function buildStudySessionId(startTime, endTime, mode = "study") {
+        const safeStart = Math.max(0, parseInteger(startTime, 0));
+        const safeEnd = Math.max(safeStart, parseInteger(endTime, safeStart));
+        return `${String(mode || "study").trim() || "study"}:${safeStart}:${safeEnd}`;
+    }
+
+    function formatStudySessionClock(timestampMs) {
+        const safeTimestamp = Math.max(0, parseInteger(timestampMs, 0));
+        if (!safeTimestamp) return "--:--";
+        return new Date(safeTimestamp).toLocaleTimeString("tr-TR", {
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    }
+
+    function buildStudySessionHourRange(startTime, endTime) {
+        return `${formatStudySessionClock(startTime)}–${formatStudySessionClock(endTime)}`;
+    }
+
+    function normalizeStudySessionEntry(entry = {}) {
+        const safeStartTime = Math.max(
+            0,
+            parseInteger(entry.startTime, 0),
+            parseInteger(entry.startMs, 0)
+        );
+        const safeEndTime = Math.max(
+            safeStartTime,
+            parseInteger(entry.endTime, safeStartTime),
+            parseInteger(entry.endMs, safeStartTime)
+        );
+        const safeDurationMs = Math.max(
+            0,
+            parseInteger(entry.durationMs, 0),
+            parseInteger(entry.duration, safeEndTime - safeStartTime),
+            safeEndTime - safeStartTime
+        );
+        const safeDateKey = String(
+            entry.date
+            || entry.dateKey
+            || getDateKeyFromTimestamp(safeStartTime)
+            || ""
+        ).trim();
+        const mode = normalizeTimerMode(String(entry.mode || "pomodoro").trim() || "pomodoro");
+        const type = String(entry.type || (isBreakTimerMode(mode) ? "break" : "study")).trim() || "study";
+        return {
+            id: String(entry.id || buildStudySessionId(safeStartTime, safeEndTime, mode)).trim(),
+            startTime: safeStartTime,
+            endTime: safeEndTime,
+            durationMs: safeDurationMs,
+            duration: safeDurationMs,
+            date: safeDateKey,
+            dateKey: safeDateKey,
+            dayOfWeek: parseInteger(entry.dayOfWeek, safeStartTime ? ((new Date(safeStartTime).getDay() + 6) % 7) : 0),
+            mode,
+            type,
+            hourRange: String(entry.hourRange || buildStudySessionHourRange(safeStartTime, safeEndTime)).trim(),
+            questions: Math.max(0, parseInteger(entry.questions, 0))
+        };
+    }
+
+    function normalizeStudySessions(list = []) {
+        const sessions = Array.isArray(list) ? list : [];
+        const seen = new Set();
+        return sessions
+            .map(item => normalizeStudySessionEntry(item || {}))
+            .filter(item => item.startTime > 0 && item.endTime > item.startTime)
+            .filter(item => {
+                if (!item.id || seen.has(item.id)) return false;
+                seen.add(item.id);
+                return true;
+            })
+            .sort((left, right) => left.startTime - right.startTime || left.endTime - right.endTime);
+    }
+
+    function mergeStudySessions(...lists) {
+        return normalizeStudySessions(lists.flatMap(list => Array.isArray(list) ? list : []));
+    }
+
+    function appendStudySessionSegment(startTime, endTime, mode = timerState.mode) {
+        const safeStartTime = Math.max(0, parseInteger(startTime, 0));
+        const safeEndTime = Math.max(safeStartTime, parseInteger(endTime, safeStartTime));
+        if (!safeStartTime || safeEndTime <= safeStartTime) return false;
+
+        const dayDate = new Date(safeStartTime);
+        const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
+        const dayData = ensureWeekDay(weekKey, dayIdx);
+        const nextEntry = normalizeStudySessionEntry({
+            startTime: safeStartTime,
+            endTime: safeEndTime,
+            mode,
+            type: "study"
+        });
+        const mergedSessions = mergeStudySessions(dayData.studySessions || [], [nextEntry]);
+        if ((dayData.studySessions || []).length === mergedSessions.length) {
+            return false;
+        }
+
+        dayData.studySessions = mergedSessions;
+        scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+        return true;
+    }
+
+    function appendBreakSessionSegment(startTime, endTime, mode = timerState.mode) {
+        const safeStartTime = Math.max(0, parseInteger(startTime, 0));
+        const safeEndTime = Math.max(safeStartTime, parseInteger(endTime, safeStartTime));
+        if (!safeStartTime || safeEndTime <= safeStartTime) return false;
+
+        const dayDate = new Date(safeStartTime);
+        const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
+        const dayData = ensureWeekDay(weekKey, dayIdx);
+        const nextEntry = normalizeStudySessionEntry({
+            startTime: safeStartTime,
+            endTime: safeEndTime,
+            mode,
+            type: "break"
+        });
+        const mergedSessions = mergeStudySessions(dayData.breakSessions || [], [nextEntry]);
+        if ((dayData.breakSessions || []).length === mergedSessions.length) {
+            return false;
+        }
+
+        dayData.breakSessions = mergedSessions;
+        scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+        return true;
+    }
+
     function ensureDayObject(day = {}) {
         const workedSeconds = Math.max(0, parseInteger(day.workedSeconds, 0));
+        const breakSeconds = Math.max(0, parseInteger(day.breakSeconds, 0));
         const rawQuestions = Math.max(0, parseInteger(day.questions, 0));
         const subjectQuestions = normalizeSubjectQuestionMap(day.subjectQuestions || {});
         const subjectQuestionTotal = Object.values(subjectQuestions).reduce((sum, amount) => sum + amount, 0);
@@ -1042,8 +1226,11 @@
                 })).filter(task => task.text)
                 : [],
             workedSeconds,
+            breakSeconds,
             questions: normalizedQuestions,
-            subjectQuestions: subjectQuestionTotal ? subjectQuestions : (normalizedQuestions ? createFallbackSubjectQuestionMap(day, normalizedQuestions) : {})
+            subjectQuestions: subjectQuestionTotal ? subjectQuestions : (normalizedQuestions ? createFallbackSubjectQuestionMap(day, normalizedQuestions) : {}),
+            studySessions: normalizeStudySessions(day.studySessions || day.sessions || []),
+            breakSessions: normalizeStudySessions(day.breakSessions || day.breaks || [])
         };
     }
 
@@ -1544,6 +1731,7 @@
     }
 
     function isTimerVisibleForLeaderboard(timerRecord, now = Date.now()) {
+        if (isBreakTimerMode(timerRecord?.mode)) return false;
         return isTimerRecordRunning(timerRecord, now);
     }
 
@@ -1801,6 +1989,10 @@
                     parseInteger(localDay.workedSeconds, 0),
                     parseInteger(recoveredDay.workedSeconds, 0)
                 );
+                const mergedBreakSeconds = Math.max(
+                    parseInteger(localDay.breakSeconds, 0),
+                    parseInteger(recoveredDay.breakSeconds, 0)
+                );
                 const mergedQuestions = Math.max(
                     parseInteger(localDay.questions, 0),
                     parseInteger(recoveredDay.questions, 0)
@@ -1809,12 +2001,17 @@
                 const mergedSubjectQuestions = Object.keys(localDay.subjectQuestions || {}).length
                     ? localDay.subjectQuestions
                     : recoveredDay.subjectQuestions;
+                const mergedStudySessions = mergeStudySessions(localDay.studySessions || [], recoveredDay.studySessions || []);
+                const mergedBreakSessions = mergeStudySessions(localDay.breakSessions || [], recoveredDay.breakSessions || []);
 
                 if (
                     mergedWorkedSeconds !== parseInteger(localDay.workedSeconds, 0)
+                    || mergedBreakSeconds !== parseInteger(localDay.breakSeconds, 0)
                     || mergedQuestions !== parseInteger(localDay.questions, 0)
                     || mergedTasks !== localDay.tasks
                     || mergedSubjectQuestions !== localDay.subjectQuestions
+                    || mergedStudySessions.length !== (localDay.studySessions || []).length
+                    || mergedBreakSessions.length !== (localDay.breakSessions || []).length
                 ) {
                     changed = true;
                 }
@@ -1825,7 +2022,10 @@
                     tasks: mergedTasks,
                     subjectQuestions: mergedSubjectQuestions,
                     workedSeconds: mergedWorkedSeconds,
-                    questions: mergedQuestions
+                    breakSeconds: mergedBreakSeconds,
+                    questions: mergedQuestions,
+                    studySessions: mergedStudySessions,
+                    breakSessions: mergedBreakSessions
                 });
             });
         });
@@ -1837,12 +2037,13 @@
     }
 
     function createEmptyTimerSession(mode = timerState.mode, referenceDate = new Date()) {
+        const normalizedMode = normalizeTimerMode(mode);
         return {
-            mode,
+            mode: normalizedMode,
             isRunning: false,
             baseElapsedSeconds: 0,
             lastPersistedElapsedSeconds: 0,
-            targetDurationSeconds: mode === "pomodoro" ? getPomodoroSeedSeconds() : 0,
+            targetDurationSeconds: isCountdownTimerMode(normalizedMode) ? getPomodoroSeedSeconds() : 0,
             startedAtMs: 0,
             lastForcedCheckpointAtMs: 0,
             sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
@@ -1862,10 +2063,10 @@
         if (!session?.isRunning) return 0;
         const startedAtMs = Math.max(0, parseInteger(session.startedAtMs, 0));
         if (!startedAtMs) return 0;
-
-        const baseElapsedMs = Math.max(0, parseInteger(session.baseElapsedSeconds, 0)) * 1000;
-        const remainingMs = Math.max(0, TIMER_AUTO_STOP_MS - baseElapsedMs);
-        return startedAtMs + remainingMs;
+        // Auto-stop only applies to the uninterrupted active stretch.
+        // If the user pauses manually and resumes later, the 3-hour window
+        // restarts from the new start time instead of stacking across pauses.
+        return startedAtMs + TIMER_AUTO_STOP_MS;
     }
 
     function captureRunningTimerCheckpoint(session = timerState.session, referenceMs = Date.now(), options = {}) {
@@ -2068,6 +2269,16 @@
         return (hours * 3600) + (minutes * 60) + seconds;
     }
 
+    function resetTimerDurationInputs(totalSeconds = 0) {
+        const safeSeconds = Math.max(0, parseInteger(totalSeconds, 0));
+        const hours = document.getElementById("study-hours");
+        const minutes = document.getElementById("study-minutes");
+        const seconds = document.getElementById("study-seconds");
+        if (hours) hours.value = Math.floor(safeSeconds / 3600);
+        if (minutes) minutes.value = Math.floor((safeSeconds % 3600) / 60);
+        if (seconds) seconds.value = safeSeconds % 60;
+    }
+
     function getPomodoroSeedSeconds() {
         return Math.max(0, getPomodoroInputSeconds());
     }
@@ -2095,14 +2306,14 @@
     }
 
     function getTimerDisplaySeconds(session = timerState.session) {
-        if (!session) return timerState.mode === "pomodoro" ? getPomodoroInputSeconds() : 0;
+        if (!session) return isCountdownTimerMode(timerState.mode) ? getPomodoroInputSeconds() : 0;
         if (hasTimerSessionCrossedDayBoundary(session)) {
-            return session.mode === "pomodoro"
+            return isCountdownTimerMode(session.mode)
                 ? Math.max(0, parseInteger(session.targetDurationSeconds, getPomodoroSeedSeconds()))
                 : 0;
         }
         const elapsed = getTimerElapsedSeconds(session);
-        if (session.mode === "stopwatch") return elapsed;
+        if (isStopwatchTimerMode(session.mode)) return elapsed;
         return Math.max(0, parseInteger(session.targetDurationSeconds, 0) - elapsed);
     }
 
@@ -2163,14 +2374,15 @@
 
         const hasProgress = !!timerState.session && getTimerElapsedSeconds(timerState.session) > 0;
         const running = !!timerState.session?.isRunning;
-        const isStopwatch = timerState.mode === "stopwatch";
+        const isStopwatch = isStopwatchTimerMode(timerState.mode);
+        const isBreak = isBreakTimerMode(timerState.mode);
 
         if (running) {
             startPauseButton.innerHTML = '<i class="fas fa-pause"></i> Duraklat';
         } else if (hasProgress) {
             startPauseButton.innerHTML = '<i class="fas fa-play"></i> Devam Et';
         } else {
-            startPauseButton.innerHTML = `<i class="fas fa-play"></i> ${isStopwatch ? "Kronometre Baslat" : "Pomodoro Baslat"}`;
+            startPauseButton.innerHTML = `<i class="fas fa-play"></i> ${isStopwatch ? (isBreak ? "Mola Kronometresini Baslat" : "Kronometre Baslat") : (isBreak ? "Mola Zamanlayicisini Baslat" : "Pomodoro Baslat")}`;
         }
 
         resetButton.innerHTML = '<i class="fas fa-rotate-left"></i> Sifirla';
@@ -2192,7 +2404,7 @@
         }
 
         const unsynced = timerState.session ? Math.max(0, getTimerElapsedSeconds(timerState.session) - parseInteger(timerState.session.lastPersistedElapsedSeconds, 0)) : 0;
-        const modeLabel = timerState.mode === "stopwatch" ? "Kronometre" : "Pomodoro";
+        const modeLabel = getTimerModeLabel(timerState.mode);
         pill.innerHTML = `<i class="fas fa-wave-square"></i> ${modeLabel} - Otomatik kayit acik${unsynced > 0 ? ` - ${unsynced}s bekleyen senkron` : ""}`;
     }
 
@@ -2204,18 +2416,27 @@
             touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen() });
         }
 
-        content.classList.toggle("is-stopwatch-mode", timerState.mode === "stopwatch");
+        content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
         updateTimerButtons();
         updateTimerSessionPill();
+
+        const titleNode = content.querySelector("h2");
+        if (titleNode) {
+            titleNode.textContent = getTimerContextTitle(timerState.mode);
+        }
 
         const displaySeconds = getTimerDisplaySeconds();
         timeRemaining = displaySeconds;
         renderSegmentedTimer(displaySeconds);
 
         if (timerState.session?.isRunning) {
-            updateTimerStatus(timerState.mode === "stopwatch"
-                ? "Kronometre calisiyor."
-                : "Pomodoro calisiyor.");
+            updateTimerStatus(isBreakTimerMode(timerState.mode)
+                ? (isStopwatchTimerMode(timerState.mode)
+                    ? "Mola kronometresi calisiyor."
+                    : "Mola geri sayimi calisiyor.")
+                : (isStopwatchTimerMode(timerState.mode)
+                    ? "Kronometre calisiyor."
+                    : "Pomodoro calisiyor."));
         } else {
             updateTimerStatus("");
         }
@@ -2232,11 +2453,85 @@
         return recoveryState.action === "auto-finalized";
     }
 
+    function playBreakFinishedAlert() {
+        try {
+            const AudioCtor = window.AudioContext || window.webkitAudioContext;
+            if (!AudioCtor) return false;
+            const audioContext = new AudioCtor();
+            const masterGain = audioContext.createGain();
+            const compressor = audioContext.createDynamicsCompressor();
+            masterGain.gain.setValueAtTime(0.001, audioContext.currentTime);
+            masterGain.gain.linearRampToValueAtTime(0.42, audioContext.currentTime + 0.04);
+            masterGain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 1.6);
+            masterGain.connect(compressor);
+            compressor.connect(audioContext.destination);
+
+            const chimeOffsets = [0, 0.32, 0.64];
+            chimeOffsets.forEach((offset, index) => {
+                const baseTime = audioContext.currentTime + offset;
+                const mainOsc = audioContext.createOscillator();
+                const overtoneOsc = audioContext.createOscillator();
+                const toneGain = audioContext.createGain();
+
+                mainOsc.type = "triangle";
+                overtoneOsc.type = "sine";
+
+                mainOsc.frequency.setValueAtTime(1318.51, baseTime);
+                mainOsc.frequency.exponentialRampToValueAtTime(1046.5, baseTime + 0.34);
+                overtoneOsc.frequency.setValueAtTime(1567.98, baseTime);
+                overtoneOsc.frequency.exponentialRampToValueAtTime(1174.66, baseTime + 0.34);
+
+                toneGain.gain.setValueAtTime(0.0001, baseTime);
+                toneGain.gain.exponentialRampToValueAtTime(index === 0 ? 0.9 : 0.65, baseTime + 0.025);
+                toneGain.gain.exponentialRampToValueAtTime(0.18, baseTime + 0.22);
+                toneGain.gain.exponentialRampToValueAtTime(0.0001, baseTime + 0.52);
+
+                mainOsc.connect(toneGain);
+                overtoneOsc.connect(toneGain);
+                toneGain.connect(masterGain);
+
+                mainOsc.start(baseTime);
+                overtoneOsc.start(baseTime);
+                mainOsc.stop(baseTime + 0.54);
+                overtoneOsc.stop(baseTime + 0.54);
+            });
+
+            setTimeout(() => {
+                audioContext.close().catch(() => null);
+            }, 1900);
+            return true;
+        } catch (error) {
+            console.error("Mola sesi calinamadi:", error);
+            return false;
+        }
+    }
+
     function ensureTimerModeUi() {
         const content = document.querySelector("#pomodoro-modal .pomodoro-content");
         const titleNode = content?.querySelector("h2");
         const inputGroup = content?.querySelector(".pomodoro-time-inputs");
         if (!content || !titleNode || !inputGroup) return;
+
+        if (!document.getElementById("timer-track-toggle")) {
+            const trackToggle = document.createElement("div");
+            trackToggle.id = "timer-track-toggle";
+            trackToggle.className = "timer-mode-toggle";
+            trackToggle.innerHTML = `
+                <button class="timer-mode-toggle__button" type="button" data-track="study">Çalışma</button>
+                <button class="timer-mode-toggle__button" type="button" data-track="break">Mola</button>
+            `;
+            titleNode.insertAdjacentElement("afterend", trackToggle);
+
+            trackToggle.querySelectorAll("[data-track]").forEach(button => {
+                button.addEventListener("click", () => {
+                    const nextTrack = button.dataset.track === "break" ? "break" : "study";
+                    const nextMode = nextTrack === "break"
+                        ? (isStopwatchTimerMode(timerState.mode) ? "break-stopwatch" : "break-pomodoro")
+                        : (isStopwatchTimerMode(timerState.mode) ? "stopwatch" : "pomodoro");
+                    setTimerMode(nextMode);
+                });
+            });
+        }
 
         if (!document.getElementById("timer-mode-toggle")) {
             const toggle = document.createElement("div");
@@ -2262,7 +2557,7 @@
     }
 
     function setTimerMode(mode, options = {}) {
-        const normalizedMode = mode === "stopwatch" ? "stopwatch" : "pomodoro";
+        const normalizedMode = normalizeTimerMode(mode);
 
         if (!options.keepSession && timerState.session && timerState.session.mode !== normalizedMode) {
             const frozenSession = {
@@ -2294,15 +2589,30 @@
             localStorage.setItem(TIMER_MODE_KEY, normalizedMode);
         }
 
+        document.querySelectorAll("#timer-track-toggle [data-track]").forEach(button => {
+            button.classList.toggle("is-active", button.dataset.track === getTimerTrack(normalizedMode));
+        });
         document.querySelectorAll("#timer-mode-toggle [data-mode]").forEach(button => {
-            button.classList.toggle("is-active", button.dataset.mode === normalizedMode);
+            const buttonMode = button.dataset.mode === "stopwatch"
+                ? (getTimerTrack(normalizedMode) === "break" ? "break-stopwatch" : "stopwatch")
+                : (getTimerTrack(normalizedMode) === "break" ? "break-pomodoro" : "pomodoro");
+            button.classList.toggle("is-active", buttonMode === normalizedMode);
+            if (button.dataset.mode === "stopwatch") {
+                button.textContent = "Kronometre";
+            } else {
+                button.textContent = getTimerTrack(normalizedMode) === "break" ? "Geri Sayım" : "Pomodoro";
+            }
         });
 
         const note = document.getElementById("timer-mode-note");
         if (note) {
             note.innerHTML = normalizedMode === "stopwatch"
                 ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 3 saat sonunda otomatik durur."
-                : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 3 saat sonunda otomatik durur.";
+                : normalizedMode === "break-stopwatch"
+                    ? "<strong>Mola kronometresi</strong> molayı ileri sayar. İstersen manuel kaydedip kapatabilirsin."
+                    : normalizedMode === "break-pomodoro"
+                        ? "<strong>Mola geri sayımı</strong> seçtiğin mola süresinden geri sayar; süre bitince sesli uyarı verir ve molayı kaydeder."
+                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 3 saat sonunda otomatik durur.";
         }
 
         if (!options.keepSession) {
@@ -2315,11 +2625,9 @@
 
                 timerState.session = freshDraft
                     ? { ...freshDraft }
-                    : (normalizedMode === "pomodoro"
-                        ? createEmptyTimerSession("pomodoro")
-                        : createEmptyTimerSession("stopwatch"));
+                    : createEmptyTimerSession(normalizedMode);
 
-                if (normalizedMode === "pomodoro" && !freshDraft) {
+                if (isCountdownTimerMode(normalizedMode) && !freshDraft) {
                     timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
                 }
             }
@@ -2350,6 +2658,12 @@
                 modalOpen: isTimerModalOpen()
             });
             if (recoveryState.action === "auto-finalized") return;
+            if (timerState.session?.isRunning && normalizeTimerMode(timerState.mode) === "break-pomodoro" && getTimerDisplaySeconds(timerState.session) <= 0) {
+                completePomodoroSession().catch(error => {
+                    console.error("Mola geri sayimi tamamlanamadi:", error);
+                });
+                return;
+            }
             maybeTriggerForcedHourlyCheckpoint(Date.now());
             renderTimerUi();
         }, 1000);
@@ -2405,6 +2719,8 @@
         const interval = getPendingTimerInterval(session, now);
         if (!interval) return 0;
 
+        const isBreakSession = isBreakTimerMode(session?.mode || timerState.mode);
+
         let cursorMs = interval.startMs;
         let remainingSeconds = interval.pendingSeconds;
 
@@ -2419,7 +2735,13 @@
                 segmentSeconds = remainingSeconds;
             }
 
-            applyStudyDelta(segmentSeconds, cursorDate);
+            if (isBreakSession) {
+                applyBreakDelta(segmentSeconds, cursorDate);
+                appendBreakSessionSegment(cursorMs, cursorMs + (segmentSeconds * 1000), session?.mode || timerState.mode);
+            } else {
+                applyStudyDelta(segmentSeconds, cursorDate);
+                appendStudySessionSegment(cursorMs, cursorMs + (segmentSeconds * 1000), session?.mode || timerState.mode);
+            }
             remainingSeconds -= segmentSeconds;
             cursorMs += segmentSeconds * 1000;
         }
@@ -3239,6 +3561,12 @@
         return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, displayReferenceMs);
     }
 
+    function getCurrentDayBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
+        const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
+        const dayData = ensureDayObject(schedule?.[weekKey]?.[dayIdx] || {});
+        return Math.max(0, parseInteger(dayData.breakSeconds, 0));
+    }
+
     function getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey } = getCurrentDayMeta(referenceDate);
         const weekData = schedule?.[weekKey] || {};
@@ -3246,6 +3574,18 @@
 
         for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
             seconds += Math.max(0, parseInteger(weekData?.[dayIdx]?.workedSeconds, 0));
+        }
+
+        return seconds;
+    }
+
+    function getCurrentWeekBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
+        const { weekKey } = getCurrentDayMeta(referenceDate);
+        const weekData = schedule?.[weekKey] || {};
+        let seconds = 0;
+
+        for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
+            seconds += Math.max(0, parseInteger(weekData?.[dayIdx]?.breakSeconds, 0));
         }
 
         return seconds;
@@ -3818,7 +4158,7 @@
                 selectedSubjects: selectedSubjects,
                 notes: typeof normalizeUserNotes === "function" ? normalizeUserNotes(userNotes) : (userNotes || []),
                 schedule: scheduleData,
-                activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                activeTimer: isTimerVisibleForLeaderboard(timerState.session) ? serializeTimerSession(timerState.session) : null,
                 selectedTitleId: selectedTitleIdOverride === undefined
                     ? getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {})
                     : selectedTitleIdOverride,
@@ -3857,7 +4197,7 @@
             selectedTitleId: resolvedTitleId,
             titleAwards: refreshedProfile.titleInfo?.titleAwards || {},
             schedule: scheduleData,
-            activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null
+            activeTimer: isTimerVisibleForLeaderboard(timerState.session) ? serializeTimerSession(timerState.session) : null
         };
 
         syncPublicProfileSnapshotSafely(syncPayload);
@@ -4292,10 +4632,25 @@
         refreshCurrentTotals();
     }
 
+    function applyBreakDelta(deltaSeconds, date = new Date()) {
+        if (!deltaSeconds) return;
+        const { weekKey, dayIdx } = getCurrentDayMeta(date);
+        const dayData = ensureWeekDay(weekKey, dayIdx);
+        dayData.breakSeconds = Math.max(0, parseInteger(dayData.breakSeconds, 0) + deltaSeconds);
+        scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+        refreshCurrentTotals();
+    }
+
     function getCurrentDayWorkedSeconds(date = new Date()) {
         const { weekKey, dayIdx } = getCurrentDayMeta(date);
         const dayData = scheduleData?.[weekKey]?.[dayIdx];
         return dayData ? (ensureDayObject(dayData).workedSeconds || 0) : 0;
+    }
+
+    function getCurrentDayBreakSeconds(date = new Date()) {
+        const { weekKey, dayIdx } = getCurrentDayMeta(date);
+        const dayData = scheduleData?.[weekKey]?.[dayIdx];
+        return dayData ? (ensureDayObject(dayData).breakSeconds || 0) : 0;
     }
 
     function mergeFreshDailySnapshotIntoLocalSchedule(userData = {}, referenceDate = new Date()) {
@@ -4368,7 +4723,8 @@
         scheduleData[weekKey][dayIdx] = ensureDayObject({
             ...remoteDayData,
             ...localDayData,
-            workedSeconds: nextWorkedSeconds
+            workedSeconds: nextWorkedSeconds,
+            studySessions: mergeStudySessions(localDayData.studySessions || [], remoteDayData.studySessions || [])
         });
 
         if (typeof refreshCurrentTotals === "function") {
@@ -4390,13 +4746,24 @@
         const activeSession = hasTimerSessionCrossedDayBoundary(requestedActiveSession, new Date(syncTimestamp))
             ? null
             : requestedActiveSession;
-        const activeTimerRecord = activeSession ? serializeTimerSession(activeSession) : null;
+        const normalizedActiveMode = normalizeTimerMode(activeSession?.mode);
+        const activeStudyTimerRecord = activeSession && activeSession.isRunning && !isBreakTimerMode(normalizedActiveMode)
+            ? serializeTimerSession(activeSession)
+            : null;
+        const activeBreakTimerRecord = activeSession && activeSession.isRunning && isBreakTimerMode(normalizedActiveMode)
+            ? serializeTimerSession(activeSession)
+            : null;
         const sessionPendingSeconds = activeSession && activeSession.isRunning
             ? getPendingTimerDelta(activeSession)
             : 0;
-        const resolvedCurrentSessionTime = options.currentSessionTime === undefined
+        const resolvedCurrentSessionTime = activeStudyTimerRecord
+            ? (options.currentSessionTime === undefined
+                ? sessionPendingSeconds
+                : Math.max(0, Math.min(parseInteger(options.currentSessionTime, sessionPendingSeconds), sessionPendingSeconds)))
+            : 0;
+        const resolvedBreakSessionTime = activeBreakTimerRecord
             ? sessionPendingSeconds
-            : Math.max(0, Math.min(parseInteger(options.currentSessionTime, sessionPendingSeconds), sessionPendingSeconds));
+            : 0;
         const resolvedName = String(
             currentUsername
             || currentUser?.displayName
@@ -4405,7 +4772,7 @@
             || currentUserLiveDoc?.name
             || ""
         ).trim() || "Kullanici";
-        const legacyWorkingStartedAt = activeSession && activeSession.isRunning
+        const legacyWorkingStartedAt = activeStudyTimerRecord
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
                 syncTimestamp - (Math.max(0, getTimerElapsedSeconds(activeSession)) * 1000)
@@ -4415,7 +4782,7 @@
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || "",
             schedule: scheduleData,
-            activeTimer: activeTimerRecord,
+            activeTimer: activeStudyTimerRecord,
             selectedTitleId: resolvedSelectedTitleId,
             titleAwards: resolvedTitleAwards
         });
@@ -4439,12 +4806,16 @@
             weeklyStudyTime: currentWeekWorkedSeconds,
             currentWeekSeconds: currentWeekWorkedSeconds,
             currentSessionTime: resolvedCurrentSessionTime,
+            currentBreakSessionTime: resolvedBreakSessionTime,
             legacyWorkingStartedAt,
-            activeTimer: activeTimerRecord,
-            isWorking: isTimerVisibleForLeaderboard(activeTimerRecord),
-            isRunning: !!activeSession?.isRunning,
+            activeTimer: activeStudyTimerRecord,
+            activeBreakTimer: activeBreakTimerRecord,
+            isWorking: isTimerVisibleForLeaderboard(activeStudyTimerRecord),
+            isRunning: !!activeStudyTimerRecord?.isRunning,
+            isOnBreak: !!activeBreakTimerRecord?.isRunning,
             lastSyncTime: syncTimestamp,
             lastTimerSyncAt: syncTimestamp,
+            lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
             emailVerified: !!currentUser?.emailVerified
         };
     }
@@ -4481,7 +4852,17 @@
                 ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
                 : 0
         );
-        const resolvedActiveTimer = activeSessionOverride === undefined ? (timerState.session ? serializeTimerSession(timerState.session) : null) : activeSessionOverride;
+        const rawActiveSession = activeSessionOverride === undefined ? timerState.session : activeSessionOverride;
+        const normalizedActiveMode = normalizeTimerMode(rawActiveSession?.mode);
+        const resolvedActiveTimer = rawActiveSession && !isBreakTimerMode(normalizedActiveMode)
+            ? serializeTimerSession(rawActiveSession)
+            : null;
+        const resolvedBreakTimer = rawActiveSession && isBreakTimerMode(normalizedActiveMode)
+            ? serializeTimerSession(rawActiveSession)
+            : null;
+        const visibleRunningSession = rawActiveSession && !isBreakTimerMode(normalizedActiveMode)
+            ? rawActiveSession
+            : null;
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || baseData.uid || "",
             schedule: resolvedSchedule,
@@ -4510,10 +4891,13 @@
             totalQuestionsAllTime: resolvedTotalQuestions,
             ...questionCounters,
             activeTimer: resolvedActiveTimer,
-            isWorking: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
-            isRunning: isTimerRecordRunning(activeSessionOverride === undefined ? timerState.session : activeSessionOverride),
+            activeBreakTimer: resolvedBreakTimer,
+            isWorking: isTimerRecordRunning(visibleRunningSession),
+            isRunning: isTimerRecordRunning(visibleRunningSession),
+            isOnBreak: isTimerRecordRunning(resolvedBreakTimer),
             lastSyncTime: Date.now(),
-            currentSessionTime: Math.max(0, getPendingTimerDelta(activeSessionOverride === undefined ? timerState.session : activeSessionOverride)),
+            currentSessionTime: visibleRunningSession ? Math.max(0, getPendingTimerDelta(visibleRunningSession)) : 0,
+            currentBreakSessionTime: resolvedBreakTimer ? Math.max(0, getPendingTimerDelta(rawActiveSession)) : 0,
             notes: typeof normalizeUserNotes === "function"
                 ? normalizeUserNotes((userNotes && userNotes.length) ? userNotes : (baseData.notes || []))
                 : ((userNotes && userNotes.length) ? userNotes : (baseData.notes || []))
@@ -4532,7 +4916,7 @@
 
         return totalLocalSeconds > 0
             || totalLocalQuestions > 0
-            || !!visibleSession?.isRunning;
+            || isTimerVisibleForLeaderboard(visibleSession);
     }
 
     function buildLocalLeaderboardPreviewDoc(activeSessionOverride) {
@@ -4620,7 +5004,7 @@
 
     function updateLiveStudyPreview() {
         const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
-        const unsavedDelta = visibleSession?.isRunning ? getPendingTimerDelta(visibleSession) : 0;
+        const unsavedDelta = isTimerVisibleForLeaderboard(visibleSession) ? getPendingTimerDelta(visibleSession) : 0;
         const currentDayWorked = getCurrentDayWorkedSeconds() + unsavedDelta;
         const currentWeekTotals = typeof getCurrentWeekTotalsFromSchedule === "function"
             ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds + unsavedDelta
@@ -4686,7 +5070,508 @@
 
             weekNode.textContent = `Haftalik Soru: ${totalWeeklyQuestions}`;
         }
+
+        maybeRenderAnalyticsIfOpen();
     }
+
+    function parseAnalyticsDateKey(dateKey = "") {
+        const normalizedDateKey = String(dateKey || "").trim();
+        if (!normalizedDateKey) return new Date();
+        const parsed = new Date(`${normalizedDateKey}T12:00:00`);
+        return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+
+    function parseWeekKeyParts(weekKey = "") {
+        const match = String(weekKey || "").trim().match(/^(\d{4})-W(\d{1,2})$/i);
+        if (!match) return null;
+        return {
+            year: parseInteger(match[1], 0),
+            week: parseInteger(match[2], 0)
+        };
+    }
+
+    function getWeekStartFromWeekKey(weekKey = "") {
+        const parts = parseWeekKeyParts(weekKey);
+        if (!parts?.year || !parts?.week) return getMondayWeekStart(new Date());
+
+        const januaryFourth = new Date(parts.year, 0, 4);
+        januaryFourth.setHours(0, 0, 0, 0);
+        const monday = new Date(januaryFourth);
+        monday.setDate(januaryFourth.getDate() - ((januaryFourth.getDay() + 6) % 7) + ((parts.week - 1) * 7));
+        monday.setHours(0, 0, 0, 0);
+        return monday;
+    }
+
+    function formatAnalyticsDuration(ms = 0) {
+        const totalSeconds = Math.max(0, Math.floor(Math.max(0, parseInteger(ms, 0)) / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        if (hours > 0) return `${hours}s ${minutes}dk`;
+        if (minutes > 0) return `${minutes}dk ${seconds}s`;
+        return `${seconds}s`;
+    }
+
+    function formatAnalyticsDateLabel(referenceDate = new Date()) {
+        return referenceDate.toLocaleDateString("tr-TR", {
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+            weekday: "long"
+        });
+    }
+
+    function formatAnalyticsWeekLabel(weekKey = "") {
+        const weekStart = getWeekStartFromWeekKey(weekKey);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        const sameMonth = weekStart.getMonth() === weekEnd.getMonth() && weekStart.getFullYear() === weekEnd.getFullYear();
+        const sameYear = weekStart.getFullYear() === weekEnd.getFullYear();
+
+        if (sameMonth) {
+            return `${weekStart.toLocaleDateString("tr-TR", { day: "2-digit" })} - ${weekEnd.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} haftası`;
+        }
+
+        if (sameYear) {
+            return `${weekStart.toLocaleDateString("tr-TR", { day: "2-digit", month: "long" })} - ${weekEnd.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} haftası`;
+        }
+
+        return `${weekStart.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} - ${weekEnd.toLocaleDateString("tr-TR", { day: "2-digit", month: "long", year: "numeric" })} haftası`;
+    }
+
+    function getDayNameFromIndex(dayIdx = 0) {
+        return ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"][Math.max(0, Math.min(6, parseInteger(dayIdx, 0)))] || "Gün";
+    }
+
+    function getScheduleDayDataByDate(referenceDate = new Date()) {
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        const { weekKey, dayIdx, dateKey } = getCurrentDayMeta(referenceDate);
+        return {
+            weekKey,
+            dayIdx,
+            dateKey,
+            dayData: ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {})
+        };
+    }
+
+    function mergeStudySessionsForDisplay(sessions = []) {
+        const normalized = normalizeStudySessions(sessions);
+        if (!normalized.length) return [];
+
+        const merged = [];
+        normalized.forEach(session => {
+            const previous = merged[merged.length - 1];
+            if (
+                previous
+                && previous.type === session.type
+                && previous.mode === session.mode
+                && session.startTime <= (previous.endTime + 1000)
+            ) {
+                previous.endTime = Math.max(previous.endTime, session.endTime);
+                previous.durationMs = Math.max(0, previous.endTime - previous.startTime);
+                previous.duration = previous.durationMs;
+                previous.hourRange = buildStudySessionHourRange(previous.startTime, previous.endTime);
+                previous.questions = Math.max(previous.questions, session.questions || 0);
+                previous.sourceIds = Array.from(new Set([...(previous.sourceIds || []), session.id]));
+                return;
+            }
+            merged.push({
+                ...session,
+                sourceIds: [session.id]
+            });
+        });
+
+        return merged;
+    }
+
+    function getAnalyticsWeekKeys() {
+        const currentWeekKey = typeof getWeekKey === "function" ? getWeekKey(new Date()) : "";
+        const keys = new Set([currentWeekKey]);
+        Object.keys(scheduleData || {}).forEach(weekKey => {
+            if (String(weekKey || "").trim()) keys.add(String(weekKey).trim());
+        });
+        return [...keys].sort((left, right) => {
+            const leftParts = parseWeekKeyParts(left);
+            const rightParts = parseWeekKeyParts(right);
+            const leftValue = leftParts ? (leftParts.year * 100) + leftParts.week : 0;
+            const rightValue = rightParts ? (rightParts.year * 100) + rightParts.week : 0;
+            return rightValue - leftValue;
+        });
+    }
+
+    function buildDailyAnalytics(referenceDate = new Date()) {
+        const safeDate = referenceDate instanceof Date ? new Date(referenceDate) : parseAnalyticsDateKey(referenceDate);
+        const { dateKey, dayData } = getScheduleDayDataByDate(safeDate);
+        const rawStudySessions = normalizeStudySessions(dayData.studySessions || []);
+        const rawBreakSessions = normalizeStudySessions(dayData.breakSessions || []);
+        const sessions = mergeStudySessionsForDisplay([
+            ...rawStudySessions.map(session => ({ ...session, type: "study" })),
+            ...rawBreakSessions.map(session => ({ ...session, type: "break" }))
+        ]).map(session => ({
+            ...session,
+            durationLabel: formatAnalyticsDuration(session.durationMs),
+            startedAtLabel: formatStudySessionClock(session.startTime),
+            endedAtLabel: formatStudySessionClock(session.endTime)
+        }));
+        const totalDurationMs = Math.max(0, parseInteger(dayData.workedSeconds, 0)) * 1000;
+        const totalBreakMs = Math.max(0, parseInteger(dayData.breakSeconds, 0)) * 1000;
+
+        return {
+            dateKey,
+            dateLabel: formatAnalyticsDateLabel(safeDate),
+            totalDurationMs,
+            totalDurationLabel: formatAnalyticsDuration(totalDurationMs),
+            totalBreakMs,
+            totalBreakLabel: formatAnalyticsDuration(totalBreakMs),
+            questionCount: Math.max(0, parseInteger(dayData.questions, 0)),
+            sessionCount: sessions.length,
+            breakCount: rawBreakSessions.length,
+            studySessionCount: rawStudySessions.length,
+            sessions
+        };
+    }
+
+    function buildWeeklyAnalytics(weekKey = (typeof getWeekKey === "function" ? getWeekKey(new Date()) : "")) {
+        const resolvedWeekKey = String(weekKey || (typeof getWeekKey === "function" ? getWeekKey(new Date()) : "")).trim();
+        const weekStart = getWeekStartFromWeekKey(resolvedWeekKey);
+        const dayBreakdown = [];
+
+        for (let offset = 0; offset < 7; offset += 1) {
+            const dayDate = new Date(weekStart);
+            dayDate.setDate(weekStart.getDate() + offset);
+            const daily = buildDailyAnalytics(dayDate);
+            dayBreakdown.push({
+                dayIdx: offset,
+                label: getDayNameFromIndex(offset),
+                dateKey: daily.dateKey,
+                totalDurationMs: daily.totalDurationMs,
+                totalDurationLabel: daily.totalDurationLabel,
+                totalBreakMs: daily.totalBreakMs,
+                totalBreakLabel: daily.totalBreakLabel,
+                questionCount: daily.questionCount,
+                sessionCount: daily.sessionCount
+            });
+        }
+
+        const totalDurationMs = dayBreakdown.reduce((sum, item) => sum + Math.max(0, item.totalDurationMs), 0);
+        const totalBreakMs = dayBreakdown.reduce((sum, item) => sum + Math.max(0, item.totalBreakMs), 0);
+        const totalQuestions = dayBreakdown.reduce((sum, item) => sum + item.questionCount, 0);
+        const mostProductiveDay = dayBreakdown.reduce((best, item) => {
+            if (!best || item.totalDurationMs > best.totalDurationMs) return item;
+            return best;
+        }, null);
+        const mostBreakDay = dayBreakdown.reduce((best, item) => {
+            if (!best || item.totalBreakMs > best.totalBreakMs) return item;
+            return best;
+        }, null);
+
+        return {
+            weekKey: resolvedWeekKey,
+            weekLabel: formatAnalyticsWeekLabel(resolvedWeekKey),
+            totalDurationMs,
+            totalDurationLabel: formatAnalyticsDuration(totalDurationMs),
+            totalBreakMs,
+            totalBreakLabel: formatAnalyticsDuration(totalBreakMs),
+            totalQuestions,
+            dayBreakdown,
+            mostProductiveDay: mostProductiveDay?.totalDurationMs > 0 ? mostProductiveDay : null
+            ,
+            mostBreakDay: mostBreakDay?.totalBreakMs > 0 ? mostBreakDay : null
+        };
+    }
+
+    function renderAnalyticsHero(options = {}) {
+        const heroNode = document.getElementById("analytics-hero");
+        if (!heroNode) return;
+
+        const label = String(options.label || "").trim();
+        const value = String(options.value || "").trim();
+        const subtitle = String(options.subtitle || "").trim();
+        const meta = String(options.meta || "").trim();
+
+        heroNode.innerHTML = `
+            <span class="analytics-hero-label">${escapeHtml(label)}</span>
+            <strong class="analytics-hero-value">${escapeHtml(value)}</strong>
+            <div class="analytics-hero-subtitle">${escapeHtml(subtitle)}</div>
+            ${meta ? `<div class="analytics-hero-meta">${escapeHtml(meta)}</div>` : ""}
+            <span class="analytics-hero-signature">designed by cosxomer</span>
+        `;
+    }
+
+    function removeStoredAnalyticsSessions(dateKey = "", type = "study", sessionIds = []) {
+        const normalizedDateKey = String(dateKey || "").trim();
+        const normalizedType = String(type || "").trim() === "break" ? "break" : "study";
+        const removableIds = Array.isArray(sessionIds)
+            ? sessionIds.map(id => String(id || "").trim()).filter(Boolean)
+            : [];
+        if (!normalizedDateKey || !removableIds.length) return false;
+
+        const targetDate = parseAnalyticsDateKey(normalizedDateKey);
+        const { weekKey, dayIdx } = getCurrentDayMeta(targetDate);
+        const dayData = ensureWeekDay(weekKey, dayIdx);
+        const sessionField = normalizedType === "break" ? "breakSessions" : "studySessions";
+        const totalField = normalizedType === "break" ? "breakSeconds" : "workedSeconds";
+        const existingSessions = normalizeStudySessions(dayData[sessionField] || []);
+        const removableIdSet = new Set(removableIds);
+        const removedSessions = existingSessions.filter(session => removableIdSet.has(session.id));
+        if (!removedSessions.length) return false;
+
+        const keptSessions = existingSessions.filter(session => !removableIdSet.has(session.id));
+        const removedDurationSeconds = Math.round(
+            removedSessions.reduce((sum, session) => sum + Math.max(0, parseInteger(session.durationMs, 0)), 0) / 1000
+        );
+
+        dayData[sessionField] = keptSessions;
+        dayData[totalField] = Math.max(0, parseInteger(dayData[totalField], 0) - removedDurationSeconds);
+        scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+        refreshCurrentTotals();
+        return true;
+    }
+
+    window.removeAnalyticsSession = function(dateKey = "", type = "study", encodedIds = "") {
+        const decodedIds = decodeURIComponent(String(encodedIds || ""))
+            .split(",")
+            .map(id => String(id || "").trim())
+            .filter(Boolean);
+        if (!decodedIds.length) return;
+        if (!confirm("Bu oturumu analizden ve kayıtlı sürelerden kaldırmak istiyor musun?")) return;
+
+        const removed = removeStoredAnalyticsSessions(dateKey, type, decodedIds);
+        if (!removed) {
+            safeShowAlert("Silinecek oturum bulunamadı.");
+            return;
+        }
+
+        saveData({ authorized: true, immediate: true });
+        renderSchedule();
+        refreshLeaderboardOptimistically();
+        maybeRenderAnalyticsIfOpen();
+        safeShowAlert("Seçilen oturum kaldırıldı.", "success");
+    };
+
+    function renderDailyAnalytics() {
+        const summaryNode = document.getElementById("analytics-daily-summary");
+        const sessionsNode = document.getElementById("analytics-daily-sessions");
+        const dateInput = document.getElementById("analytics-date-input");
+        if (!summaryNode || !sessionsNode || !dateInput) return;
+
+        const selectedDate = parseAnalyticsDateKey(
+            analyticsState.selectedDateKey
+            || getCurrentDayMeta(new Date()).dateKey
+        );
+        const daily = buildDailyAnalytics(selectedDate);
+        analyticsState.selectedDateKey = daily.dateKey;
+        dateInput.value = daily.dateKey;
+
+        renderAnalyticsHero({
+            label: "Seçili Günün Toplam Çalışması",
+            value: daily.totalDurationLabel,
+            subtitle: daily.dateLabel,
+            meta: `${daily.totalBreakLabel} mola • ${daily.questionCount} soru`
+        });
+
+        summaryNode.innerHTML = `
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Seçili Gün</span>
+                <strong>${escapeHtml(daily.dateLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Çalışma</span>
+                <strong>${escapeHtml(daily.totalDurationLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Mola</span>
+                <strong>${escapeHtml(daily.totalBreakLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Soru</span>
+                <strong>${daily.questionCount}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Çalışma / Mola</span>
+                <strong>${daily.studySessionCount} / ${daily.breakCount}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Gerçek Oturum</span>
+                <strong>${daily.sessionCount}</strong>
+            </div>
+        `;
+
+        if (!daily.sessions.length) {
+            sessionsNode.innerHTML = `<div class="analytics-empty">${(daily.totalDurationMs > 0 || daily.totalBreakMs > 0) ? "Bu günün toplam çalışma ve mola süresi kayıtlı, ancak detay saat aralıkları bu kayıtlarda henüz oluşmamış görünüyor." : "Bu gün için kayıtlı çalışma veya mola oturumu görünmüyor. Yeni oturumlar bu ekranda gerçek saat aralıklarıyla listelenecek."}</div>`;
+            return;
+        }
+
+        sessionsNode.innerHTML = daily.sessions.map((session, index) => `
+            <div class="analytics-session-item">
+                <div class="analytics-session-head">
+                    <div class="analytics-session-main">
+                        <span class="analytics-session-index">#${index + 1}</span>
+                        <div class="analytics-session-body">
+                            <strong class="analytics-session-title">${escapeHtml(session.hourRange)}</strong>
+                            <div class="analytics-session-meta">
+                                <span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; margin-right:8px; background:${session.type === "break" ? "rgba(56, 189, 248, 0.16)" : "rgba(251, 191, 36, 0.16)"}; color:${session.type === "break" ? "#bae6fd" : "#fde68a"}; border:1px solid ${session.type === "break" ? "rgba(56, 189, 248, 0.35)" : "rgba(251, 191, 36, 0.35)"};">${session.type === "break" ? "Mola" : "Çalışma"}</span>
+                                ${escapeHtml(getTimerModeLabel(session.mode))} • ${escapeHtml(session.durationLabel)}
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        class="analytics-session-remove"
+                        type="button"
+                        onclick="removeAnalyticsSession('${escapeHtml(daily.dateKey)}','${escapeHtml(session.type)}','${encodeURIComponent((session.sourceIds || []).join(','))}')"
+                        aria-label="Bu oturumu kaldır"
+                        title="Bu oturumu kaldır"
+                    >
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <span class="analytics-session-time">${escapeHtml(session.startedAtLabel)} - ${escapeHtml(session.endedAtLabel)}</span>
+            </div>
+        `).join("");
+    }
+
+    function renderWeeklyAnalytics() {
+        const summaryNode = document.getElementById("analytics-weekly-summary");
+        const breakdownNode = document.getElementById("analytics-weekly-breakdown");
+        const weekSelect = document.getElementById("analytics-week-select");
+        if (!summaryNode || !breakdownNode || !weekSelect) return;
+
+        const availableWeeks = getAnalyticsWeekKeys();
+        if (!analyticsState.selectedWeekKey || !availableWeeks.includes(analyticsState.selectedWeekKey)) {
+            analyticsState.selectedWeekKey = availableWeeks[0] || (typeof getWeekKey === "function" ? getWeekKey(new Date()) : "");
+        }
+
+        weekSelect.innerHTML = availableWeeks.map(weekKey => `
+            <option value="${escapeHtml(weekKey)}"${weekKey === analyticsState.selectedWeekKey ? " selected" : ""}>${escapeHtml(formatAnalyticsWeekLabel(weekKey))}</option>
+        `).join("");
+
+        const weekly = buildWeeklyAnalytics(analyticsState.selectedWeekKey);
+        const bestDayText = weekly.mostProductiveDay
+            ? `${weekly.mostProductiveDay.label} (${formatAnalyticsDuration(weekly.mostProductiveDay.totalDurationMs)})`
+            : "Henüz kayıtlı çalışma görünmüyor";
+        const mostBreakDayText = weekly.mostBreakDay
+            ? `${weekly.mostBreakDay.label} (${formatAnalyticsDuration(weekly.mostBreakDay.totalBreakMs)})`
+            : "Belirgin mola kaydı görünmüyor";
+        const ratioText = weekly.totalDurationMs > 0
+            ? `%${Math.round((weekly.totalBreakMs / weekly.totalDurationMs) * 100)}`
+            : "%0";
+
+        renderAnalyticsHero({
+            label: "Haftalık Toplam Çalışma",
+            value: weekly.totalDurationLabel,
+            subtitle: weekly.weekLabel,
+            meta: `${weekly.totalBreakLabel} mola • ${weekly.totalQuestions} soru`
+        });
+
+        summaryNode.innerHTML = `
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Seçili Hafta</span>
+                <strong>${escapeHtml(weekly.weekLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Çalışma</span>
+                <strong>${escapeHtml(weekly.totalDurationLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Mola</span>
+                <strong>${escapeHtml(weekly.totalBreakLabel)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Mola / Çalışma Oranı</span>
+                <strong>${escapeHtml(ratioText)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">Toplam Soru</span>
+                <strong>${weekly.totalQuestions}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">En Ağır Tempo</span>
+                <strong>${escapeHtml(bestDayText)}</strong>
+            </div>
+            <div class="analytics-summary-card">
+                <span class="analytics-summary-label">En Çok Mola</span>
+                <strong>${escapeHtml(mostBreakDayText)}</strong>
+            </div>
+        `;
+
+        const maxDuration = Math.max(1, ...weekly.dayBreakdown.map(day => day.totalDurationMs));
+        breakdownNode.innerHTML = weekly.dayBreakdown.map(day => `
+            <div class="analytics-week-row">
+                <div class="analytics-week-row-top">
+                    <strong>${escapeHtml(day.label)}</strong>
+                    <span>${escapeHtml(day.totalDurationLabel)} çalışma • ${escapeHtml(day.totalBreakLabel)} mola • ${day.questionCount} soru</span>
+                </div>
+                <div class="analytics-week-bar-track">
+                    <div class="analytics-week-bar-fill" style="width:${Math.max(6, Math.round((day.totalDurationMs / maxDuration) * 100))}%"></div>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    function renderAnalyticsPanel() {
+        const modal = document.getElementById("analytics-modal");
+        if (!modal) return;
+
+        const dailyTabButton = document.getElementById("analytics-tab-daily");
+        const weeklyTabButton = document.getElementById("analytics-tab-weekly");
+        const dailyPane = document.getElementById("analytics-daily-pane");
+        const weeklyPane = document.getElementById("analytics-weekly-pane");
+
+        if (dailyTabButton) dailyTabButton.classList.toggle("is-active", analyticsState.tab === "daily");
+        if (weeklyTabButton) weeklyTabButton.classList.toggle("is-active", analyticsState.tab === "weekly");
+        if (dailyPane) dailyPane.style.display = analyticsState.tab === "daily" ? "" : "none";
+        if (weeklyPane) weeklyPane.style.display = analyticsState.tab === "weekly" ? "" : "none";
+
+        if (analyticsState.tab === "weekly") {
+            renderWeeklyAnalytics();
+        } else {
+            renderDailyAnalytics();
+        }
+    }
+
+    function maybeRenderAnalyticsIfOpen() {
+        const modal = document.getElementById("analytics-modal");
+        if (modal?.style.display === "flex") {
+            renderAnalyticsPanel();
+        }
+    }
+
+    window.openAnalyticsModal = function() {
+        if (guardVerifiedAccess()) return;
+        if (!analyticsState.selectedDateKey) {
+            analyticsState.selectedDateKey = getCurrentDayMeta(new Date()).dateKey;
+        }
+        if (!analyticsState.selectedWeekKey && typeof getWeekKey === "function") {
+            analyticsState.selectedWeekKey = getWeekKey(new Date());
+        }
+        const modal = document.getElementById("analytics-modal");
+        if (!modal) return;
+        renderAnalyticsPanel();
+        modal.style.display = "flex";
+        if (typeof syncBodyModalLock === "function") syncBodyModalLock();
+    };
+
+    window.closeAnalyticsModal = function() {
+        const modal = document.getElementById("analytics-modal");
+        if (!modal) return;
+        modal.style.display = "none";
+        if (typeof syncBodyModalLock === "function") syncBodyModalLock();
+    };
+
+    window.setAnalyticsTab = function(tab = "daily") {
+        analyticsState.tab = tab === "weekly" ? "weekly" : "daily";
+        renderAnalyticsPanel();
+    };
+
+    window.handleAnalyticsDateChange = function(value = "") {
+        analyticsState.selectedDateKey = String(value || "").trim() || getCurrentDayMeta(new Date()).dateKey;
+        renderAnalyticsPanel();
+    };
+
+    window.handleAnalyticsWeekChange = function(value = "") {
+        analyticsState.selectedWeekKey = String(value || "").trim();
+        renderAnalyticsPanel();
+    };
 
     function syncQuestionCountersAfterInput(dayIdx, questionsValue) {
         const normalizedValue = parseInteger(questionsValue, 0);
@@ -4718,10 +5603,10 @@
             session = createEmptyTimerSession(mode);
         }
 
-        if (mode === "pomodoro") {
+        if (isCountdownTimerMode(mode)) {
             const totalSeconds = getPomodoroInputSeconds();
             if (totalSeconds <= 0) {
-                safeShowAlert("Pomodoro suresi 0 olamaz.");
+                safeShowAlert(isBreakTimerMode(mode) ? "Mola suresi 0 olamaz." : "Pomodoro suresi 0 olamaz.");
                 return;
             }
             if (!session.baseElapsedSeconds && !session.lastPersistedElapsedSeconds) {
@@ -4818,13 +5703,8 @@
         persistTimerSessionLocally(null);
         releaseTimerOwnership();
 
-        if (resetInputs && timerState.mode === "pomodoro") {
-            const hours = document.getElementById("study-hours");
-            const minutes = document.getElementById("study-minutes");
-            const seconds = document.getElementById("study-seconds");
-            if (hours) hours.value = 0;
-            if (minutes) minutes.value = 0;
-            if (seconds) seconds.value = 0;
+        if (resetInputs && isCountdownTimerMode(timerState.mode)) {
+            resetTimerDurationInputs(0);
         }
 
         await syncRealtimeTimer("reset", {
@@ -4834,7 +5714,7 @@
         });
 
         timerState.session = createEmptyTimerSession(timerState.mode);
-        if (timerState.mode === "pomodoro") {
+        if (isCountdownTimerMode(timerState.mode)) {
             timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
         }
         timerDrafts[timerState.mode] = { ...timerState.session };
@@ -4858,7 +5738,7 @@
         const storedSession = readStoredTimerSession();
         const storedSessionMatchesUser = !!storedSession
             && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
-        const remoteTimerRecord = userData?.activeTimer || null;
+        const remoteTimerRecord = userData?.activeTimer || userData?.activeBreakTimer || null;
         const storedResetState = storedSessionMatchesUser
             ? finalizeTimerSessionForNewDay(storedSession, referenceDate, {
                 commitElapsed: true,
@@ -4883,7 +5763,7 @@
             : remoteSessionCandidate;
 
         if (seedSession?.mode) {
-            timerState.mode = seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro";
+            timerState.mode = normalizeTimerMode(seedSession.mode);
             try {
                 localStorage.setItem(TIMER_MODE_KEY, timerState.mode);
             } catch (error) {
@@ -4896,7 +5776,7 @@
                 && !hasTimerSessionCrossedDayBoundary(seedSession, referenceDate);
             const frozenElapsedSeconds = getTimerElapsedSeconds(seedSession, referenceDate.getTime());
             timerState.session = {
-                mode: seedSession.mode === "stopwatch" ? "stopwatch" : "pomodoro",
+                mode: normalizeTimerMode(seedSession.mode),
                 isRunning: seedSessionRunning,
                 baseElapsedSeconds: seedSessionRunning
                     ? Math.max(0, parseInteger(seedSession.baseElapsedSeconds, 0))
@@ -4916,7 +5796,7 @@
             };
         } else {
             timerState.session = buildFreshTimerSession(timerState.mode, referenceDate);
-            if (timerState.mode === "pomodoro") {
+            if (isCountdownTimerMode(timerState.mode)) {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
         }
@@ -4935,9 +5815,12 @@
             currentUserLiveDoc = {
                 ...(currentUserLiveDoc || {}),
                 activeTimer: null,
+                activeBreakTimer: null,
                 isWorking: false,
                 isRunning: false,
+                isOnBreak: false,
                 currentSessionTime: 0,
+                currentBreakSessionTime: 0,
                 dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
             };
         }
@@ -5001,7 +5884,7 @@
         );
 
         timerState.session = createEmptyTimerSession(timerState.mode);
-        if (timerState.mode === "pomodoro") {
+        if (isCountdownTimerMode(timerState.mode)) {
             timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
         }
         timerDrafts[timerState.mode] = { ...timerState.session };
@@ -6478,18 +7361,27 @@
         const content = document.querySelector("#pomodoro-modal .pomodoro-content");
         if (!content) return;
 
-        content.classList.toggle("is-stopwatch-mode", timerState.mode === "stopwatch");
+        content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
         updateTimerButtons();
         updateTimerSessionPill();
+
+        const titleNode = content.querySelector("h2");
+        if (titleNode) {
+            titleNode.textContent = getTimerContextTitle(timerState.mode);
+        }
 
         const displaySeconds = getTimerDisplaySeconds();
         timeRemaining = displaySeconds;
         renderSegmentedTimer(displaySeconds);
 
         if (timerState.session?.isRunning) {
-            updateTimerStatus(timerState.mode === "stopwatch"
-                ? "Kronometre calisiyor. Sure canli olarak takip ediliyor."
-                : "Pomodoro calisiyor. Sure canli olarak takip ediliyor.");
+            updateTimerStatus(isBreakTimerMode(timerState.mode)
+                ? (isStopwatchTimerMode(timerState.mode)
+                    ? "Mola kronometresi calisiyor. Sure canli olarak takip ediliyor."
+                    : "Mola geri sayimi calisiyor. Sure canli olarak takip ediliyor.")
+                : (isStopwatchTimerMode(timerState.mode)
+                    ? "Kronometre calisiyor. Sure canli olarak takip ediliyor."
+                    : "Pomodoro calisiyor. Sure canli olarak takip ediliyor."));
         } else {
             updateTimerStatus("");
         }
@@ -7107,7 +7999,7 @@
                 const titleInfo = buildResolvedTitleInfo({
                     uid: currentUser?.uid || "",
                     schedule: scheduleData || {},
-                    activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                    activeTimer: isTimerVisibleForLeaderboard(timerState.session) ? serializeTimerSession(timerState.session) : null,
                     selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}),
                     titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {})
                 });
@@ -7829,7 +8721,7 @@
         startOrResumeRealtimeTimer = async function() {
             if (guardVerifiedAccess()) return;
 
-            const mode = timerState.mode;
+            const mode = normalizeTimerMode(timerState.mode);
             let session = timerState.session;
 
             if (hasTimerSessionCrossedDayBoundary(session)) {
@@ -7840,10 +8732,10 @@
                 session = createEmptyTimerSession(mode);
             }
 
-            if (mode === "pomodoro") {
+            if (isCountdownTimerMode(mode)) {
                 const totalSeconds = getPomodoroInputSeconds();
                 if (totalSeconds <= 0) {
-                    safeShowAlert("Pomodoro suresi 0 olamaz.");
+                    safeShowAlert(isBreakTimerMode(mode) ? "Mola suresi 0 olamaz." : "Pomodoro suresi 0 olamaz.");
                     return;
                 }
                 if (!session.baseElapsedSeconds && !session.lastPersistedElapsedSeconds) {
@@ -7880,9 +8772,11 @@
                 label: "timer-start",
                 failureMessage: "Canli senkron gecikti. Sure cihazda korunuyor."
             });
-            setTimeout(() => {
-                maybeShowDailyTimerGuidance();
-            }, 180);
+            if (!isBreakTimerMode(mode)) {
+                setTimeout(() => {
+                    maybeShowDailyTimerGuidance();
+                }, 180);
+            }
         };
 
         pauseRealtimeTimer = async function(options = {}) {
@@ -7930,6 +8824,7 @@
             if (!timerState.session) return;
 
             const session = timerState.session;
+            const completedMode = normalizeTimerMode(session.mode);
             const commitSourceSession = createCommitSourceSession(session);
             const commitState = commitTimerSessionLocally(commitSourceSession, {
                 referenceMs: Date.now(),
@@ -7949,7 +8844,7 @@
             isRunning = false;
             releaseTimerOwnership();
             timerState.session = session;
-            timerDrafts.pomodoro = { ...session };
+            timerDrafts[normalizeTimerMode(session.mode)] = { ...session };
             persistTimerSessionLocally(session);
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
@@ -7965,7 +8860,21 @@
                 label: "timer-complete",
                 failureMessage: "Pomodoro tamamlandi. Sure cihazda korundu ve tekrar gonderilecek."
             });
-            safeShowAlert("Pomodoro oturumu tamamlandi ve sure kaydedildi.", "success");
+            saveData({ authorized: true, immediate: true });
+            if (isBreakTimerMode(completedMode)) {
+                resetTimerDurationInputs(0);
+                timerState.session = createEmptyTimerSession(completedMode);
+                if (isCountdownTimerMode(completedMode)) {
+                    timerState.session.targetDurationSeconds = 0;
+                }
+                timerDrafts[completedMode] = { ...timerState.session };
+                persistTimerSessionLocally(null);
+                renderTimerUi();
+                playBreakFinishedAlert();
+                safeShowAlert("Mola tamamlandi ve kaydedildi.", "success");
+            } else {
+                safeShowAlert("Pomodoro oturumu tamamlandi ve sure kaydedildi.", "success");
+            }
         };
 
         resetRealtimeTimer = async function(resetInputs = true, silent = false) {
@@ -7975,7 +8884,7 @@
             persistTimerSessionLocally(null);
             releaseTimerOwnership();
 
-            if (resetInputs && timerState.mode === "pomodoro") {
+            if (resetInputs && isCountdownTimerMode(timerState.mode)) {
                 const hours = document.getElementById("study-hours");
                 const minutes = document.getElementById("study-minutes");
                 const seconds = document.getElementById("study-seconds");
@@ -7985,7 +8894,7 @@
             }
 
             timerState.session = createEmptyTimerSession(timerState.mode);
-            if (timerState.mode === "pomodoro") {
+            if (isCountdownTimerMode(timerState.mode)) {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
             timerDrafts[timerState.mode] = { ...timerState.session };
@@ -8017,7 +8926,7 @@
             const pill = document.getElementById("timer-session-pill");
             if (!pill) return;
             const unsaved = timerState.session ? Math.max(0, getTimerElapsedSeconds(timerState.session) - parseInteger(timerState.session.lastPersistedElapsedSeconds, 0)) : 0;
-            const modeLabel = timerState.mode === "stopwatch" ? "Kronometre" : "Pomodoro";
+            const modeLabel = getTimerModeLabel(timerState.mode);
             pill.innerHTML = `<i class="fas fa-wave-square"></i> ${modeLabel} - Otomatik kayit acik${unsaved > 0 ? ` - ${unsaved}s bekleyen senkron` : ""}`;
         };
 
@@ -8135,14 +9044,15 @@
         updateTimerFromInputsAndReset = function() {
             if (timerState.session?.isRunning) return;
 
-            if (timerState.mode === "pomodoro") {
+            if (isCountdownTimerMode(timerState.mode)) {
                 const totalSeconds = getPomodoroInputSeconds();
-                timerState.session = createEmptyTimerSession("pomodoro");
+                timerState.session = createEmptyTimerSession(timerState.mode);
                 timerState.session.targetDurationSeconds = totalSeconds;
             } else {
-                timerState.session = createEmptyTimerSession("stopwatch");
+                timerState.session = createEmptyTimerSession(timerState.mode);
             }
 
+            timerDrafts[timerState.mode] = { ...timerState.session };
             renderTimerUi();
         };
 
@@ -8203,10 +9113,30 @@
                     }));
 
                     releaseTimerOwnership();
+                    const nextMode = activeSession?.mode || timerState.mode;
+                    timerState.mode = nextMode;
+                    timerState.session = null;
+                    timerDrafts[nextMode] = null;
+                    persistTimerSessionLocally(null);
+                    updateLocalActiveTimerSnapshot(null);
                     refreshLeaderboardOptimistically(null);
-                    renderTimerUi();
                     hidePomodoroModal();
-                    safeShowAlert("Süre durduruldu. Senkron arka planda tamamlanıyor.", "success");
+
+                    resetTimerDurationInputs(0);
+
+                    Object.keys(timerDrafts).forEach(modeKey => {
+                        timerDrafts[modeKey] = null;
+                    });
+
+                    timerState.session = createEmptyTimerSession(nextMode);
+                    if (isCountdownTimerMode(nextMode)) {
+                        timerState.session.targetDurationSeconds = 0;
+                    }
+                    timerDrafts[nextMode] = { ...timerState.session };
+                    renderTimerUi();
+                    renderSchedule();
+                    maybeRenderAnalyticsIfOpen();
+                    safeShowAlert("Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı.", "success");
                     monitorTimerSyncPromise(syncPromise, {
                         label: "timer-save",
                         timeoutMessage: "Kayit alindi. Bulut senkronu arkada suruyor.",
@@ -8484,14 +9414,18 @@
             const syncTimestamp = Date.now();
             const resolvedEmail = currentUser?.email || basePayload.email || "";
             const questionCounters = buildQuestionCounterPayload(scheduleData);
-            const activeTimerRecord = timerState.session ? serializeTimerSession(timerState.session) : null;
-            const timerPendingSeconds = timerState.session?.isRunning
-                ? getPendingTimerDelta(timerState.session)
+            const activeStudySession = isTimerVisibleForLeaderboard(timerState.session) ? timerState.session : null;
+            const activeTimerRecord = activeStudySession ? serializeTimerSession(activeStudySession) : null;
+            const activeBreakTimerRecord = timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
+                ? serializeTimerSession(timerState.session)
+                : null;
+            const timerPendingSeconds = activeStudySession?.isRunning
+                ? getPendingTimerDelta(activeStudySession)
                 : 0;
-            const legacyWorkingStartedAt = timerState.session?.isRunning
+            const legacyWorkingStartedAt = activeStudySession?.isRunning
                 ? Math.max(
-                    parseInteger(timerState.session.startedAtMs, 0),
-                    syncTimestamp - (Math.max(0, getTimerElapsedSeconds(timerState.session)) * 1000)
+                    parseInteger(activeStudySession.startedAtMs, 0),
+                    syncTimestamp - (Math.max(0, getTimerElapsedSeconds(activeStudySession)) * 1000)
                 )
                 : 0;
             const titleInfo = buildResolvedTitleInfo({
@@ -8536,12 +9470,16 @@
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerPendingSeconds,
+                currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
                 legacyWorkingStartedAt,
                 activeTimer: activeTimerRecord,
-                isWorking: isTimerRecordRunning(timerState.session),
-                isRunning: !!timerState.session?.isRunning,
+                activeBreakTimer: activeBreakTimerRecord,
+                isWorking: isTimerRecordRunning(activeStudySession),
+                isRunning: !!activeStudySession?.isRunning,
+                isOnBreak: !!activeBreakTimerRecord?.isRunning,
                 lastSyncTime: syncTimestamp,
-                lastTimerSyncAt: syncTimestamp
+                lastTimerSyncAt: syncTimestamp,
+                lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0
             };
         };
 
@@ -8552,10 +9490,13 @@
                 const titleInfo = buildResolvedTitleInfo({
                     uid: currentUser?.uid || seed.uid || "",
                     schedule: scheduleData,
-                    activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
+                    activeTimer: isTimerVisibleForLeaderboard(timerState.session) ? serializeTimerSession(timerState.session) : null,
                     selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, seed),
                     titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, seed)
                 });
+                const activeBreakTimerRecord = timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
+                    ? serializeTimerSession(timerState.session)
+                    : null;
                 return {
                     ...seed,
                     username: currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
@@ -8571,9 +9512,12 @@
                     todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
                     todayDateKey: getCurrentDayMeta(new Date()).dateKey,
-                    currentSessionTime: timerState.session?.isRunning ? getPendingTimerDelta(timerState.session) : 0,
-                    activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
-                    isRunning: !!timerState.session?.isRunning,
+                    currentSessionTime: isTimerVisibleForLeaderboard(timerState.session) ? getPendingTimerDelta(timerState.session) : 0,
+                    currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
+                    activeTimer: isTimerVisibleForLeaderboard(timerState.session) ? serializeTimerSession(timerState.session) : null,
+                    activeBreakTimer: activeBreakTimerRecord,
+                    isRunning: !!(isTimerVisibleForLeaderboard(timerState.session) && timerState.session?.isRunning),
+                    isOnBreak: !!activeBreakTimerRecord?.isRunning,
                     lastSyncTime: Date.now(),
                     emailVerified: !!currentUser?.emailVerified
                 };
@@ -8669,12 +9613,12 @@
                 return originalUpdateWorkingStatus.apply(this, arguments);
             }
 
-            const isWorking = !!status;
+            const isWorking = !!status && !isBreakTimerMode(timerState.session?.mode);
             const now = Date.now();
-            const sessionElapsedSeconds = timerState.session?.isRunning
+            const sessionElapsedSeconds = isWorking && timerState.session?.isRunning
                 ? Math.max(0, getTimerElapsedSeconds(timerState.session))
                 : 0;
-            const sessionPendingSeconds = timerState.session?.isRunning
+            const sessionPendingSeconds = isWorking && timerState.session?.isRunning
                 ? Math.max(0, getPendingTimerDelta(timerState.session))
                 : 0;
             const nextLegacyWorkingStartedAt = isWorking
@@ -8696,7 +9640,11 @@
                 lastSyncTime: now,
                 lastTimerSyncAt: now,
                 totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
-                activeTimer: isWorking && timerState.session ? serializeTimerSession(timerState.session) : null
+                activeTimer: isWorking && timerState.session ? serializeTimerSession(timerState.session) : null,
+                activeBreakTimer: timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
+                    ? serializeTimerSession(timerState.session)
+                    : null,
+                isOnBreak: timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
             };
 
             currentUserLiveDoc = {
@@ -8771,6 +9719,7 @@
             updateLiveStudyPreview();
             refreshVisibleProfileModalFromLiveData();
             syncCurrentUserTitleAwardsIfNeeded();
+            maybeRenderAnalyticsIfOpen();
         };
     }
 
@@ -8966,7 +9915,7 @@
         setTimerMode(timerState.mode, { persist: false, keepSession: true });
         if (!timerState.session) {
             timerState.session = createEmptyTimerSession(timerState.mode);
-            if (timerState.mode === "pomodoro") {
+            if (isCountdownTimerMode(timerState.mode)) {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
         }
