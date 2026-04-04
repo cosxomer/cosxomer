@@ -1879,7 +1879,7 @@
 
         monitorTimerSyncPromise(syncRealtimeTimer("hourly-checkpoint", {
             activeSession,
-            currentSessionTime: getTimerElapsedSeconds(activeSession, now),
+            currentSessionTime: getPendingTimerDelta(activeSession),
             userTriggeredWrite: true,
             authorized: true
         }), {
@@ -2222,7 +2222,7 @@
             touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
             syncRealtimeTimer("heartbeat", {
                 activeSession: timerState.session,
-                currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                currentSessionTime: getPendingTimerDelta(timerState.session),
                 userTriggeredWrite: true,
                 authorized: true
             }).catch(error => {
@@ -3097,6 +3097,18 @@
         return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, displayReferenceMs);
     }
 
+    function getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate = new Date()) {
+        const { weekKey } = getCurrentDayMeta(referenceDate);
+        const weekData = schedule?.[weekKey] || {};
+        let seconds = 0;
+
+        for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
+            seconds += Math.max(0, parseInteger(weekData?.[dayIdx]?.workedSeconds, 0));
+        }
+
+        return seconds;
+    }
+
     function getLeaderboardDayDisplayReferenceMs(userData = {}, referenceDate = new Date(), now = Date.now()) {
         const safeNow = Math.max(0, parseInteger(now, Date.now()));
         const dayStart = new Date(referenceDate);
@@ -3236,16 +3248,13 @@
             ...(userData || {}),
             schedule: sanitizeScheduleData(schedule || userData?.schedule || {})
         }, referenceDate);
-        const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(resetState.normalizedData.schedule || {}, referenceDate, safeReferenceMs);
-        if (!isDailyStudySnapshotFresh(resetState.normalizedData, referenceDate)) {
-            return scheduleSeconds;
-        }
-
-        return Math.max(
-            scheduleSeconds,
-            parseInteger(resetState.normalizedData?.dailyStudyTime, 0),
-            parseInteger(resetState.normalizedData?.todayStudyTime, 0),
-            parseInteger(resetState.normalizedData?.todayWorkedSeconds, 0)
+        // Daily truth must come from the per-day schedule entry only.
+        // Mirrored fields are kept for compatibility, but they should never
+        // resurrect yesterday's value into a fresh day.
+        return getCurrentDayWorkedSecondsFromSchedule(
+            resetState.normalizedData.schedule || {},
+            referenceDate,
+            safeReferenceMs
         );
     }
 
@@ -3472,22 +3481,12 @@
                 ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
                 : 0
         );
-        const currentWeekSeconds = Math.max(
-            parseInteger(safeBase.currentWeekSeconds, 0),
-            parseInteger(safeBase.weeklyStudyTime, 0),
-            parseInteger(safeUser.currentWeekSeconds, 0),
-            parseInteger(safeUser.weeklyStudyTime, 0),
-            parseInteger(safePublic.currentWeekSeconds, 0),
-            parseInteger(safePublic.weeklyStudyTime, 0),
-            parseInteger(safeCached.currentWeekSeconds, 0),
-            parseInteger(safeCached.weeklyStudyTime, 0),
-            editable && typeof getCurrentWeekTotalsFromSchedule === "function"
-                ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds
-                : 0,
-            typeof getCurrentWeekTotalsFromSchedule === "function"
-                ? getCurrentWeekTotalsFromSchedule(resolvedSchedule).seconds
-                : 0
-        );
+        const currentWeekSeconds = editable
+            ? Math.max(
+                getCurrentWeekWorkedSecondsFromSchedule(resolvedSchedule, referenceDate),
+                getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, referenceDate)
+            )
+            : getCurrentWeekWorkedSecondsFromSchedule(resolvedSchedule, referenceDate);
         const resolvedNotesSource = editable
             ? (safeBase.notes || safeUser.notes || userNotes || [])
             : (safeBase.notes || safePublic.notes || safeCached.notes || safeUser.notes || []);
@@ -3807,16 +3806,18 @@
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, currentUserLiveDoc || {});
         const resolvedTitleAwards = getStoredTitleAwards(basePayload, currentUserLiveDoc || {});
-        const weeklyStudyTime = typeof getCurrentWeekTotalsFromSchedule === "function"
-            ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
-            : parseInteger(basePayload.currentWeekSeconds, 0);
+        const dailyStudyTime = getFreshDailyStudySeconds(basePayload, safeSchedule);
+        const weeklyStudyTime = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
         const activeTimer = basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null);
+        const activeTimerElapsedSeconds = activeTimer
+            ? Math.max(0, getTimerElapsedSeconds(activeTimer))
+            : 0;
         const legacyWorkingStartedAt = Math.max(
             parseInteger(basePayload.legacyWorkingStartedAt, 0),
             activeTimer
                 ? Math.max(
                     parseInteger(activeTimer.startedAtMs, 0),
-                    Date.now() - (Math.max(0, parseInteger(basePayload.currentSessionTime, 0)) * 1000)
+                    Date.now() - (activeTimerElapsedSeconds * 1000)
                 )
                 : 0
         );
@@ -3871,11 +3872,11 @@
                     ? calculateTotalQuestionsFromSchedule(safeSchedule)
                     : 0
             ),
-            dailyStudyTime: Math.max(
-                getFreshDailyStudySeconds(basePayload, safeSchedule),
-                getCurrentDayWorkedSeconds()
-            ),
+            dailyStudyTime,
+            todayStudyTime: dailyStudyTime,
+            todayWorkedSeconds: dailyStudyTime,
             dailyStudyDateKey: currentDayMeta.dateKey,
+            todayDateKey: currentDayMeta.dateKey,
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime: parseInteger(basePayload.currentSessionTime, 0),
@@ -3928,28 +3929,22 @@
             : !!derivedAdminMeta?.isAdmin;
         const resolvedRole = basePayload.role || (resolvedIsAdmin ? "admin" : "user");
         const resolvedAdminTitle = basePayload.adminTitle || (resolvedIsAdmin ? (derivedAdminMeta?.adminTitle || "Kurucu Admin") : "");
-        const dailyStudyTime = Math.max(
-            getFreshDailyStudySeconds(basePayload, safeSchedule),
-            isCurrentUserTarget ? getCurrentDayWorkedSeconds() : getCurrentDayWorkedSecondsFromSchedule(safeSchedule)
-        );
-        const weeklyStudyTime = Math.max(
-            parseInteger(basePayload.weeklyStudyTime, 0),
-            parseInteger(basePayload.currentWeekSeconds, 0),
-            typeof getCurrentWeekTotalsFromSchedule === "function"
-                ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
-                : 0
-        );
+        const dailyStudyTime = getFreshDailyStudySeconds(basePayload, safeSchedule);
+        const weeklyStudyTime = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
         const activeTimer = basePayload.activeTimer || (isCurrentUserTarget && timerState.session ? serializeTimerSession(timerState.session) : null);
         const currentSessionTime = Math.max(
             parseInteger(basePayload.currentSessionTime, 0),
-            isCurrentUserTarget && isTimerVisibleForLeaderboard(timerState.session) ? getTimerElapsedSeconds(timerState.session) : 0
+            isCurrentUserTarget && isTimerVisibleForLeaderboard(timerState.session) ? getPendingTimerDelta(timerState.session) : 0
         );
+        const activeTimerElapsedSeconds = activeTimer
+            ? Math.max(0, getTimerElapsedSeconds(activeTimer))
+            : 0;
         const legacyWorkingStartedAt = Math.max(
             parseInteger(basePayload.legacyWorkingStartedAt, 0),
             activeTimer
                 ? Math.max(
                     parseInteger(activeTimer.startedAtMs, 0),
-                    Date.now() - (Math.max(0, currentSessionTime) * 1000)
+                    Date.now() - (activeTimerElapsedSeconds * 1000)
                 )
                 : 0
         );
@@ -3996,7 +3991,10 @@
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
             dailyStudyTime,
+            todayStudyTime: dailyStudyTime,
+            todayWorkedSeconds: dailyStudyTime,
             dailyStudyDateKey: currentDayMeta.dateKey,
+            todayDateKey: currentDayMeta.dateKey,
             weeklyStudyTime,
             currentWeekSeconds: weeklyStudyTime,
             currentSessionTime,
@@ -4161,11 +4159,12 @@
     }
 
     function mergeFreshDailySnapshotIntoLocalSchedule(userData = {}, referenceDate = new Date()) {
-        const remoteSchedule = sanitizeScheduleData(userData?.schedule || {});
+        const remoteResetState = getDailySnapshotResetState(userData || {}, referenceDate);
+        const remoteSchedule = sanitizeScheduleData(remoteResetState.normalizedData?.schedule || userData?.schedule || {});
         const { weekKey, dayIdx, dateKey } = getCurrentDayMeta(referenceDate);
         const localDayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
         const remoteDayData = ensureDayObject(remoteSchedule?.[weekKey]?.[dayIdx] || {});
-        const explicitDailySeconds = getFreshDailyStudySeconds(userData, remoteSchedule, referenceDate);
+        const explicitDailySeconds = getFreshDailyStudySeconds(remoteResetState.normalizedData, remoteSchedule, referenceDate);
         const adminTimeAdjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
         const shouldForceReplaceFromAdmin = !!adminTimeAdjustment
             && adminTimeAdjustment.dateKey === dateKey;
@@ -4198,6 +4197,13 @@
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
         );
+        const localRunningToday = !!timerState.session?.isRunning
+            && !hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate);
+        const shouldTrustRemoteReset = !shouldForceReplaceFromAdmin
+            && !localRunningToday
+            && remoteResetState.needsSync
+            && parseInteger(remoteDayData.workedSeconds, 0) <= 0
+            && explicitDailySeconds <= 0;
         const nextWorkedSeconds = shouldForceReplaceFromAdmin
             ? Math.max(
                 0,
@@ -4206,9 +4212,11 @@
                 adminTimeAdjustment.appliedDaySeconds,
                 adminTimeAdjustment.targetSeconds
             )
-            : Math.max(currentStoredSeconds, explicitDailySeconds);
+            : (shouldTrustRemoteReset
+                ? Math.max(0, parseInteger(remoteDayData.workedSeconds, 0))
+                : Math.max(currentStoredSeconds, explicitDailySeconds));
 
-        if (!shouldForceReplaceFromAdmin && nextWorkedSeconds <= currentStoredSeconds) {
+        if (!shouldForceReplaceFromAdmin && !shouldTrustRemoteReset && nextWorkedSeconds <= currentStoredSeconds) {
             return false;
         }
 
@@ -4271,9 +4279,7 @@
             selectedTitleId: resolvedSelectedTitleId,
             titleAwards: resolvedTitleAwards
         });
-        const currentWeekWorkedSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
-            ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds
-            : (totalWorkedSecondsAllTime || 0);
+        const currentWeekWorkedSeconds = getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, new Date(syncTimestamp));
 
         return {
             schedule: scheduleData,
@@ -4286,7 +4292,10 @@
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
             dailyStudyTime: currentDayWorkedSeconds,
+            todayStudyTime: currentDayWorkedSeconds,
+            todayWorkedSeconds: currentDayWorkedSeconds,
             dailyStudyDateKey: currentDayMeta.dateKey,
+            todayDateKey: currentDayMeta.dateKey,
             weeklyStudyTime: currentWeekWorkedSeconds,
             currentWeekSeconds: currentWeekWorkedSeconds,
             currentSessionTime: resolvedCurrentSessionTime,
@@ -4598,7 +4607,7 @@
         refreshLeaderboardOptimistically();
         await syncRealtimeTimer("start", {
             activeSession: session,
-            currentSessionTime: getTimerDisplaySeconds(session),
+            currentSessionTime: getPendingTimerDelta(session),
             userTriggeredWrite: true,
             authorized: true
         });
@@ -4870,24 +4879,21 @@
         const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(normalizedUserData, now);
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(normalizedUserData?.activeTimer, now);
         const dayDisplayReferenceMs = getLeaderboardDayDisplayReferenceMs(normalizedUserData, currentDate, now);
-        const explicitDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate, {
+        const scheduleDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate, {
             displayReferenceMs: dayDisplayReferenceMs
         });
-        const explicitWeeklySeconds = Math.max(
-            parseInteger(normalizedUserData?.weeklyStudyTime, 0),
-            parseInteger(normalizedUserData?.currentWeekSeconds, 0)
-        );
+        const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(normalizedUserData?.schedule || {}, currentDate);
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
             dayStartMs = dayStart.getTime();
-            totalSeconds = clampWorkedSecondsForDisplay(normalizedUserData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, dayDisplayReferenceMs);
-            totalSeconds = Math.max(totalSeconds, explicitDailySeconds);
+            totalSeconds = Math.max(
+                0,
+                clampWorkedSecondsForDisplay(normalizedUserData?.schedule?.[weekKey]?.[dayIdx]?.workedSeconds, dayStart, dayDisplayReferenceMs),
+                scheduleDailySeconds
+            );
         } else {
-            totalSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
-                ? getCurrentWeekTotalsFromSchedule(normalizedUserData?.schedule || {}).seconds
-                : getRollingSevenDayTotalsFromSchedule(normalizedUserData?.schedule || {}, currentDate).seconds;
-            totalSeconds = Math.max(totalSeconds, explicitWeeklySeconds);
+            totalSeconds = scheduleWeeklySeconds;
         }
 
         const activeTimer = normalizedUserData?.activeTimer;
@@ -4906,20 +4912,8 @@
             }
         }
 
-        if (!hasVisibleActiveTimer && liveSessionSnapshot.seconds > 0) {
-            if (currentLeaderboardTab === "daily") {
-                totalSeconds = Math.max(
-                    totalSeconds,
-                    liveSessionSnapshot.seconds,
-                    explicitDailySeconds + liveSessionSnapshot.seconds
-                );
-            } else {
-                totalSeconds = Math.max(
-                    totalSeconds,
-                    liveSessionSnapshot.seconds,
-                    explicitWeeklySeconds + liveSessionSnapshot.seconds
-                );
-            }
+        if (!hasVisibleActiveTimer && liveSessionSnapshot.isLive && liveSessionSnapshot.seconds > 0) {
+            totalSeconds += liveSessionSnapshot.seconds;
         }
 
         if (currentLeaderboardTab === "daily" && dayStartMs > 0) {
@@ -4943,11 +4937,10 @@
 
     function getObservedLeaderboardDailySeconds(rawData = {}, referenceDate = new Date()) {
         const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
-        return Math.max(
-            getCurrentDayWorkedSecondsFromSchedule(safeSchedule, referenceDate),
-            parseInteger(rawData?.dailyStudyTime, 0),
-            parseInteger(rawData?.todayStudyTime, 0),
-            parseInteger(rawData?.todayWorkedSeconds, 0)
+        return getCurrentDayWorkedSecondsFromSchedule(
+            safeSchedule,
+            referenceDate,
+            getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, referenceDate.getTime())
         );
     }
 
@@ -5341,6 +5334,14 @@
     function normalizeLiveLeaderboardDocData(rawData = {}, docId = "") {
         const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
         const sourceRecency = getLeaderboardSourceRecency(rawData);
+        const referenceDate = new Date();
+        const currentDayMeta = getCurrentDayMeta(referenceDate);
+        const dailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
+            safeSchedule,
+            referenceDate,
+            getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, Date.now())
+        );
+        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
         updateInferredWorkingPresence(rawData, docId);
         const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
@@ -5348,6 +5349,13 @@
             ...rawData,
             username: String(rawData.username || rawData.name || rawData.email?.split?.("@")?.[0] || "").trim(),
             schedule: safeSchedule,
+            dailyStudyTime,
+            todayStudyTime: dailyStudyTime,
+            todayWorkedSeconds: dailyStudyTime,
+            dailyStudyDateKey: currentDayMeta.dateKey,
+            todayDateKey: currentDayMeta.dateKey,
+            weeklyStudyTime: currentWeekSeconds,
+            currentWeekSeconds,
             currentSessionTime: presenceState.currentSessionTime,
             legacyWorkingStartedAt: presenceState.legacyWorkingStartedAt,
             isWorking: presenceState.isWorking,
@@ -5369,16 +5377,16 @@
         return normalizeLeaderboardCloudDocs((Array.isArray(snapshotDocs) ? snapshotDocs : []).map(doc => {
             const rawData = doc.data() || {};
             const safeSchedule = sanitizeScheduleData(rawData.schedule || {});
+            const referenceDate = new Date();
+            const currentDayMeta = getCurrentDayMeta(referenceDate);
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
             updateInferredWorkingPresence(rawData, doc.id);
             const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
-
-            const currentWeekSeconds = Math.max(
-                parseInteger(rawData.currentWeekSeconds, 0),
-                parseInteger(rawData.weeklyStudyTime, 0),
-                typeof getCurrentWeekTotalsFromSchedule === "function"
-                    ? getCurrentWeekTotalsFromSchedule(safeSchedule).seconds
-                    : 0
+            const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+            const dailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
+                safeSchedule,
+                referenceDate,
+                getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, Date.now())
             );
             const totalWorkedSeconds = Math.max(
                 parseInteger(rawData.totalWorkedSeconds, 0),
@@ -5421,7 +5429,12 @@
                         parseInteger(rawData.weekly, 0),
                         questionCounters.weeklyQuestions
                     ),
-                    weeklyStudyTime: Math.max(parseInteger(rawData.weeklyStudyTime, 0), currentWeekSeconds),
+                    dailyStudyTime,
+                    todayStudyTime: dailyStudyTime,
+                    todayWorkedSeconds: dailyStudyTime,
+                    dailyStudyDateKey: currentDayMeta.dateKey,
+                    todayDateKey: currentDayMeta.dateKey,
+                    weeklyStudyTime: currentWeekSeconds,
                     currentWeekSeconds,
                     totalWorkedSeconds,
                     totalStudyTime: Math.max(parseInteger(rawData.totalStudyTime, 0), totalWorkedSeconds),
@@ -5478,33 +5491,23 @@
                 || liveSessionSeconds > profileSessionSeconds
                 || !!liveData.isWorking
             );
+            const referenceDate = new Date();
+            const currentDayMeta = getCurrentDayMeta(referenceDate);
 
             mergedData.schedule = sanitizeScheduleData(profileData.schedule || liveData.schedule || {});
-            mergedData.dailyStudyTime = Math.max(
-                parseInteger(profileData.dailyStudyTime, 0),
-                parseInteger(profileData.todayStudyTime, 0),
-                parseInteger(profileData.todayWorkedSeconds, 0),
-                parseInteger(liveData.dailyStudyTime, 0),
-                parseInteger(liveData.todayStudyTime, 0),
-                parseInteger(liveData.todayWorkedSeconds, 0)
+            const mergedDailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
+                mergedData.schedule,
+                referenceDate,
+                getLeaderboardDayDisplayReferenceMs(mergedData, referenceDate, Date.now())
             );
-            mergedData.dailyStudyDateKey = profileData.dailyStudyDateKey
-                || profileData.todayDateKey
-                || liveData.dailyStudyDateKey
-                || liveData.todayDateKey
-                || "";
-            mergedData.weeklyStudyTime = Math.max(
-                parseInteger(profileData.weeklyStudyTime, 0),
-                parseInteger(profileData.currentWeekSeconds, 0),
-                parseInteger(liveData.weeklyStudyTime, 0),
-                parseInteger(liveData.currentWeekSeconds, 0)
-            );
-            mergedData.currentWeekSeconds = Math.max(
-                parseInteger(profileData.currentWeekSeconds, 0),
-                parseInteger(profileData.weeklyStudyTime, 0),
-                parseInteger(liveData.currentWeekSeconds, 0),
-                parseInteger(liveData.weeklyStudyTime, 0)
-            );
+            const mergedCurrentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(mergedData.schedule, referenceDate);
+            mergedData.dailyStudyTime = mergedDailyStudyTime;
+            mergedData.todayStudyTime = mergedDailyStudyTime;
+            mergedData.todayWorkedSeconds = mergedDailyStudyTime;
+            mergedData.dailyStudyDateKey = currentDayMeta.dateKey;
+            mergedData.todayDateKey = currentDayMeta.dateKey;
+            mergedData.weeklyStudyTime = mergedCurrentWeekSeconds;
+            mergedData.currentWeekSeconds = mergedCurrentWeekSeconds;
             mergedData.currentSessionTime = Math.max(profileSessionSeconds, liveSessionSeconds);
             mergedData.activeTimer = liveTimerLooksFresher
                 ? (liveTimer || profileTimer || null)
@@ -5654,12 +5657,9 @@
                         : 0
                 );
                 const questions = currentPeriodQuestions;
-                const currentWeekTotals = Math.max(
-                    parseInteger(data.currentWeekSeconds, 0),
-                    parseInteger(data.weeklyStudyTime, 0),
-                    typeof getCurrentWeekTotalsFromSchedule === "function"
-                        ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
-                        : seconds
+                const currentWeekTotals = getCurrentWeekWorkedSecondsFromSchedule(
+                    sanitizeScheduleData(data.schedule || {}),
+                    referenceDate
                 );
                 const titleInfo = buildResolvedTitleInfo({
                     uid: doc.id,
@@ -7723,7 +7723,7 @@
             refreshLeaderboardOptimistically();
             monitorTimerSyncPromise(syncRealtimeTimer("start", {
                 activeSession: session,
-                currentSessionTime: getTimerElapsedSeconds(session),
+                currentSessionTime: getPendingTimerDelta(session),
                 userTriggeredWrite: true,
                 authorized: true
             }), {
@@ -8091,7 +8091,7 @@
                 if (timerState.session?.isRunning) {
                     syncRealtimeTimer("modal-show", {
                         activeSession: timerState.session,
-                        currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                        currentSessionTime: getPendingTimerDelta(timerState.session),
                         userTriggeredWrite: true,
                         authorized: true
                     }).catch(error => {
@@ -8109,7 +8109,7 @@
                     touchTimerVisibility(Date.now(), { modalOpen: false, persist: true });
                     syncRealtimeTimer("modal-hide", {
                         activeSession: timerState.session,
-                        currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                        currentSessionTime: getPendingTimerDelta(timerState.session),
                         userTriggeredWrite: true,
                         authorized: true
                     }).catch(error => {
@@ -8367,7 +8367,10 @@
                 selectedTitleId: titleInfo.selectedTitleId,
                 titleAwards: titleInfo.titleAwards,
                 dailyStudyTime: getCurrentDayWorkedSeconds(),
+                todayStudyTime: getCurrentDayWorkedSeconds(),
+                todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
+                todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerPendingSeconds,
                 legacyWorkingStartedAt,
                 activeTimer: activeTimerRecord,
@@ -8400,7 +8403,10 @@
                     selectedTitleId: titleInfo.selectedTitleId,
                     titleAwards: titleInfo.titleAwards,
                     dailyStudyTime: getCurrentDayWorkedSeconds(),
+                    todayStudyTime: getCurrentDayWorkedSeconds(),
+                    todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
+                    todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                     currentSessionTime: timerState.session?.isRunning ? getPendingTimerDelta(timerState.session) : 0,
                     activeTimer: timerState.session ? serializeTimerSession(timerState.session) : null,
                     isRunning: !!timerState.session?.isRunning,
@@ -8504,6 +8510,9 @@
             const sessionElapsedSeconds = timerState.session?.isRunning
                 ? Math.max(0, getTimerElapsedSeconds(timerState.session))
                 : 0;
+            const sessionPendingSeconds = timerState.session?.isRunning
+                ? Math.max(0, getPendingTimerDelta(timerState.session))
+                : 0;
             const nextLegacyWorkingStartedAt = isWorking
                 ? Math.max(
                     parseInteger(currentUserLiveDoc?.legacyWorkingStartedAt, 0),
@@ -8518,7 +8527,7 @@
             const workingPatch = {
                 isWorking,
                 isRunning: isWorking,
-                currentSessionTime: isWorking ? sessionElapsedSeconds : 0,
+                currentSessionTime: isWorking ? sessionPendingSeconds : 0,
                 legacyWorkingStartedAt: nextLegacyWorkingStartedAt,
                 lastSyncTime: now,
                 lastTimerSyncAt: now,
@@ -8654,7 +8663,7 @@
                 touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
                 syncRealtimeTimer("visibility-hidden", {
                     activeSession: timerState.session,
-                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                    currentSessionTime: getPendingTimerDelta(timerState.session),
                     userTriggeredWrite: true,
                     authorized: true
                 }).catch(error => {
@@ -8665,7 +8674,7 @@
                 maybeTriggerForcedHourlyCheckpoint(Date.now());
                 syncRealtimeTimer("visibility-visible", {
                     activeSession: timerState.session,
-                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                    currentSessionTime: getPendingTimerDelta(timerState.session),
                     userTriggeredWrite: true,
                     authorized: true
                 }).catch(error => {
@@ -8679,7 +8688,7 @@
                 touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
                 syncRealtimeTimer("pagehide", {
                     activeSession: timerState.session,
-                    currentSessionTime: getTimerElapsedSeconds(timerState.session),
+                    currentSessionTime: getPendingTimerDelta(timerState.session),
                     userTriggeredWrite: true,
                     authorized: true
                 }).catch(error => {

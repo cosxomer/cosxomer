@@ -6484,12 +6484,51 @@
                 }
             }
 
-            return Math.max(
-                scheduleSeconds,
-                parseInt(data && data.dailyStudyTime, 10) || 0,
-                parseInt(data && data.todayStudyTime, 10) || 0,
-                parseInt(data && data.todayWorkedSeconds, 10) || 0
+            return scheduleSeconds;
+        }
+
+        function getSafeInlineLiveSessionSeconds(data, referenceDate = new Date()) {
+            const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
+            const nowMs = now.getTime();
+            const currentDateKey = getInlineDateKey(now);
+            const activeTimer = data && data.activeTimer && typeof data.activeTimer === 'object'
+                ? data.activeTimer
+                : null;
+            const staleWindowMs = 3 * 60 * 60 * 1000;
+
+            if (activeTimer) {
+                const timerDateKey = String(activeTimer.sessionDateKey || '').trim();
+                const sameDay = !timerDateKey || timerDateKey === currentDateKey;
+                const startedAtMs = Math.max(0, parseInt(activeTimer.startedAtMs, 10) || 0);
+                const lastSeenAtMs = Math.max(
+                    startedAtMs,
+                    parseInt(activeTimer.lastSeenAtMs, 10) || 0,
+                    parseInt(data && data.lastTimerSyncAt, 10) || 0,
+                    parseInt(data && data.lastSyncTime, 10) || 0
+                );
+
+                if (sameDay && !!activeTimer.isRunning && startedAtMs > 0 && lastSeenAtMs > 0 && (nowMs - lastSeenAtMs) < staleWindowMs) {
+                    const effectiveNow = Math.min(nowMs, lastSeenAtMs + staleWindowMs);
+                    const runtimeSeconds = Math.max(0, Math.floor((effectiveNow - startedAtMs) / 1000));
+                    const elapsedSeconds = Math.max(0, (parseInt(activeTimer.baseElapsedSeconds, 10) || 0) + runtimeSeconds);
+                    const persistedSeconds = Math.max(0, parseInt(activeTimer.lastPersistedElapsedSeconds, 10) || 0);
+                    return Math.max(0, elapsedSeconds - persistedSeconds);
+                }
+            }
+
+            const isWorking = !!(data && (data.isWorking || data.isRunning));
+            if (!isWorking) return 0;
+
+            const lastSyncAt = Math.max(
+                parseInt(data && data.lastTimerSyncAt, 10) || 0,
+                parseInt(data && data.lastSyncTime, 10) || 0,
+                parseInt(data && data.updatedAtMs, 10) || 0
             );
+            if (lastSyncAt <= 0) return 0;
+            if (getInlineDateKey(new Date(lastSyncAt)) !== currentDateKey) return 0;
+            if ((nowMs - lastSyncAt) >= staleWindowMs) return 0;
+
+            return Math.max(0, parseInt(data && data.currentSessionTime, 10) || 0);
         }
 
         function renderSchedule() {
@@ -7594,16 +7633,17 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
 
-            const usersSnapshot = await db.collection('leaderboard').get();
+            const usersSnapshot = await db.collection('users').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
+                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
@@ -7621,14 +7661,14 @@
                         }
                     }
                     if (currentLeaderboardTab !== 'daily') {
-                        targetSeconds = Math.max(targetSeconds, parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                        targetSeconds = Math.max(targetSeconds, currentWeekSeconds);
                         targetQuestions = Math.max(targetQuestions, parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     }
-                    if (data.isWorking) {
-                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
+                    if (liveSessionSeconds > 0) {
+                        targetSeconds += liveSessionSeconds;
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -7644,7 +7684,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
+                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false
                         });
                     }
                 });
@@ -7726,7 +7766,7 @@
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7; 
 
-            const usersSnapshot = await db.collection('leaderboard').get();
+            const usersSnapshot = await db.collection('users').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -7734,9 +7774,10 @@
                     let targetSeconds = 0;
                     let targetQuestions = 0;
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
+                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
                     
                     if (currentLeaderboardTab === 'daily') {
                         // Günlük verileri hesapla
@@ -7760,12 +7801,12 @@
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
 
-                    if (data.isWorking) {
-                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
+                    if (liveSessionSeconds > 0) {
+                        targetSeconds += liveSessionSeconds;
                     }
 
                     // Gösterim şartı
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
                         leaderboardData.push({ 
                             uid: doc.id,
                             username: data.username, 
@@ -7776,7 +7817,7 @@
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
                             questions: targetQuestions,
-                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
+                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false
                         });
                     }
                 });
@@ -8628,7 +8669,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                 showProfileModal({
                     uid,
                     username: data.username || cachedProfile.username || "Kullanıcı",
@@ -8658,7 +8699,7 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-            const usersSnapshot = await db.collection('leaderboard').get();
+            const usersSnapshot = await db.collection('users').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
@@ -8667,6 +8708,7 @@
                     let targetQuestions = 0;
                     const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds);
+                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
@@ -8682,7 +8724,11 @@
                         }
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
+                    if (liveSessionSeconds > 0) {
+                        targetSeconds += liveSessionSeconds;
+                    }
+
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8698,7 +8744,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false,
+                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false,
                             publicNotes: getPublicUserNotes(data.notes || [])
                         });
                     }
@@ -8829,7 +8875,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                 const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                 showProfileModal({
                     uid,
@@ -8862,20 +8908,21 @@
                 const today = new Date();
                 const todayWeekKey = getWeekKey(today);
                 const todayDayIdx = (today.getDay() + 6) % 7;
-            const usersSnapshot = await db.collection('leaderboard').get();
+            const usersSnapshot = await db.collection('users').get();
                 let leaderboardData = [];
 
                 usersSnapshot.forEach(doc => {
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
+                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
+                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
+                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
@@ -8896,11 +8943,11 @@
                         targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
-                    if (data.isWorking) {
-                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
+                    if (liveSessionSeconds > 0) {
+                        targetSeconds += liveSessionSeconds;
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0) || resolvedIsAdmin)) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8918,7 +8965,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false,
+                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false,
                             publicNotes: getPublicUserNotes(data.notes || [])
                         });
                     }
@@ -10214,9 +10261,19 @@
 
             updateWorkingStatus = function(status) {
                 if (!currentUser) return;
+                const safeStatus = !!status;
+                const basePayload = typeof buildUserPayload === 'function'
+                    ? buildUserPayload()
+                    : {};
                 db.collection('users')
                     .doc(currentUser.uid)
-                    .set({ isWorking: status }, { merge: true })
+                    .set({
+                        ...basePayload,
+                        isWorking: safeStatus,
+                        isRunning: safeStatus,
+                        currentSessionTime: safeStatus ? Math.max(0, parseInt(basePayload.currentSessionTime, 10) || 0) : 0,
+                        lastTimerSyncAt: Date.now()
+                    }, { merge: true })
                     .catch(error => console.error(error));
             };
 
