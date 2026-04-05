@@ -1787,7 +1787,8 @@
             updatedAtMs: Date.now(),
             ownerId: timerInstanceId,
             modalOpen,
-            lastSeenAtMs
+            lastSeenAtMs,
+            resumeLocked: !!session.resumeLocked
         };
     }
 
@@ -1950,7 +1951,8 @@
             updatedAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, Date.now())),
             lastSeenAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, 0)),
             modalOpen: false,
-            ownerId: timerInstanceId
+            ownerId: timerInstanceId,
+            resumeLocked: ["auto-finalize-inactive", "restore-frozen", "complete", "study-complete"].includes(String(snapshot.reason || "").trim())
         };
     }
 
@@ -2208,7 +2210,8 @@
             lastForcedCheckpointAtMs: 0,
             sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
             modalOpen: false,
-            lastSeenAtMs: 0
+            lastSeenAtMs: 0,
+            resumeLocked: false
         };
     }
 
@@ -2537,6 +2540,7 @@
         }
 
         const hasProgress = !!timerState.session && getTimerElapsedSeconds(timerState.session) > 0;
+        const lockedResume = !!timerState.session?.resumeLocked;
         const running = !!timerState.session?.isRunning;
         const isStopwatch = isStopwatchTimerMode(timerState.mode);
         const isBreak = isBreakTimerMode(timerState.mode);
@@ -2544,7 +2548,9 @@
         if (running) {
             startPauseButton.innerHTML = '<i class="fas fa-pause"></i> Duraklat';
         } else if (hasProgress) {
-            startPauseButton.innerHTML = '<i class="fas fa-play"></i> Devam Et';
+            startPauseButton.innerHTML = lockedResume
+                ? `<i class="fas fa-play"></i> ${isStopwatch ? (isBreak ? "Yeni Mola Baslat" : "Yeni Kronometre Baslat") : (isBreak ? "Yeni Mola Baslat" : "Yeni Pomodoro Baslat")}`
+                : '<i class="fas fa-play"></i> Devam Et';
         } else {
             startPauseButton.innerHTML = `<i class="fas fa-play"></i> ${isStopwatch ? (isBreak ? "Mola Kronometresini Baslat" : "Kronometre Baslat") : (isBreak ? "Mola Zamanlayicisini Baslat" : "Pomodoro Baslat")}`;
         }
@@ -5787,6 +5793,11 @@
         const mode = timerState.mode;
         let session = timerState.session;
 
+        if (session?.resumeLocked) {
+            clearTimerFinalizedSnapshot(currentUser?.uid || "");
+            session = createEmptyTimerSession(mode);
+        }
+
         if (!session || session.mode !== mode) {
             session = createEmptyTimerSession(mode);
         }
@@ -8952,6 +8963,11 @@
 
             const mode = normalizeTimerMode(timerState.mode);
             let session = timerState.session;
+
+            if (session?.resumeLocked) {
+                clearTimerFinalizedSnapshot(currentUser?.uid || "");
+                session = createEmptyTimerSession(mode);
+            }
 
             if (hasTimerSessionCrossedDayBoundary(session)) {
                 session = buildFreshTimerSession(mode);
