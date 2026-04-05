@@ -5146,12 +5146,8 @@
     function refreshLeaderboardOptimistically(activeSessionOverride) {
         if (currentUser?.uid) {
             const docIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
-            const baseData = docIndex >= 0 ? (leaderboardRealtimeDocs[docIndex]?.data || {}) : (currentUserLiveDoc || {});
-            const docData = buildOptimisticCurrentUserData(baseData, activeSessionOverride);
-
-            if (docIndex >= 0) {
-                leaderboardRealtimeDocs[docIndex] = { id: currentUser.uid, data: docData };
-            } else {
+            if (docIndex < 0) {
+                const docData = buildOptimisticCurrentUserData(currentUserLiveDoc || {}, activeSessionOverride);
                 leaderboardRealtimeDocs.push({ id: currentUser.uid, data: docData });
             }
         }
@@ -6519,6 +6515,13 @@
             return nextData.sort(compareLeaderboardEntries);
         }
 
+        if (currentUser?.uid) {
+            const hasRealCurrentUserRow = nextData.some(user => user && user.uid === currentUser.uid && !user.isLocalPreview);
+            if (hasRealCurrentUserRow) {
+                return nextData.sort(compareLeaderboardEntries);
+            }
+        }
+
         const localIndex = nextData.findIndex(user => {
             if (currentUser?.uid) return user.uid === currentUser.uid;
             return user.uid === LOCAL_LEADERBOARD_PREVIEW_ID || (!!user.isLocalPreview && user.username === localEntry.username);
@@ -6815,13 +6818,8 @@
 
         if (currentUser?.uid) {
             const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
-            const baseData = currentUserIndex >= 0
-                ? (leaderboardRealtimeDocs[currentUserIndex]?.data || {})
-                : (currentUserLiveDoc || {});
-            const optimisticData = buildOptimisticCurrentUserData(baseData);
-            if (currentUserIndex >= 0) {
-                leaderboardRealtimeDocs[currentUserIndex] = { id: currentUser.uid, data: optimisticData };
-            } else {
+            if (currentUserIndex < 0) {
+                const optimisticData = buildOptimisticCurrentUserData(currentUserLiveDoc || {});
                 leaderboardRealtimeDocs.push({ id: currentUser.uid, data: optimisticData });
             }
         }
