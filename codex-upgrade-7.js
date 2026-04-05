@@ -14,6 +14,7 @@
     const TIMER_OWNER_AT_KEY = "codexTimerOwnerAtV1";
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
     const TIMER_RECOVERY_KEY = "codexRealtimeTimerRecoveryV1";
+    const TIMER_FINALIZED_STORAGE_KEY = "codexRealtimeTimerFinalizedV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
     const TIMER_TRACK_KEY = "codexRealtimeTimerTrackV1";
     const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
@@ -656,21 +657,32 @@
         const resetState = finalizeTimerSessionForNewDay(timerState.session, referenceDate, options);
         if (!resetState.didReset) return resetState;
 
+        logTimerReset("day-boundary-reset", {
+            from: resetState.sessionDateKey,
+            to: resetState.todayDateKey,
+            committedSeconds: resetState.committedSeconds
+        });
         stopTimerLoops();
         releaseTimerOwnership();
         isRunning = false;
         timerState.session = resetState.nextSession;
         timerDrafts[resetState.nextSession.mode] = { ...resetState.nextSession };
         persistTimerSessionLocally(null);
+        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         updateLocalActiveTimerSnapshot(null);
 
         currentUserLiveDoc = {
             ...(currentUserLiveDoc || {}),
             activeTimer: null,
+            activeBreakTimer: null,
             isWorking: false,
             isRunning: false,
+            isOnBreak: false,
             currentSessionTime: 0,
-            dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
+            currentBreakSessionTime: 0,
+            legacyWorkingStartedAt: 0,
+            dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey,
+            todayDateKey: getCurrentDayMeta(referenceDate).dateKey
         };
 
         if (options.syncRemote !== false) {
@@ -1027,7 +1039,7 @@
         const token = String(adjustment.token || adjustment.requestedAt || "").trim();
         const dateKey = String(adjustment.dateKey || "").trim();
         const weekKey = String(adjustment.weekKey || "").trim();
-        const scope = ["today", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
+        const scope = ["today", "yesterday", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
         const requestedAtMs = Math.max(
             parseInteger(adjustment.requestedAtMs, 0),
             parseInteger(adjustment.timestamp, 0),
@@ -1120,9 +1132,9 @@
             safeEndTime - safeStartTime
         );
         const safeDateKey = String(
-            entry.date
+            getDateKeyFromTimestamp(safeStartTime)
+            || entry.date
             || entry.dateKey
-            || getDateKeyFromTimestamp(safeStartTime)
             || ""
         ).trim();
         const mode = normalizeTimerMode(String(entry.mode || "pomodoro").trim() || "pomodoro");
@@ -1159,6 +1171,22 @@
 
     function mergeStudySessions(...lists) {
         return normalizeStudySessions(lists.flatMap(list => Array.isArray(list) ? list : []));
+    }
+
+    function hasValidatedStudyActivityForDate(dayData = {}, expectedDateKey = "") {
+        const normalizedExpectedDateKey = String(expectedDateKey || "").trim();
+        return normalizeStudySessions(dayData?.studySessions || []).some(session => {
+            const sessionDateKey = String(
+                session?.dateKey
+                || session?.date
+                || getDateKeyFromTimestamp(session?.startTime)
+                || ""
+            ).trim();
+            if (normalizedExpectedDateKey && sessionDateKey !== normalizedExpectedDateKey) {
+                return false;
+            }
+            return parseInteger(session?.startTime, 0) > 0 && parseInteger(session?.endTime, 0) > parseInteger(session?.startTime, 0);
+        });
     }
 
     function appendStudySessionSegment(startTime, endTime, mode = timerState.mode) {
@@ -1771,6 +1799,14 @@
         };
     }
 
+    function logTimerReset(reason = "", details = {}) {
+        try {
+            console.log("RESET TRIGGERED:", String(reason || "unknown"), details || {});
+        } catch (error) {
+            console.log("RESET TRIGGERED:", String(reason || "unknown"));
+        }
+    }
+
     function persistTimerSessionLocally(session) {
         const sessionUid = String(session?.uid || currentUser?.uid || "");
         if (!session || !sessionUid) {
@@ -1787,11 +1823,135 @@
         try {
             const raw = localStorage.getItem(TIMER_STORAGE_KEY);
             if (!raw) return null;
-            return JSON.parse(raw);
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") {
+                console.log("RESET TRIGGERED:", "invalid-stored-timer-session", { rawType: typeof parsed });
+                return null;
+            }
+            return parsed;
         } catch (error) {
             console.error("Timer local verisi okunamadi:", error);
             return null;
         }
+    }
+
+    function readTimerFinalizedSnapshot() {
+        try {
+            const raw = localStorage.getItem(TIMER_FINALIZED_STORAGE_KEY);
+            if (!raw) return null;
+
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") return null;
+
+            const uid = String(parsed.uid || "").trim();
+            const dateKey = String(parsed.dateKey || "").trim();
+            const elapsedSeconds = Math.max(0, parseInteger(parsed.elapsedSeconds, 0));
+            if (!uid || !dateKey || elapsedSeconds <= 0) {
+                return null;
+            }
+
+            return {
+                uid,
+                mode: normalizeTimerMode(parsed.mode),
+                elapsedSeconds,
+                targetDurationSeconds: Math.max(0, parseInteger(parsed.targetDurationSeconds, 0)),
+                dateKey,
+                savedAtMs: Math.max(0, parseInteger(parsed.savedAtMs, 0)),
+                reason: String(parsed.reason || "").trim()
+            };
+        } catch (error) {
+            console.error("Finalize timer verisi okunamadi:", error);
+            return null;
+        }
+    }
+
+    function clearTimerFinalizedSnapshot(expectedUid = currentUser?.uid || "") {
+        const snapshot = readTimerFinalizedSnapshot();
+        if (!snapshot) return false;
+        if (expectedUid && snapshot.uid && snapshot.uid !== expectedUid) {
+            return false;
+        }
+        try {
+            localStorage.removeItem(TIMER_FINALIZED_STORAGE_KEY);
+            return true;
+        } catch (error) {
+            console.error("Finalize timer verisi silinemedi:", error);
+            return false;
+        }
+    }
+
+    function persistTimerFinalizedSnapshot(session = timerState.session, referenceMs = Date.now(), options = {}) {
+        if (!session) return false;
+        const normalizedMode = normalizeTimerMode(options.mode || session.mode);
+        if (isBreakTimerMode(normalizedMode) && options.allowBreak !== true) {
+            return false;
+        }
+
+        const uid = String(
+            options.uid
+            || session.uid
+            || currentUser?.uid
+            || currentUserLiveDoc?.uid
+            || ""
+        ).trim();
+        if (!uid) return false;
+
+        const safeReferenceMs = Math.max(0, parseInteger(referenceMs, Date.now()));
+        const elapsedSeconds = Math.max(
+            0,
+            parseInteger(options.elapsedSeconds, getTimerElapsedSeconds(session, safeReferenceMs))
+        );
+        if (elapsedSeconds <= 0) return false;
+
+        const snapshot = {
+            uid,
+            mode: normalizedMode,
+            elapsedSeconds,
+            targetDurationSeconds: Math.max(
+                0,
+                parseInteger(options.targetDurationSeconds, parseInteger(session.targetDurationSeconds, 0))
+            ),
+            dateKey: String(
+                options.dateKey
+                || getTimerSessionDateKey(session, new Date(safeReferenceMs))
+                || getCurrentDayMeta(new Date(safeReferenceMs)).dateKey
+            ).trim(),
+            savedAtMs: safeReferenceMs,
+            reason: String(options.reason || "finalized").trim()
+        };
+
+        if (!snapshot.dateKey) return false;
+
+        try {
+            localStorage.setItem(TIMER_FINALIZED_STORAGE_KEY, JSON.stringify(snapshot));
+            return true;
+        } catch (error) {
+            console.error("Finalize timer verisi saklanamadi:", error);
+            return false;
+        }
+    }
+
+    function buildStoppedTimerSessionFromFinalizedSnapshot(snapshot = null, referenceDate = new Date()) {
+        if (!snapshot) return null;
+        const todayDateKey = getCurrentDayMeta(referenceDate).dateKey;
+        if (String(snapshot.dateKey || "").trim() !== todayDateKey) {
+            return null;
+        }
+
+        return {
+            mode: normalizeTimerMode(snapshot.mode),
+            isRunning: false,
+            baseElapsedSeconds: Math.max(0, parseInteger(snapshot.elapsedSeconds, 0)),
+            lastPersistedElapsedSeconds: Math.max(0, parseInteger(snapshot.elapsedSeconds, 0)),
+            targetDurationSeconds: Math.max(0, parseInteger(snapshot.targetDurationSeconds, 0)),
+            startedAtMs: 0,
+            lastForcedCheckpointAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, 0)),
+            sessionDateKey: todayDateKey,
+            updatedAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, Date.now())),
+            lastSeenAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, 0)),
+            modalOpen: false,
+            ownerId: timerInstanceId
+        };
     }
 
     function preserveTimerStateForRecovery(session = timerState.session, options = {}) {
@@ -2141,6 +2301,10 @@
         isRunning = false;
         stopTimerLoops();
         persistTimerSessionLocally(session);
+        persistTimerFinalizedSnapshot(session, safeReferenceMs, {
+            elapsedSeconds: elapsed,
+            reason: String(options.syncReason || "auto-finalize-inactive")
+        });
         updateLocalActiveTimerSnapshot(null);
         refreshLeaderboardOptimistically(null);
         renderTimerUi();
@@ -3686,8 +3850,13 @@
             todayStudyTime: normalizedDailySeconds,
             todayWorkedSeconds: normalizedDailySeconds,
             currentSessionTime: 0,
+            currentBreakSessionTime: 0,
             activeTimer: null,
+            activeBreakTimer: null,
+            legacyWorkingStartedAt: 0,
             isWorking: false,
+            isRunning: false,
+            isOnBreak: false,
             dailyStudyDateKey: currentMeta.dateKey,
             todayDateKey: currentMeta.dateKey
         };
@@ -3696,8 +3865,13 @@
             || parseInteger(safeData?.todayStudyTime, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.todayWorkedSeconds, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.currentSessionTime, 0) !== 0
+            || parseInteger(safeData?.currentBreakSessionTime, 0) !== 0
             || !!safeData?.activeTimer
+            || !!safeData?.activeBreakTimer
+            || parseInteger(safeData?.legacyWorkingStartedAt, 0) > 0
             || !!safeData?.isWorking
+            || !!safeData?.isRunning
+            || !!safeData?.isOnBreak
             || parseInteger(safeSchedule?.[currentMeta.weekKey]?.[currentMeta.dayIdx]?.workedSeconds, 0) !== normalizedDailySeconds
             || explicitDateKey !== currentMeta.dateKey
         );
@@ -4692,13 +4866,16 @@
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
         );
+        const localHasValidatedStudyActivity = hasValidatedStudyActivityForDate(localDayData, dateKey);
+        const remoteHasValidatedStudyActivity = hasValidatedStudyActivityForDate(remoteDayData, dateKey);
         const localRunningToday = !!timerState.session?.isRunning
             && !hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate);
+        const remoteExplicitlyEmptyToday = parseInteger(remoteDayData.workedSeconds, 0) <= 0
+            && explicitDailySeconds <= 0;
         const shouldTrustRemoteReset = !shouldForceReplaceFromAdmin
             && !localRunningToday
-            && remoteResetState.needsSync
-            && parseInteger(remoteDayData.workedSeconds, 0) <= 0
-            && explicitDailySeconds <= 0;
+            && remoteExplicitlyEmptyToday
+            && (remoteResetState.needsSync || !localHasValidatedStudyActivity || !remoteHasValidatedStudyActivity);
         const nextWorkedSeconds = shouldForceReplaceFromAdmin
             ? Math.max(
                 0,
@@ -4720,11 +4897,23 @@
         }
         if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
 
+        const nextStudySessions = shouldTrustRemoteReset
+            ? normalizeStudySessions(remoteDayData.studySessions || [])
+            : mergeStudySessions(localDayData.studySessions || [], remoteDayData.studySessions || []);
+        const nextBreakSessions = shouldTrustRemoteReset
+            ? normalizeStudySessions(remoteDayData.breakSessions || [])
+            : mergeStudySessions(localDayData.breakSessions || [], remoteDayData.breakSessions || []);
+        const nextBreakSeconds = shouldTrustRemoteReset
+            ? Math.max(0, parseInteger(remoteDayData.breakSeconds, 0))
+            : Math.max(parseInteger(localDayData.breakSeconds, 0), parseInteger(remoteDayData.breakSeconds, 0));
+
         scheduleData[weekKey][dayIdx] = ensureDayObject({
             ...remoteDayData,
             ...localDayData,
             workedSeconds: nextWorkedSeconds,
-            studySessions: mergeStudySessions(localDayData.studySessions || [], remoteDayData.studySessions || [])
+            breakSeconds: nextBreakSeconds,
+            studySessions: nextStudySessions,
+            breakSessions: nextBreakSessions
         });
 
         if (typeof refreshCurrentTotals === "function") {
@@ -4802,6 +4991,7 @@
             todayStudyTime: currentDayWorkedSeconds,
             todayWorkedSeconds: currentDayWorkedSeconds,
             dailyStudyDateKey: currentDayMeta.dateKey,
+            dailyDateKey: currentDayMeta.dateKey,
             todayDateKey: currentDayMeta.dateKey,
             weeklyStudyTime: currentWeekWorkedSeconds,
             currentWeekSeconds: currentWeekWorkedSeconds,
@@ -4816,6 +5006,8 @@
             lastSyncTime: syncTimestamp,
             lastTimerSyncAt: syncTimestamp,
             lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
+            lastSavedTimestamp: syncTimestamp,
+            sessionFinalized: !(activeStudyTimerRecord || activeBreakTimerRecord),
             emailVerified: !!currentUser?.emailVerified
         };
     }
@@ -5679,6 +5871,10 @@
             clearActive: true
         });
 
+        persistTimerFinalizedSnapshot(session, Date.now(), {
+            elapsedSeconds: session.baseElapsedSeconds,
+            reason: "complete"
+        });
         timerState.session = createEmptyTimerSession("pomodoro");
         timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
         timerDrafts.pomodoro = { ...timerState.session };
@@ -5690,6 +5886,11 @@
     }
 
     async function resetRealtimeTimer(resetInputs = true, silent = false) {
+        logTimerReset("manual-reset", {
+            mode: timerState.mode,
+            resetInputs: resetInputs !== false
+        });
+        console.log("RESET CALLED");
         if (timerState.session) {
             const delta = applyPendingTimerDelta(timerState.session);
             if (delta > 0) {
@@ -5701,6 +5902,7 @@
         isRunning = false;
         timerState.session = null;
         persistTimerSessionLocally(null);
+        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         releaseTimerOwnership();
 
         if (resetInputs && isCountdownTimerMode(timerState.mode)) {
@@ -5738,6 +5940,9 @@
         const storedSession = readStoredTimerSession();
         const storedSessionMatchesUser = !!storedSession
             && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
+        const finalizedSnapshot = readTimerFinalizedSnapshot();
+        const finalizedSnapshotMatchesUser = !!finalizedSnapshot
+            && (!finalizedSnapshot.uid || !currentUser?.uid || finalizedSnapshot.uid === currentUser.uid);
         const remoteTimerRecord = userData?.activeTimer || userData?.activeBreakTimer || null;
         const storedResetState = storedSessionMatchesUser
             ? finalizeTimerSessionForNewDay(storedSession, referenceDate, {
@@ -5758,9 +5963,12 @@
             && isTimerRecordRunning(remoteSessionCandidate, referenceDate.getTime());
         const shouldClearRemoteTimer = remoteResetState.didReset || (storedResetState.didReset && !hasFreshRemoteSession);
         const resetSignature = remoteResetState.resetSignature || storedResetState.resetSignature || "";
+        const finalizedSessionCandidate = finalizedSnapshotMatchesUser
+            ? buildStoppedTimerSessionFromFinalizedSnapshot(finalizedSnapshot, referenceDate)
+            : null;
         const seedSession = storedSessionMatchesUser && !storedResetState.didReset
             ? storedSession
-            : remoteSessionCandidate;
+            : (remoteSessionCandidate || finalizedSessionCandidate);
 
         if (seedSession?.mode) {
             timerState.mode = normalizeTimerMode(seedSession.mode);
@@ -5812,6 +6020,7 @@
         }
 
         if (storedResetState.didReset || remoteResetState.didReset) {
+            clearTimerFinalizedSnapshot(currentUser?.uid || "");
             currentUserLiveDoc = {
                 ...(currentUserLiveDoc || {}),
                 activeTimer: null,
@@ -5821,7 +6030,9 @@
                 isOnBreak: false,
                 currentSessionTime: 0,
                 currentBreakSessionTime: 0,
-                dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
+                legacyWorkingStartedAt: 0,
+                dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey,
+                todayDateKey: getCurrentDayMeta(referenceDate).dateKey
             };
         }
 
@@ -5830,6 +6041,20 @@
         }
 
         timerDrafts[timerState.mode] = { ...timerState.session };
+        if (recoveryState.action === "auto-finalized" && timerState.session) {
+            persistTimerFinalizedSnapshot(timerState.session, recoveryState.referenceMs || referenceDate.getTime(), {
+                elapsedSeconds: recoveryState.elapsed,
+                reason: recoveryState.action
+            });
+        } else if (timerState.session && !timerState.session.isRunning) {
+            const frozenElapsedSeconds = getTimerElapsedSeconds(timerState.session, referenceDate.getTime());
+            if (frozenElapsedSeconds > 0 && !hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate)) {
+                persistTimerFinalizedSnapshot(timerState.session, referenceDate.getTime(), {
+                    elapsedSeconds: frozenElapsedSeconds,
+                    reason: "restore-frozen"
+                });
+            }
+        }
         if (timerState.session?.isRunning) {
             isRunning = true;
             startTimerLoops();
@@ -5863,9 +6088,15 @@
         }
 
         writeHandledAdminTimerResetSignature(adminTimerReset);
+        logTimerReset("admin-reset", {
+            scope: adminTimerReset.scope,
+            dateKey: adminTimerReset.dateKey,
+            weekKey: adminTimerReset.weekKey
+        });
         stopTimerLoops();
         isRunning = false;
         persistTimerSessionLocally(null);
+        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         releaseTimerOwnership();
 
         scheduleData = sanitizeScheduleData(userData.schedule || {});
@@ -8801,6 +9032,10 @@
             isRunning = false;
             stopTimerLoops();
             persistTimerSessionLocally(session);
+            persistTimerFinalizedSnapshot(session, commitState.referenceMs, {
+                elapsedSeconds: elapsed,
+                reason: "pause"
+            });
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
             monitorTimerSyncPromise(syncRealtimeTimer("pause", {
@@ -8846,6 +9081,10 @@
             timerState.session = session;
             timerDrafts[normalizeTimerMode(session.mode)] = { ...session };
             persistTimerSessionLocally(session);
+            persistTimerFinalizedSnapshot(session, commitState.referenceMs, {
+                elapsedSeconds: elapsed,
+                reason: isBreakTimerMode(completedMode) ? "break-complete" : "study-complete"
+            });
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
             monitorTimerSyncPromise(syncRealtimeTimer("complete", {
@@ -8878,10 +9117,16 @@
         };
 
         resetRealtimeTimer = async function(resetInputs = true, silent = false) {
+            logTimerReset("manual-reset", {
+                mode: timerState.mode,
+                resetInputs: resetInputs !== false
+            });
+            console.log("RESET CALLED");
             stopTimerLoops();
             isRunning = false;
             timerState.session = null;
             persistTimerSessionLocally(null);
+            clearTimerFinalizedSnapshot(currentUser?.uid || "");
             releaseTimerOwnership();
 
             if (resetInputs && isCountdownTimerMode(timerState.mode)) {
@@ -8960,6 +9205,9 @@
                 if (!user) {
                     const hadSession = !!timerState.session;
                     if (hadSession) {
+                        logTimerReset("auth-session-cleared", {
+                            reason: "auth-state-null"
+                        });
                         preserveTimerStateForRecovery(timerState.session, {
                             modalOpen: false,
                             includeRecovery: true
@@ -9115,9 +9363,14 @@
                     releaseTimerOwnership();
                     const nextMode = activeSession?.mode || timerState.mode;
                     timerState.mode = nextMode;
+                    logTimerReset("manual-save-close", {
+                        mode: nextMode,
+                        committedElapsedSeconds
+                    });
                     timerState.session = null;
                     timerDrafts[nextMode] = null;
                     persistTimerSessionLocally(null);
+                    clearTimerFinalizedSnapshot(currentUser?.uid || "");
                     updateLocalActiveTimerSnapshot(null);
                     refreshLeaderboardOptimistically(null);
                     hidePomodoroModal();
@@ -9468,6 +9721,7 @@
                 todayStudyTime: getCurrentDayWorkedSeconds(),
                 todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
+                dailyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerPendingSeconds,
                 currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
@@ -9479,7 +9733,9 @@
                 isOnBreak: !!activeBreakTimerRecord?.isRunning,
                 lastSyncTime: syncTimestamp,
                 lastTimerSyncAt: syncTimestamp,
-                lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0
+                lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
+                lastSavedTimestamp: syncTimestamp,
+                sessionFinalized: !(activeTimerRecord || activeBreakTimerRecord)
             };
         };
 
@@ -9511,6 +9767,7 @@
                     todayStudyTime: getCurrentDayWorkedSeconds(),
                     todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
+                    dailyDateKey: getCurrentDayMeta(new Date()).dateKey,
                     todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                     currentSessionTime: isTimerVisibleForLeaderboard(timerState.session) ? getPendingTimerDelta(timerState.session) : 0,
                     currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
@@ -9519,6 +9776,8 @@
                     isRunning: !!(isTimerVisibleForLeaderboard(timerState.session) && timerState.session?.isRunning),
                     isOnBreak: !!activeBreakTimerRecord?.isRunning,
                     lastSyncTime: Date.now(),
+                    lastSavedTimestamp: Date.now(),
+                    sessionFinalized: !(isTimerVisibleForLeaderboard(timerState.session) || activeBreakTimerRecord),
                     emailVerified: !!currentUser?.emailVerified
                 };
             };
