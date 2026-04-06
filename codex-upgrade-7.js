@@ -29,16 +29,6 @@
     const PUBLIC_PROFILE_COLLECTION = "publicProfiles";
     const LEADERBOARD_COLLECTION = "leaderboard";
     const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
-    const LEADERBOARD_LIVE_RENDER_MS = (() => {
-        const isNative = typeof window !== "undefined"
-            && !!(window.Capacitor?.isNativePlatform?.() || window.location?.host === "localhost");
-        const lowSpec = typeof navigator !== "undefined"
-            && (((navigator.hardwareConcurrency || 0) > 0 && navigator.hardwareConcurrency <= 4)
-                || ((navigator.deviceMemory || 0) > 0 && navigator.deviceMemory <= 4));
-        if (isNative && lowSpec) return 3200;
-        if (isNative) return 2600;
-        return 2000;
-    })();
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
     const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
@@ -59,10 +49,6 @@
     let leaderboardLiveInterval = null;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
-    let leaderboardLastStructureSignature = "";
-    let leaderboardLastValueSignature = "";
-    let leaderboardRenderFrame = null;
-    let leaderboardRenderQueued = false;
     let timerSyncInterval = null;
     let timerOwnerInterval = null;
     let currentUserWriteChain = Promise.resolve();
@@ -121,24 +107,6 @@
     function isStopwatchTimerMode(mode = timerState.mode) {
         const normalizedMode = normalizeTimerMode(mode);
         return normalizedMode === "stopwatch" || normalizedMode === "break-stopwatch";
-    }
-
-    function getTrustedTimeZone() {
-        return window.TRUSTED_TIMEZONE || "Europe/Istanbul";
-    }
-
-    function getTrustedNowMsValue(referenceMs = null) {
-        if (typeof window.getTrustedNowMs === "function") {
-            return window.getTrustedNowMs(referenceMs == null ? undefined : referenceMs);
-        }
-        return referenceMs == null ? Date.now() : Math.max(0, parseInteger(referenceMs, Date.now()));
-    }
-
-    function getTrustedNowDateValue(referenceMs = null) {
-        if (typeof window.getTrustedNowDate === "function") {
-            return window.getTrustedNowDate(referenceMs == null ? undefined : referenceMs);
-        }
-        return new Date(getTrustedNowMsValue(referenceMs));
     }
 
     function isCountdownTimerMode(mode = timerState.mode) {
@@ -537,10 +505,7 @@
         return nextMap;
     }
 
-    function getCurrentDayMeta(date = getTrustedNowDateValue()) {
-        if (typeof window.getTrustedTurkeyDayMeta === "function") {
-            return window.getTrustedTurkeyDayMeta(date instanceof Date ? date : new Date(date || getTrustedNowMsValue()));
-        }
+    function getCurrentDayMeta(date = new Date()) {
         return {
             dateKey: date.toLocaleDateString("sv-SE"),
             weekKey: typeof getWeekKey === "function" ? getWeekKey(date) : "",
@@ -557,10 +522,6 @@
     function getNextDayStartMsForDateKey(dateKey = "") {
         const normalizedDateKey = String(dateKey || "").trim();
         if (!normalizedDateKey) return 0;
-
-        if (typeof window.getTrustedTurkeyNextDayStartMsForDateKey === "function") {
-            return window.getTrustedTurkeyNextDayStartMsForDateKey(normalizedDateKey);
-        }
 
         const dayStart = new Date(`${normalizedDateKey}T00:00:00`);
         if (Number.isNaN(dayStart.getTime())) return 0;
@@ -733,10 +694,7 @@
         return resetState;
     }
 
-    function getMondayWeekStart(date = getTrustedNowDateValue()) {
-        if (typeof window.getTrustedTurkeyMondayWeekStart === "function") {
-            return window.getTrustedTurkeyMondayWeekStart(date instanceof Date ? date : new Date(date || getTrustedNowMsValue()));
-        }
+    function getMondayWeekStart(date = new Date()) {
         const weekStart = new Date(date);
         weekStart.setHours(0, 0, 0, 0);
         weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
@@ -785,9 +743,9 @@
     function ensureCalendarBoundaryWatcher() {
         if (calendarBoundaryInterval) return;
 
-        lastObservedCalendarMeta = getCurrentDayMeta(getTrustedNowDateValue());
+        lastObservedCalendarMeta = getCurrentDayMeta(new Date());
         calendarBoundaryInterval = setInterval(() => {
-            const nowDate = getTrustedNowDateValue();
+            const nowDate = new Date();
             const nextMeta = getCurrentDayMeta(nowDate);
             if (
                 !lastObservedCalendarMeta
@@ -1026,9 +984,6 @@
     }
 
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
-        if (typeof window.hydrateTrustedServerTime === "function") {
-            window.hydrateTrustedServerTime(userData?.trustedServerPingAt || userData?.serverObservedAt || userData?.lastServerAt);
-        }
         const dailyResetState = getDailySnapshotResetState(userData || {});
         currentUserLiveDoc = dailyResetState.normalizedData;
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
@@ -1151,8 +1106,7 @@
         if (!safeTimestamp) return "--:--";
         return new Date(safeTimestamp).toLocaleTimeString("tr-TR", {
             hour: "2-digit",
-            minute: "2-digit",
-            timeZone: getTrustedTimeZone()
+            minute: "2-digit"
         });
     }
 
@@ -1193,7 +1147,7 @@
             duration: safeDurationMs,
             date: safeDateKey,
             dateKey: safeDateKey,
-            dayOfWeek: parseInteger(entry.dayOfWeek, safeStartTime ? getCurrentDayMeta(new Date(safeStartTime)).dayIdx : 0),
+            dayOfWeek: parseInteger(entry.dayOfWeek, safeStartTime ? ((new Date(safeStartTime).getDay() + 6) % 7) : 0),
             mode,
             type,
             hourRange: String(entry.hourRange || buildStudySessionHourRange(safeStartTime, safeEndTime)).trim(),
@@ -3729,7 +3683,7 @@
         document.head.appendChild(style);
     }
 
-    function getCurrentWeekQuestionsFromSchedule(schedule, nowDate = getTrustedNowDateValue()) {
+    function getCurrentWeekQuestionsFromSchedule(schedule, nowDate = new Date()) {
         const sourceSchedule = schedule || {};
         const currentWeekKey = typeof getWeekKey === "function" ? getWeekKey(nowDate) : "";
         let questions = 0;
@@ -3743,7 +3697,7 @@
         return questions;
     }
 
-    function getCurrentDayQuestionsFromSchedule(schedule, referenceDate = getTrustedNowDateValue()) {
+    function getCurrentDayQuestionsFromSchedule(schedule, referenceDate = new Date()) {
         const sourceSchedule = schedule || {};
         const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
         return parseInteger(ensureDayObject(sourceSchedule?.[weekKey]?.[dayIdx] || {}).questions, 0);
@@ -3756,9 +3710,8 @@
         }, 0);
     }
 
-    function buildQuestionCounterPayload(schedule, referenceDate = getTrustedNowDateValue()) {
+    function buildQuestionCounterPayload(schedule, referenceDate = new Date()) {
         const safeSchedule = sanitizeScheduleData(schedule || {});
-        const currentMeta = getCurrentDayMeta(referenceDate);
         const dailyQuestions = getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate);
         const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
 
@@ -3768,27 +3721,23 @@
             dailyQuestions,
             weeklyQuestions,
             dailyQuestionCount: dailyQuestions,
-            weeklyQuestionCount: weeklyQuestions,
-            dailyQuestionDateKey: currentMeta.dateKey,
-            weeklyQuestionWeekKey: currentMeta.weekKey,
-            questionCounterDateKey: currentMeta.dateKey,
-            questionCounterWeekKey: currentMeta.weekKey
+            weeklyQuestionCount: weeklyQuestions
         };
     }
 
-    function getCurrentDayWorkedSecondsFromSchedule(schedule, referenceDate = getTrustedNowDateValue(), displayReferenceMs = Date.now()) {
+    function getCurrentDayWorkedSecondsFromSchedule(schedule, referenceDate = new Date(), displayReferenceMs = Date.now()) {
         const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
         const dayData = ensureDayObject(schedule?.[weekKey]?.[dayIdx] || {});
         return clampWorkedSecondsForDisplay(dayData.workedSeconds, referenceDate, displayReferenceMs);
     }
 
-    function getCurrentDayBreakSecondsFromSchedule(schedule, referenceDate = getTrustedNowDateValue()) {
+    function getCurrentDayBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey, dayIdx } = getCurrentDayMeta(referenceDate);
         const dayData = ensureDayObject(schedule?.[weekKey]?.[dayIdx] || {});
         return Math.max(0, parseInteger(dayData.breakSeconds, 0));
     }
 
-    function getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate = getTrustedNowDateValue()) {
+    function getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey } = getCurrentDayMeta(referenceDate);
         const weekData = schedule?.[weekKey] || {};
         let seconds = 0;
@@ -3800,7 +3749,7 @@
         return seconds;
     }
 
-    function getCurrentWeekBreakSecondsFromSchedule(schedule, referenceDate = getTrustedNowDateValue()) {
+    function getCurrentWeekBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey } = getCurrentDayMeta(referenceDate);
         const weekData = schedule?.[weekKey] || {};
         let seconds = 0;
@@ -3812,12 +3761,11 @@
         return seconds;
     }
 
-    function getLeaderboardDayDisplayReferenceMs(userData = {}, referenceDate = getTrustedNowDateValue(), now = Date.now()) {
+    function getLeaderboardDayDisplayReferenceMs(userData = {}, referenceDate = new Date(), now = Date.now()) {
         const safeNow = Math.max(0, parseInteger(now, Date.now()));
-        const referenceMeta = getCurrentDayMeta(referenceDate);
-        const dayStartMs = typeof window.getTrustedTurkeyDayStartMsForDateKey === "function"
-            ? window.getTrustedTurkeyDayStartMsForDateKey(referenceMeta.dateKey)
-            : new Date(referenceDate).setHours(0, 0, 0, 0);
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayStartMs = dayStart.getTime();
         const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(userData?.activeTimer, safeNow);
         const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(userData || {}, safeNow);
 
@@ -3833,7 +3781,7 @@
         return Math.max(dayStartMs, Math.min(safeNow, lastSyncAt));
     }
 
-    function isDailyStudySnapshotFresh(userData = {}, referenceDate = getTrustedNowDateValue()) {
+    function isDailyStudySnapshotFresh(userData = {}, referenceDate = new Date()) {
         const currentMeta = getCurrentDayMeta(referenceDate);
         const explicitDateKey = String(
             userData?.dailyStudyDateKey
@@ -3851,13 +3799,12 @@
         );
         if (lastTimerSyncAt <= 0) return false;
 
-        const dayStartMs = typeof window.getTrustedTurkeyDayStartMsForDateKey === "function"
-            ? window.getTrustedTurkeyDayStartMsForDateKey(currentMeta.dateKey)
-            : new Date(referenceDate).setHours(0, 0, 0, 0);
-        return lastTimerSyncAt >= dayStartMs;
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        return lastTimerSyncAt >= dayStart.getTime();
     }
 
-    function getDailySnapshotResetState(userData = {}, referenceDate = getTrustedNowDateValue()) {
+    function getDailySnapshotResetState(userData = {}, referenceDate = new Date()) {
         const safeData = userData && typeof userData === "object" ? userData : {};
         const currentMeta = getCurrentDayMeta(referenceDate);
         const displayReferenceMs = getLeaderboardDayDisplayReferenceMs(safeData, referenceDate, referenceDate.getTime());
@@ -3941,7 +3888,7 @@
         };
     }
 
-    function queueAutoDailyResetSync(referenceDate = getTrustedNowDateValue()) {
+    function queueAutoDailyResetSync(referenceDate = new Date()) {
         if (!currentUser?.uid) return false;
 
         const signature = `${currentUser.uid}:${getCurrentDayMeta(referenceDate).dateKey}`;
@@ -3996,30 +3943,15 @@
         return fallbackSchedule;
     }
 
-    function getProfileQuestionSummary(profileData = {}, referenceDate = getTrustedNowDateValue()) {
+    function getProfileQuestionSummary(profileData = {}, referenceDate = new Date()) {
         const safeSchedule = sanitizeScheduleData(profileData?.schedule || {});
-        const currentMeta = getCurrentDayMeta(referenceDate);
-        const scheduleDailyQuestions = getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate);
-        const scheduleWeeklyQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
-        const explicitDailyQuestions = getExplicitQuestionCounterValue(profileData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"]);
-        const explicitDailyDateKey = String(
-            profileData?.dailyQuestionDateKey
-            || profileData?.questionCounterDateKey
-            || ""
-        ).trim();
         const dailyQuestions = Math.max(
-            scheduleDailyQuestions,
-            explicitDailyDateKey === currentMeta.dateKey ? explicitDailyQuestions : 0
+            getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
         );
-        const explicitWeeklyQuestions = getExplicitQuestionCounterValue(profileData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"]);
-        const explicitWeeklyWeekKey = String(
-            profileData?.weeklyQuestionWeekKey
-            || profileData?.questionCounterWeekKey
-            || ""
-        ).trim();
         const weeklyQuestions = Math.max(
-            scheduleWeeklyQuestions,
-            explicitWeeklyWeekKey === currentMeta.weekKey ? explicitWeeklyQuestions : 0,
+            getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"]),
             dailyQuestions
         );
         const totalQuestionsAllTime = Math.max(
@@ -4040,9 +3972,7 @@
             weekly: weeklyQuestions,
             total: totalQuestionsAllTime,
             dailyQuestionCount: dailyQuestions,
-            weeklyQuestionCount: weeklyQuestions,
-            dailyQuestionDateKey: currentMeta.dateKey,
-            weeklyQuestionWeekKey: currentMeta.weekKey
+            weeklyQuestionCount: weeklyQuestions
         };
     }
 
@@ -4075,17 +4005,6 @@
             );
         const questionSummary = getProfileQuestionSummary({
             schedule: resolvedSchedule,
-            dailyQuestionDateKey: String(
-                safeBase.dailyQuestionDateKey
-                || safeUser.dailyQuestionDateKey
-                || safePublic.dailyQuestionDateKey
-                || safeCached.dailyQuestionDateKey
-                || safeBase.questionCounterDateKey
-                || safeUser.questionCounterDateKey
-                || safePublic.questionCounterDateKey
-                || safeCached.questionCounterDateKey
-                || ""
-            ).trim(),
             leaderboardDailyQuestions: Math.max(
                 parseInteger(safeBase.leaderboardDailyQuestions, 0),
                 parseInteger(safeUser.leaderboardDailyQuestions, 0),
@@ -4111,17 +4030,6 @@
                 parseInteger(safePublic.daily, 0),
                 parseInteger(safeCached.daily, 0)
             ),
-            weeklyQuestionWeekKey: String(
-                safeBase.weeklyQuestionWeekKey
-                || safeUser.weeklyQuestionWeekKey
-                || safePublic.weeklyQuestionWeekKey
-                || safeCached.weeklyQuestionWeekKey
-                || safeBase.questionCounterWeekKey
-                || safeUser.questionCounterWeekKey
-                || safePublic.questionCounterWeekKey
-                || safeCached.questionCounterWeekKey
-                || ""
-            ).trim(),
             leaderboardWeeklyQuestions: Math.max(
                 parseInteger(safeBase.leaderboardWeeklyQuestions, 0),
                 parseInteger(safeUser.leaderboardWeeklyQuestions, 0),
@@ -6472,30 +6380,15 @@
         };
     }
 
-    function getLeaderboardQuestionBreakdown(userData, referenceDate = getTrustedNowDateValue()) {
+    function getLeaderboardQuestionBreakdown(userData, referenceDate = new Date()) {
         const safeSchedule = sanitizeScheduleData(userData?.schedule || {});
-        const currentMeta = getCurrentDayMeta(referenceDate);
-        const explicitDailyDateKey = String(
-            userData?.dailyQuestionDateKey
-            || userData?.questionCounterDateKey
-            || ""
-        ).trim();
-        const explicitWeeklyWeekKey = String(
-            userData?.weeklyQuestionWeekKey
-            || userData?.questionCounterWeekKey
-            || ""
-        ).trim();
         const dailyQuestions = Math.max(
             getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
-            explicitDailyDateKey === currentMeta.dateKey
-                ? getExplicitQuestionCounterValue(userData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
-                : 0
+            getExplicitQuestionCounterValue(userData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
         );
         const weeklyQuestions = Math.max(
             getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
-            explicitWeeklyWeekKey === currentMeta.weekKey
-                ? getExplicitQuestionCounterValue(userData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"])
-                : 0
+            getExplicitQuestionCounterValue(userData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"])
         );
 
         return {
@@ -7104,243 +6997,6 @@
             .filter(Boolean));
     }
 
-    function shouldShowPinnedLocalLeaderboardSummary(leaderboardData = []) {
-        const localEntry = buildForcedLocalLeaderboardEntry();
-        if (!localEntry) return false;
-        if (!Array.isArray(leaderboardData)) return true;
-        return !leaderboardData.some(user => {
-            if (!user || !currentUser?.uid) return false;
-            return user.uid === currentUser.uid && !user.isLocalPreview;
-        });
-    }
-
-    function buildLeaderboardStructureSignature(leaderboardData = []) {
-        return JSON.stringify({
-            tab: currentLeaderboardTab,
-            summary: shouldShowPinnedLocalLeaderboardSummary(leaderboardData),
-            rows: (Array.isArray(leaderboardData) ? leaderboardData : []).map((user, index) => ({
-                uid: user.uid || `row_${index}`,
-                index,
-                username: user.username || "",
-                profileImage: user.profileImage || "",
-                isAdmin: !!user.isAdmin,
-                isLocalPreview: !!user.isLocalPreview,
-                titleId: user.titleInfo?.currentTitle?.id || user.titleInfo?.selectedTitleId || "",
-                noteCount: Array.isArray(user.notes) ? user.notes.length : 0
-            }))
-        });
-    }
-
-    function buildLeaderboardValueSignature(leaderboardData = []) {
-        const localEntry = shouldShowPinnedLocalLeaderboardSummary(leaderboardData)
-            ? buildForcedLocalLeaderboardEntry()
-            : null;
-
-        return JSON.stringify({
-            tab: currentLeaderboardTab,
-            summary: localEntry ? {
-                seconds: localEntry.seconds || 0,
-                isWorking: !!localEntry.isWorking,
-                username: localEntry.username || ""
-            } : null,
-            rows: (Array.isArray(leaderboardData) ? leaderboardData : []).map((user, index) => ({
-                uid: user.uid || `row_${index}`,
-                seconds: user.seconds || 0,
-                isWorking: !!user.isWorking,
-                titleId: user.titleInfo?.currentTitle?.id || user.titleInfo?.selectedTitleId || "",
-                noteCount: Array.isArray(user.notes) ? user.notes.length : 0
-            }))
-        });
-    }
-
-    function getLeaderboardExtraBadgesHtml(user) {
-        const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
-        const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
-        const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
-        return `${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}`;
-    }
-
-    function getLeaderboardWorkingBadgeHtml(user) {
-        return user.isWorking ? '<div class="working-badge">Calisiyor</div>' : "";
-    }
-
-    function createLeaderboardSummaryCard(localEntry) {
-        const summaryCard = document.createElement("div");
-        summaryCard.className = "leaderboard-item";
-        summaryCard.dataset.entryKey = "__local_summary__";
-        summaryCard.style.border = "1px solid rgba(255,255,255,0.16)";
-        summaryCard.style.background = "linear-gradient(135deg, rgba(76, 175, 80, 0.22), rgba(33, 150, 243, 0.18))";
-        summaryCard.style.marginBottom = "10px";
-        summaryCard.innerHTML = `
-            <div class="leaderboard-rank">Sen</div>
-            <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(localEntry.profileImage, localEntry.username) : "")}" alt="${escapeHtml(localEntry.username)}">
-            <div class="leaderboard-name-wrapper">
-                <div class="leaderboard-name">${escapeHtml(localEntry.username)}</div>
-                <div class="leaderboard-extra-badges">
-                    <span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>
-                </div>
-            </div>
-            <div class="leaderboard-stats">
-                <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(localEntry.seconds) : localEntry.seconds}</div>
-                <div class="leaderboard-working-slot">${getLeaderboardWorkingBadgeHtml(localEntry)}</div>
-            </div>
-        `;
-        return summaryCard;
-    }
-
-    function updateLeaderboardSummaryCard(summaryCard, localEntry) {
-        if (!summaryCard || !localEntry) return;
-        const avatar = summaryCard.querySelector(".leaderboard-avatar");
-        if (avatar) {
-            avatar.setAttribute("src", typeof getProfileImageSrc === "function" ? getProfileImageSrc(localEntry.profileImage, localEntry.username) : "");
-            avatar.setAttribute("alt", localEntry.username || "Kullanici");
-        }
-        const nameNode = summaryCard.querySelector(".leaderboard-name");
-        if (nameNode) nameNode.textContent = localEntry.username || "Kullanici";
-        const scoreNode = summaryCard.querySelector(".leaderboard-score");
-        if (scoreNode) scoreNode.textContent = typeof formatSeconds === "function" ? formatSeconds(localEntry.seconds) : String(localEntry.seconds || 0);
-        const workingSlot = summaryCard.querySelector(".leaderboard-working-slot");
-        if (workingSlot) workingSlot.innerHTML = getLeaderboardWorkingBadgeHtml(localEntry);
-    }
-
-    function createLeaderboardItemElement(user, index) {
-        const item = document.createElement("div");
-        item.innerHTML = `
-            <div class="leaderboard-rank"></div>
-            <img class="leaderboard-avatar" src="" alt="">
-            <div class="leaderboard-name-wrapper">
-                <div class="leaderboard-name"></div>
-                <div class="leaderboard-extra-badges"></div>
-            </div>
-            <div class="leaderboard-stats">
-                <div class="leaderboard-score"></div>
-                <div class="leaderboard-working-slot"></div>
-            </div>
-        `;
-        updateLeaderboardItemElement(item, user, index);
-        return item;
-    }
-
-    function updateLeaderboardItemElement(item, user, index) {
-        if (!item || !user) return;
-        item.className = "leaderboard-item";
-        item.dataset.entryKey = user.uid || `row_${index}`;
-        if (user.isAdmin) item.classList.add("admin-premium");
-        if (index === 0) item.classList.add("rank-1");
-        else if (index === 1) item.classList.add("rank-2");
-        else if (index === 2) item.classList.add("rank-3");
-        item.onclick = () => openLeaderboardProfile(user.uid);
-
-        const avatarSrc = typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "";
-        const avatar = item.querySelector(".leaderboard-avatar");
-        if (avatar) {
-            avatar.setAttribute("src", avatarSrc);
-            avatar.setAttribute("alt", user.username || "Kullanici");
-        }
-        const rankNode = item.querySelector(".leaderboard-rank");
-        if (rankNode) rankNode.textContent = `#${index + 1}`;
-        const nameNode = item.querySelector(".leaderboard-name");
-        if (nameNode) nameNode.textContent = user.username || "Kullanici";
-        const extraBadgesNode = item.querySelector(".leaderboard-extra-badges");
-        if (extraBadgesNode) extraBadgesNode.innerHTML = getLeaderboardExtraBadgesHtml(user);
-        const scoreNode = item.querySelector(".leaderboard-score");
-        if (scoreNode) scoreNode.textContent = typeof formatSeconds === "function" ? formatSeconds(user.seconds) : String(user.seconds || 0);
-        const workingSlot = item.querySelector(".leaderboard-working-slot");
-        if (workingSlot) workingSlot.innerHTML = getLeaderboardWorkingBadgeHtml(user);
-    }
-
-    function updateLeaderboardCardsInPlace(listContainer, leaderboardData = []) {
-        if (!listContainer) return;
-
-        const shouldShowSummary = shouldShowPinnedLocalLeaderboardSummary(leaderboardData);
-        const localEntry = shouldShowSummary ? buildForcedLocalLeaderboardEntry() : null;
-        const summaryCard = listContainer.querySelector('[data-entry-key="__local_summary__"]');
-
-        if (shouldShowSummary && localEntry) {
-            if (summaryCard) {
-                updateLeaderboardSummaryCard(summaryCard, localEntry);
-            } else {
-                listContainer.prepend(createLeaderboardSummaryCard(localEntry));
-            }
-        } else if (summaryCard) {
-            summaryCard.remove();
-        }
-
-        leaderboardData.forEach((user, index) => {
-            const selector = `[data-entry-key="${user.uid || `row_${index}`}"]`;
-            const existingItem = listContainer.querySelector(selector);
-            if (existingItem) {
-                updateLeaderboardItemElement(existingItem, user, index);
-            }
-        });
-    }
-
-    function performStableLeaderboardRender() {
-        const listContainer = document.getElementById("leaderboard-list");
-        if (!listContainer) return;
-
-        const leaderboardData = buildLeaderboardViewModelFromDocs();
-        leaderboardUserProfiles = {};
-        leaderboardData.forEach(user => {
-            if (user?.uid) leaderboardUserProfiles[user.uid] = user;
-        });
-
-        const nextStructureSignature = buildLeaderboardStructureSignature(leaderboardData);
-        const nextValueSignature = buildLeaderboardValueSignature(leaderboardData);
-
-        if (nextValueSignature === leaderboardLastValueSignature) return;
-
-        if (!leaderboardData.length) {
-            leaderboardLastStructureSignature = nextStructureSignature;
-            leaderboardLastValueSignature = nextValueSignature;
-            const emptyMarkup = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
-            if (listContainer.innerHTML !== emptyMarkup) {
-                listContainer.innerHTML = emptyMarkup;
-            }
-            return;
-        }
-
-        if (nextStructureSignature === leaderboardLastStructureSignature && listContainer.children.length) {
-            updateLeaderboardCardsInPlace(listContainer, leaderboardData);
-            leaderboardLastValueSignature = nextValueSignature;
-            return;
-        }
-
-        listContainer.innerHTML = "";
-
-        if (shouldShowPinnedLocalLeaderboardSummary(leaderboardData)) {
-            const localEntry = buildForcedLocalLeaderboardEntry();
-            if (localEntry) {
-                listContainer.appendChild(createLeaderboardSummaryCard(localEntry));
-            }
-        }
-
-        leaderboardData.forEach((user, index) => {
-            listContainer.appendChild(createLeaderboardItemElement(user, index));
-        });
-
-        leaderboardLastStructureSignature = nextStructureSignature;
-        leaderboardLastValueSignature = nextValueSignature;
-    }
-
-    function scheduleStableLeaderboardRender() {
-        if (leaderboardRenderQueued) return;
-        leaderboardRenderQueued = true;
-
-        const flush = () => {
-            leaderboardRenderFrame = null;
-            leaderboardRenderQueued = false;
-            performStableLeaderboardRender();
-        };
-
-        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
-            leaderboardRenderFrame = window.requestAnimationFrame(flush);
-            return;
-        }
-
-        leaderboardRenderFrame = setTimeout(flush, 16);
-    }
-
     function prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData = []) {
         if (!listContainer) return;
 
@@ -7378,12 +7034,61 @@
     }
 
     function renderLiveLeaderboardFromDocs() {
-        scheduleStableLeaderboardRender();
+        const listContainer = document.getElementById("leaderboard-list");
+        if (!listContainer) return;
+
+        const leaderboardData = buildLeaderboardViewModelFromDocs();
+        leaderboardUserProfiles = {};
+        listContainer.innerHTML = "";
+
+        if (!leaderboardData.length) {
+            listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
+            return;
+        }
+
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+
+        leaderboardData.forEach((user, index) => {
+            const item = document.createElement("div");
+            item.className = "leaderboard-item";
+            if (user.isAdmin) item.classList.add("admin-premium");
+            if (index === 0) item.classList.add("rank-1");
+            else if (index === 1) item.classList.add("rank-2");
+            else if (index === 2) item.classList.add("rank-3");
+
+            item.onclick = () => openLeaderboardProfile(user.uid);
+            leaderboardUserProfiles[user.uid] = user;
+
+            const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
+            const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
+            const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
+            item.innerHTML = `
+                <div class="leaderboard-rank">#${index + 1}</div>
+                <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
+                <div class="leaderboard-name-wrapper">
+                    <div class="leaderboard-name">${escapeHtml(user.username)}</div>
+                    <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}</div>
+                </div>
+                <div class="leaderboard-stats">
+                    <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(user.seconds) : user.seconds}</div>
+                    ${user.isWorking ? '<div class="working-badge">Calisiyor</div>' : ""}
+                </div>
+            `;
+
+            listContainer.appendChild(item);
+        });
     }
 
     function subscribeRealtimeLeaderboard() {
         if (leaderboardRealtimeUnsubscribe || !currentUser?.uid) return;
+
         const listContainer = document.getElementById("leaderboard-list");
+        if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+            const localPreviewExists = buildLeaderboardViewModelFromDocs().length > 0;
+            listContainer.innerHTML = localPreviewExists
+                ? '<p style="text-align:center; opacity:0.7;">Canli veriler yuklenirken yerel ilerleme gosteriliyor...</p>'
+                : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
+        }
 
         const handleUsersSnapshot = snapshot => {
             const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
@@ -7431,12 +7136,10 @@
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
-                if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
-                if (typeof document !== "undefined" && document.hidden) return;
-                if (buildLeaderboardViewModelFromDocs().some(user => user.isWorking)) {
+                if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
                     renderLiveLeaderboardFromDocs();
                 }
-            }, LEADERBOARD_LIVE_RENDER_MS);
+            }, 1000);
         }
     }
 
@@ -7451,17 +7154,6 @@
         inferredWorkingPresenceByUserId = new Map();
         legacyWorkingPresenceByUserId = new Map();
         observedWorkingBadgeByUserId = new Map();
-        leaderboardLastStructureSignature = "";
-        leaderboardLastValueSignature = "";
-        leaderboardRenderQueued = false;
-        if (leaderboardRenderFrame) {
-            if (typeof window !== "undefined" && typeof window.cancelAnimationFrame === "function") {
-                window.cancelAnimationFrame(leaderboardRenderFrame);
-            } else {
-                clearTimeout(leaderboardRenderFrame);
-            }
-            leaderboardRenderFrame = null;
-        }
         stopLeaderboardCloudPolling();
         if (leaderboardLiveInterval) {
             clearInterval(leaderboardLiveInterval);
@@ -8209,7 +7901,50 @@
     }
 
     function renderLiveLeaderboardFromDocs() {
-        scheduleStableLeaderboardRender();
+        const listContainer = document.getElementById("leaderboard-list");
+        if (!listContainer) return;
+
+        const leaderboardData = buildLeaderboardViewModelFromDocs();
+        leaderboardUserProfiles = {};
+        listContainer.innerHTML = "";
+
+        if (!leaderboardData.length) {
+            listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
+            return;
+        }
+
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+
+        leaderboardData.forEach((user, index) => {
+            const item = document.createElement("div");
+            item.className = "leaderboard-item";
+            if (user.isAdmin) item.classList.add("admin-premium");
+            if (index === 0) item.classList.add("rank-1");
+            else if (index === 1) item.classList.add("rank-2");
+            else if (index === 2) item.classList.add("rank-3");
+
+            item.onclick = () => openLeaderboardProfile(user.uid);
+            leaderboardUserProfiles[user.uid] = user;
+
+            const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
+            const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
+            const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
+
+            item.innerHTML = `
+                <div class="leaderboard-rank">#${index + 1}</div>
+                <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
+                <div class="leaderboard-name-wrapper">
+                    <div class="leaderboard-name">${escapeHtml(user.username)}</div>
+                    <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}</div>
+                </div>
+                <div class="leaderboard-stats">
+                    <div class="leaderboard-score">${typeof formatSeconds === "function" ? formatSeconds(user.seconds) : user.seconds}</div>
+                    ${user.isWorking ? '<div class="working-badge">Calisiyor</div>' : ""}
+                </div>
+            `;
+
+            listContainer.appendChild(item);
+        });
     }
 
     function patchQuestionTracking() {
@@ -9066,11 +8801,7 @@
             }
 
             const writePromise = withManualFirestoreWrite(() => queueCurrentUserWrite(label, async () => {
-                const payload = {
-                    ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
-                    trustedTurkeyTimeZone: getTrustedTimeZone(),
-                    serverObservedAt: firebase.firestore.FieldValue.serverTimestamp()
-                };
+                const payload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
                 const userRef = db.collection("users").doc(currentUser.uid);
                 await userRef.set(payload, { merge: true });
                 await syncPublicProfileSnapshot(payload);
@@ -9205,11 +8936,7 @@
                             await syncRealtimeLeaderboardPresence(mergedPayload);
                         } else {
                             const userRef = db.collection("users").doc(currentUser.uid);
-                            await userRef.set({
-                                ...payload,
-                                trustedTurkeyTimeZone: getTrustedTimeZone(),
-                                serverObservedAt: firebase.firestore.FieldValue.serverTimestamp()
-                            }, { merge: true });
+                            await userRef.set(payload, { merge: true });
                             await syncLeaderboardSnapshot({
                                 ...(typeof buildUserPayload === "function" ? buildUserPayload() : {}),
                                 ...mergedPayload
