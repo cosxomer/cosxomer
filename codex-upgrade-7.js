@@ -3949,9 +3949,12 @@
             getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
             getExplicitQuestionCounterValue(profileData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
         );
+        // Weekly profile questions must come from the current Monday-Sunday schedule window.
+        // Legacy mirrored weekly fields can leak last week's total into Monday, so do not trust
+        // them here; only fall back to today's solved count if the current week schedule has not
+        // been hydrated yet.
         const weeklyQuestions = Math.max(
             getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
-            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"]),
             dailyQuestions
         );
         const totalQuestionsAllTime = Math.max(
