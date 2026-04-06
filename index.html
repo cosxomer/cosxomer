@@ -946,408 +946,6 @@
             border-radius: 999px;
         }
 
-        .analytics-modal-content {
-            background-color: var(--container-bg);
-            width: min(960px, 96vw);
-            max-height: calc(100vh - 40px);
-            padding: 30px 24px 24px;
-            border-radius: 28px;
-            border: 1px solid rgba(255, 255, 255, 0.09);
-            box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
-            position: relative;
-            overflow-y: auto;
-            overscroll-behavior: contain;
-            background-image:
-                radial-gradient(circle at top right, rgba(99, 102, 241, 0.16), transparent 30%),
-                radial-gradient(circle at top left, rgba(34, 211, 238, 0.1), transparent 26%);
-        }
-
-        .analytics-modal-header {
-            margin-bottom: 14px;
-            padding: 0 72px 0 8px;
-            text-align: center;
-        }
-
-        .analytics-modal-header h2 {
-            margin: 0 0 8px;
-            color: var(--accent-color);
-            font-size: 2em;
-        }
-
-        .analytics-modal-header p {
-            margin: 0;
-            color: var(--text-color);
-            opacity: 0.84;
-            line-height: 1.55;
-        }
-
-        .analytics-modal-content .profile-modal-close-btn {
-            top: 18px;
-            margin-right: 0;
-        }
-
-        .analytics-hero {
-            margin: 0 auto 18px;
-            padding: 18px 18px 16px;
-            border-radius: 24px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background:
-                radial-gradient(circle at top, rgba(168, 85, 247, 0.18), transparent 52%),
-                linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.03));
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 8px;
-            text-align: center;
-            box-shadow: 0 18px 44px rgba(0, 0, 0, 0.22);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .analytics-hero-label {
-            font-size: 0.8em;
-            text-transform: uppercase;
-            letter-spacing: 0.14em;
-            font-weight: 800;
-            opacity: 0.72;
-        }
-
-        .analytics-hero-value {
-            font-size: clamp(2rem, 4vw, 3.4rem);
-            line-height: 1;
-            font-weight: 900;
-            color: var(--header-text);
-            text-shadow: 0 0 20px rgba(168, 85, 247, 0.18);
-        }
-
-        .analytics-hero-subtitle {
-            color: var(--text-color);
-            opacity: 0.88;
-            font-weight: 700;
-        }
-
-        .analytics-hero-meta {
-            color: var(--text-color);
-            opacity: 0.76;
-            font-size: 0.95em;
-        }
-
-        .analytics-hero-signature {
-            position: absolute;
-            right: 14px;
-            bottom: 12px;
-            font-size: 0.72em;
-            letter-spacing: 0.12em;
-            text-transform: uppercase;
-            color: rgba(255, 255, 255, 0.34);
-            font-weight: 700;
-            pointer-events: none;
-            user-select: none;
-            text-shadow: 0 0 12px rgba(255, 255, 255, 0.06);
-            white-space: nowrap;
-        }
-
-        .analytics-insights-tabs {
-            display: inline-flex;
-            gap: 10px;
-            padding: 8px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 18px;
-        }
-
-        .analytics-insights-tab {
-            min-width: 126px;
-            border-radius: 14px;
-            padding: 11px 16px;
-            background: transparent;
-            color: var(--text-color);
-            border: 1px solid transparent;
-            font-weight: 800;
-            box-shadow: none;
-        }
-
-        .analytics-insights-tab.is-active {
-            background: linear-gradient(135deg, rgba(34, 211, 238, 0.22), rgba(168, 85, 247, 0.22));
-            border-color: rgba(167, 139, 250, 0.38);
-            color: var(--header-text);
-        }
-
-        .analytics-pane {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .analytics-toolbar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 14px;
-            flex-wrap: wrap;
-            padding: 14px 16px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .analytics-toolbar label {
-            color: var(--text-color);
-            font-weight: 700;
-            opacity: 0.92;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .analytics-toolbar input,
-        .analytics-toolbar select {
-            min-width: 210px;
-            padding: 10px 12px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            background: rgba(9, 12, 20, 0.72);
-            color: var(--header-text);
-        }
-
-        .analytics-summary-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 14px;
-        }
-
-        .analytics-summary-card {
-            padding: 16px;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.045);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .analytics-summary-label {
-            font-size: 0.82em;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            opacity: 0.72;
-        }
-
-        .analytics-summary-card strong {
-            color: var(--header-text);
-            font-size: 1.1em;
-            line-height: 1.4;
-        }
-
-        .analytics-session-list,
-        .analytics-week-breakdown {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-        }
-
-        .analytics-session-item,
-        .analytics-week-row {
-            padding: 15px 15px 14px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.045);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            min-height: 152px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .analytics-session-main,
-        .analytics-week-row-top {
-            display: flex;
-            justify-content: flex-start;
-            align-items: flex-start;
-            gap: 12px;
-        }
-
-        .analytics-session-main {
-            min-width: 0;
-        }
-
-        .analytics-session-head {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 10px;
-        }
-
-        .analytics-session-index {
-            width: 36px;
-            height: 36px;
-            border-radius: 12px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: rgba(34, 211, 238, 0.14);
-            color: var(--countdown-fill);
-            font-weight: 900;
-            flex-shrink: 0;
-        }
-
-        .analytics-session-body {
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            width: 100%;
-        }
-
-        .analytics-session-title {
-            color: var(--header-text);
-            font-size: 1.05em;
-            line-height: 1.35;
-            word-break: break-word;
-        }
-
-        .analytics-session-remove {
-            width: 36px;
-            height: 36px;
-            min-width: 36px;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            background: rgba(255, 255, 255, 0.06);
-            color: rgba(255, 255, 255, 0.82);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: none;
-            transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
-        }
-
-        .analytics-session-remove:hover {
-            transform: translateY(-1px);
-            background: rgba(248, 113, 113, 0.14);
-            border-color: rgba(248, 113, 113, 0.36);
-            color: #fecaca;
-        }
-
-        .analytics-session-meta,
-        .analytics-session-time,
-        .analytics-week-row-top span {
-            color: var(--text-color);
-            opacity: 0.82;
-            font-size: 0.95em;
-        }
-
-        .analytics-session-time {
-            margin-top: auto;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            width: 100%;
-            padding: 10px 12px;
-            border-radius: 14px;
-            background: rgba(255, 255, 255, 0.045);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            font-weight: 700;
-        }
-
-        .analytics-week-bar-track {
-            margin-top: 12px;
-            height: 10px;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.08);
-            overflow: hidden;
-        }
-
-        .analytics-week-bar-fill {
-            height: 100%;
-            border-radius: inherit;
-            background: linear-gradient(90deg, rgba(34, 211, 238, 0.85), rgba(168, 85, 247, 0.9));
-            box-shadow: 0 0 18px rgba(34, 211, 238, 0.24);
-        }
-
-        .analytics-empty {
-            padding: 18px;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.04);
-            border: 1px dashed rgba(255, 255, 255, 0.14);
-            color: var(--text-color);
-            line-height: 1.6;
-            opacity: 0.88;
-        }
-
-        @media (max-width: 768px) {
-            .analytics-modal-content {
-                width: min(96vw, 96vw);
-                padding: 24px 14px 18px;
-                border-radius: 24px;
-            }
-
-            .analytics-modal-header {
-                padding: 0 56px 0 4px;
-            }
-
-            .analytics-hero-signature {
-                position: static;
-                display: block;
-                width: 100%;
-                margin-top: 4px;
-                text-align: right;
-                font-size: 0.62em;
-                letter-spacing: 0.1em;
-                padding-right: 2px;
-            }
-
-            .analytics-summary-grid {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .analytics-session-main,
-            .analytics-week-row-top {
-                flex-direction: row;
-                align-items: flex-start;
-            }
-
-            .analytics-insights-tabs {
-                width: 100%;
-                display: grid;
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-
-            .analytics-insights-tab {
-                width: 100%;
-                min-width: 0;
-            }
-
-            .analytics-toolbar label {
-                width: 100%;
-            }
-
-            .analytics-toolbar input,
-            .analytics-toolbar select {
-                width: 100%;
-                min-width: 0;
-            }
-
-            .analytics-session-list,
-            .analytics-week-breakdown {
-                grid-template-columns: 1fr;
-            }
-
-            .analytics-session-item,
-            .analytics-week-row {
-                min-height: 0;
-            }
-        }
-
-        @media (max-width: 520px) {
-            .analytics-summary-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
         .profile-modal-close-btn {
             position: sticky;
             top: 0;
@@ -1376,49 +974,6 @@
             opacity: 0.8;
             font-weight: 600;
             margin-bottom: 20px;
-        }
-
-        .profile-quick-actions {
-            position: sticky;
-            top: 10px;
-            z-index: 18;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            margin: 0 62px 18px 0;
-            padding: 10px 12px;
-            border-radius: 18px;
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03)),
-                rgba(17, 20, 29, 0.82);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 0 16px 32px rgba(0, 0, 0, 0.18);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-        }
-
-        .profile-quick-actions-note {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            min-width: 0;
-            color: var(--text-color);
-            font-size: 0.9em;
-            font-weight: 700;
-            line-height: 1.35;
-            opacity: 0.92;
-        }
-
-        .profile-quick-actions-note i {
-            color: var(--countdown-fill);
-            flex-shrink: 0;
-        }
-
-        #profile-save-btn-top {
-            min-height: 44px;
-            white-space: nowrap;
-            flex-shrink: 0;
         }
 
         .profile-modal-body {
@@ -3032,15 +2587,6 @@
             white-space: nowrap;
             line-height: 1.1;
             min-height: 30px;
-            position: relative;
-            overflow: hidden;
-            isolation: isolate;
-            transition: transform 0.28s ease, box-shadow 0.32s ease, filter 0.32s ease;
-        }
-
-        .title-badge > span {
-            position: relative;
-            z-index: 1;
         }
 
         .title-badge.small {
@@ -3056,81 +2602,7 @@
         .title-komutan { background-color: rgba(251, 146, 60, 0.14); color: #fb923c; border-color: rgba(251, 146, 60, 0.38); }
         .title-uzman { background-color: rgba(250, 204, 21, 0.16); color: #facc15; border-color: rgba(250, 204, 21, 0.4); }
         .title-efsane { background-color: rgba(248, 113, 113, 0.16); color: #f87171; border-color: rgba(248, 113, 113, 0.4); }
-        .title-as-1,
-        .title-as-2,
-        .title-fatih {
-            text-shadow: 0 0 12px rgba(255,255,255,0.18);
-        }
-        .title-as-1::after,
-        .title-as-2::after,
-        .title-fatih::after {
-            content: "";
-            position: absolute;
-            top: -120%;
-            left: -24%;
-            width: 42%;
-            height: 260%;
-            background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.04) 20%, rgba(255,255,255,0.72) 50%, rgba(255,255,255,0.05) 80%, transparent 100%);
-            transform: rotate(22deg);
-            animation: codexTitleShine 3.6s linear infinite;
-            opacity: 0.74;
-            pointer-events: none;
-            z-index: 0;
-        }
-        .title-as-1 {
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.92), rgba(220, 38, 38, 0.78), rgba(248, 113, 113, 0.34));
-            color: #ffe4e6;
-            border-color: rgba(254, 202, 202, 0.44);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px rgba(127, 29, 29, 0.32), 0 14px 26px rgba(153, 27, 27, 0.22), 0 0 18px rgba(248, 113, 113, 0.16);
-            animation: codexAsPulse 3.8s ease-in-out infinite;
-        }
-        .title-as-2 {
-            background: linear-gradient(135deg, rgba(127, 29, 29, 0.96), rgba(239, 68, 68, 0.84), rgba(251, 146, 60, 0.44));
-            color: #fff1f2;
-            border-color: rgba(255, 228, 230, 0.52);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 0 1px rgba(153, 27, 27, 0.34), 0 16px 28px rgba(185, 28, 28, 0.24), 0 0 22px rgba(248, 113, 113, 0.22);
-            animation: codexAsPulseStrong 3.2s ease-in-out infinite;
-        }
-        .title-fatih {
-            padding: 7px 14px;
-            font-size: 0.9em;
-            letter-spacing: 0.55px;
-            background: linear-gradient(135deg, rgba(255, 244, 179, 0.96), rgba(255, 215, 0, 0.86), rgba(245, 158, 11, 0.82), rgba(255, 232, 153, 0.92));
-            color: #4a2a00;
-            border-color: rgba(255, 243, 176, 0.92);
-            box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 0 0 1px rgba(255, 215, 0, 0.34), 0 18px 34px rgba(217, 119, 6, 0.28), 0 0 30px rgba(255, 215, 0, 0.36);
-            filter: saturate(1.08);
-            animation: codexFatihPulse 2.5s ease-in-out infinite;
-        }
-        .title-badge.small.title-as-1,
-        .title-badge.small.title-as-2 {
-            font-size: 0.71em;
-            min-height: 26px;
-        }
-        .title-badge.small.title-fatih {
-            padding: 4px 10px;
-            font-size: 0.76em;
-            min-height: 28px;
-        }
-        @keyframes codexTitleShine {
-            0% { transform: translateX(-165%) rotate(22deg); opacity: 0; }
-            18% { opacity: 0.7; }
-            46% { opacity: 0.88; }
-            72% { opacity: 0.18; }
-            100% { transform: translateX(305%) rotate(22deg); opacity: 0; }
-        }
-        @keyframes codexAsPulse {
-            0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.14), 0 0 0 1px rgba(127, 29, 29, 0.32), 0 14px 26px rgba(153, 27, 27, 0.22), 0 0 16px rgba(248, 113, 113, 0.14); transform: translateY(0); }
-            50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 0 0 1px rgba(127, 29, 29, 0.38), 0 16px 30px rgba(185, 28, 28, 0.28), 0 0 24px rgba(248, 113, 113, 0.22); transform: translateY(-1px); }
-        }
-        @keyframes codexAsPulseStrong {
-            0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.16), 0 0 0 1px rgba(153, 27, 27, 0.34), 0 16px 28px rgba(185, 28, 28, 0.24), 0 0 20px rgba(248, 113, 113, 0.2); transform: translateY(0) scale(1); }
-            50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), 0 0 0 1px rgba(185, 28, 28, 0.42), 0 18px 32px rgba(185, 28, 28, 0.3), 0 0 28px rgba(251, 146, 60, 0.24); transform: translateY(-1px) scale(1.01); }
-        }
-        @keyframes codexFatihPulse {
-            0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.4), 0 0 0 1px rgba(255, 215, 0, 0.34), 0 18px 34px rgba(217, 119, 6, 0.28), 0 0 28px rgba(255, 215, 0, 0.32); transform: translateY(0) scale(1); }
-            50% { box-shadow: inset 0 1px 0 rgba(255,255,255,0.5), 0 0 0 1px rgba(255, 240, 180, 0.48), 0 22px 38px rgba(217, 119, 6, 0.34), 0 0 40px rgba(255, 215, 0, 0.48); transform: translateY(-1px) scale(1.02); }
-        }
+        .title-fatih { background: linear-gradient(90deg, rgba(255, 215, 0, 0.2), rgba(248, 113, 113, 0.2)); color: #ffd700; border-color: rgba(255, 215, 0, 0.52); box-shadow: 0 0 16px rgba(255, 215, 0, 0.22); }
 
         .title-inline-row {
             display: flex;
@@ -3779,369 +3251,57 @@
         /* --------------------------------- */
         /* TOP 3 EFEKTLERİ */
         /* --------------------------------- */
-        @keyframes goldAuraLux {
-            0% { box-shadow: 0 12px 24px rgba(255, 176, 32, 0.18), 0 0 16px rgba(255, 205, 76, 0.12), inset 0 1px 0 rgba(255, 244, 194, 0.30); }
-            50% { box-shadow: 0 18px 36px rgba(255, 183, 54, 0.26), 0 0 28px rgba(255, 219, 123, 0.22), inset 0 1px 0 rgba(255, 250, 223, 0.46); }
-            100% { box-shadow: 0 14px 28px rgba(255, 176, 32, 0.2), 0 0 18px rgba(255, 205, 76, 0.16), inset 0 1px 0 rgba(255, 244, 194, 0.34); }
+        @keyframes fireGlow {
+            0% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
+            50% { box-shadow: 0 0 20px #ffeb3b, 0 0 35px #ff9800, inset 0 0 15px #ffeb3b; }
+            100% { box-shadow: 0 0 10px #ff9800, 0 0 20px #ff5722, inset 0 0 5px #ff9800; }
         }
-        @keyframes silverAuraLux {
-            0% { box-shadow: 0 10px 22px rgba(204, 212, 230, 0.12), 0 0 12px rgba(244, 247, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.22); }
-            50% { box-shadow: 0 15px 28px rgba(214, 223, 242, 0.2), 0 0 18px rgba(248, 250, 255, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.34); }
-            100% { box-shadow: 0 11px 24px rgba(204, 212, 230, 0.14), 0 0 14px rgba(244, 247, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.26); }
-        }
-        @keyframes bronzeAuraLux {
-            0% { box-shadow: 0 8px 18px rgba(201, 125, 65, 0.14), 0 0 10px rgba(214, 154, 87, 0.08), inset 0 1px 0 rgba(255, 219, 182, 0.18); }
-            50% { box-shadow: 0 12px 24px rgba(201, 125, 65, 0.2), 0 0 14px rgba(230, 171, 108, 0.14), inset 0 1px 0 rgba(255, 227, 197, 0.28); }
-            100% { box-shadow: 0 9px 19px rgba(201, 125, 65, 0.15), 0 0 10px rgba(214, 154, 87, 0.1), inset 0 1px 0 rgba(255, 219, 182, 0.2); }
-        }
-        @keyframes crownFloatLux {
-            0%, 100% { transform: rotate(-20deg) translateY(0); filter: drop-shadow(0 0 6px #ffd700); opacity: 0.92; }
-            50% { transform: rotate(-20deg) translateY(-1px); filter: drop-shadow(0 0 12px rgba(255, 221, 110, 0.98)); opacity: 1; }
-        }
-        @keyframes goldLeaderRingSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes goldLeaderRingPulse {
-            0%, 100% {
-                opacity: 0.58;
-                filter: drop-shadow(0 0 10px rgba(255, 206, 72, 0.38)) drop-shadow(0 0 22px rgba(255, 182, 37, 0.18));
-            }
-            50% {
-                opacity: 1;
-                filter: drop-shadow(0 0 16px rgba(255, 223, 128, 0.72)) drop-shadow(0 0 34px rgba(255, 188, 49, 0.3));
-            }
-        }
-        @keyframes silverLeaderRingSpin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        @keyframes silverLeaderRingPulse {
-            0%, 100% {
-                opacity: 0.5;
-                filter: drop-shadow(0 0 8px rgba(223, 231, 247, 0.26)) drop-shadow(0 0 18px rgba(201, 210, 228, 0.12));
-            }
-            50% {
-                opacity: 0.96;
-                filter: drop-shadow(0 0 14px rgba(246, 249, 255, 0.54)) drop-shadow(0 0 24px rgba(223, 231, 247, 0.2));
-            }
-        }
-        @keyframes silverFrameBreathe {
-            0%, 100% {
-                opacity: 0.46;
-                border-color: rgba(215, 224, 241, 0.42);
-                box-shadow: 0 0 10px rgba(207, 216, 235, 0.08), inset 0 0 8px rgba(255, 255, 255, 0.04);
-            }
-            50% {
-                opacity: 0.98;
-                border-color: rgba(244, 247, 255, 0.96);
-                box-shadow: 0 0 18px rgba(232, 239, 255, 0.22), inset 0 0 10px rgba(255, 255, 255, 0.1);
-            }
-        }
-        @keyframes bronzeCornerSpark {
-            0%, 16%, 100% {
-                top: 9px;
-                left: 9px;
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            6%, 10% {
-                top: 9px;
-                left: 9px;
-                opacity: 0.92;
-                transform: scale(1);
-            }
-            24%, 40% {
-                top: 9px;
-                left: calc(100% - 23px);
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            30%, 34% {
-                top: 9px;
-                left: calc(100% - 23px);
-                opacity: 0.78;
-                transform: scale(0.92);
-            }
-            48%, 64% {
-                top: calc(100% - 23px);
-                left: calc(100% - 23px);
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            54%, 58% {
-                top: calc(100% - 23px);
-                left: calc(100% - 23px);
-                opacity: 0.68;
-                transform: scale(0.84);
-            }
-            72%, 88% {
-                top: calc(100% - 23px);
-                left: 9px;
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            78%, 82% {
-                top: calc(100% - 23px);
-                left: 9px;
-                opacity: 0.84;
-                transform: scale(0.96);
-            }
-        }
-        @keyframes bronzeCornerSparkAlt {
-            0%, 20%, 100% {
-                top: 10px;
-                left: calc(100% - 24px);
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            7%, 11% {
-                top: 10px;
-                left: calc(100% - 24px);
-                opacity: 0.76;
-                transform: scale(0.88);
-            }
-            36%, 56% {
-                top: calc(100% - 24px);
-                left: 10px;
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            43%, 47% {
-                top: calc(100% - 24px);
-                left: 10px;
-                opacity: 0.68;
-                transform: scale(0.8);
-            }
-            70%, 90% {
-                top: calc(100% - 24px);
-                left: calc(100% - 24px);
-                opacity: 0;
-                transform: scale(0.25);
-            }
-            78%, 82% {
-                top: calc(100% - 24px);
-                left: calc(100% - 24px);
-                opacity: 0.72;
-                transform: scale(0.86);
-            }
+        @keyframes silverGlow {
+            0% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
+            50% { box-shadow: 0 0 15px #ffffff, inset 0 0 10px #ffffff; }
+            100% { box-shadow: 0 0 8px #e0e0e0, inset 0 0 5px #e0e0e0; }
         }
 
-        /* 1. Sıra (LÜKS ALTIN - KENAR HALO) */
-        .leaderboard-item.rank-1,
-        .leaderboard-item.rank-2,
-        .leaderboard-item.rank-3 {
-            position: relative;
-            overflow: hidden;
-            isolation: isolate;
-        }
-        .leaderboard-item.rank-1 > *,
-        .leaderboard-item.rank-2 > *,
-        .leaderboard-item.rank-3 > * {
-            position: relative;
-            z-index: 4;
-        }
+        /* 1. Sıra (KRAL - ALEVLİ) */
         .leaderboard-item.rank-1 {
-            background:
-                radial-gradient(circle at top left, rgba(255, 235, 163, 0.22) 0%, rgba(255, 235, 163, 0) 36%),
-                radial-gradient(circle at bottom right, rgba(255, 188, 80, 0.12) 0%, rgba(255, 188, 80, 0) 34%),
-                linear-gradient(135deg, #2d1700 0%, #6c4200 42%, #3a2200 72%, #201103 100%);
-            border: 2px solid rgba(255, 215, 90, 0.82);
-            box-shadow:
-                0 16px 30px rgba(255, 179, 32, 0.14),
-                0 0 18px rgba(255, 208, 79, 0.1),
-                inset 0 1px 0 rgba(255, 244, 194, 0.2);
-            margin: 0;
-            animation: goldLeaderBorderPulse 2.6s ease-in-out infinite;
+            background: linear-gradient(45deg, #3d2c00, #5c4300);
+            border: 2px solid #ffd700;
+            animation: fireGlow 2s infinite alternate;
+            transform: scale(1.02);
+            margin: 2px 0;
+            position: relative;
         }
-        .leaderboard-item.rank-1 .leaderboard-rank {
-            font-size: 1.35em;
-            color: #ffe58f;
-            text-shadow: 0 0 12px rgba(255, 220, 118, 0.7);
-            animation: leaderboardRankPulseGold 2s ease-in-out infinite;
-        }
-        .leaderboard-item.rank-1 .leaderboard-name,
-        .leaderboard-item.rank-1 .leaderboard-score {
-            color: #fff4d0;
-            text-shadow: 0 0 16px rgba(255, 218, 114, 0.18), 0 0 26px rgba(255, 210, 88, 0.14);
-        }
+        .leaderboard-item.rank-1:hover { transform: scale(1.03); }
+        .leaderboard-item.rank-1 .leaderboard-rank { font-size: 1.35em; text-shadow: 0 0 10px #ffd700; }
         .leaderboard-item.rank-1::before {
             content: '👑';
             position: absolute;
             top: -10px;
             left: -6px;
             font-size: 1.2em;
-            filter: drop-shadow(0 0 8px rgba(255, 217, 94, 0.9));
+            transform: rotate(-20deg);
+            filter: drop-shadow(0 0 5px #ffd700);
             z-index: 10;
         }
-        .leaderboard-item.rank-1::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            pointer-events: none;
-            border: 1px solid rgba(255, 228, 140, 0.42);
-            box-shadow:
-                0 0 12px rgba(255, 213, 82, 0.22),
-                0 0 26px rgba(255, 195, 52, 0.16),
-                inset 0 0 8px rgba(255, 231, 156, 0.06);
-            opacity: 0.88;
-            z-index: 1;
-            animation: goldLeaderBorderGlow 2.6s ease-in-out infinite;
-        }
-        @keyframes goldLeaderBorderPulse {
-            0%, 100% {
-                border-color: rgba(255, 215, 90, 0.78);
-                box-shadow:
-                    0 14px 26px rgba(255, 179, 32, 0.12),
-                    0 0 14px rgba(255, 208, 79, 0.08),
-                    inset 0 1px 0 rgba(255, 244, 194, 0.14);
-            }
-            50% {
-                border-color: rgba(255, 231, 132, 0.98);
-                box-shadow:
-                    0 18px 34px rgba(255, 179, 32, 0.18),
-                    0 0 26px rgba(255, 208, 79, 0.18),
-                    0 0 40px rgba(255, 181, 49, 0.12),
-                    inset 0 1px 0 rgba(255, 246, 210, 0.28);
-            }
-        }
 
-        @keyframes goldLeaderBorderGlow {
-            0%, 100% {
-                opacity: 0.62;
-                box-shadow:
-                    0 0 10px rgba(255, 213, 82, 0.14),
-                    0 0 22px rgba(255, 195, 52, 0.1),
-                    inset 0 0 6px rgba(255, 231, 156, 0.04);
-            }
-            50% {
-                opacity: 1;
-                box-shadow:
-                    0 0 18px rgba(255, 226, 112, 0.32),
-                    0 0 34px rgba(255, 195, 52, 0.2),
-                    inset 0 0 10px rgba(255, 236, 172, 0.1);
-            }
-        }
-
-        @keyframes leaderboardRankPulseGold {
-            0%, 100% {
-                opacity: 0.86;
-                text-shadow:
-                    0 0 9px rgba(255, 220, 118, 0.48),
-                    0 0 15px rgba(255, 196, 77, 0.24);
-            }
-            50% {
-                opacity: 1;
-                text-shadow:
-                    0 0 13px rgba(255, 235, 160, 0.92),
-                    0 0 20px rgba(255, 202, 84, 0.54),
-                    0 0 28px rgba(255, 170, 58, 0.24);
-            }
-        }
-
-        @keyframes leaderboardRankPulseSilver {
-            0%, 100% {
-                opacity: 0.86;
-                text-shadow:
-                    0 0 8px rgba(238, 244, 255, 0.42),
-                    0 0 14px rgba(195, 209, 232, 0.2);
-            }
-            50% {
-                opacity: 1;
-                text-shadow:
-                    0 0 12px rgba(248, 251, 255, 0.86),
-                    0 0 18px rgba(219, 230, 247, 0.42),
-                    0 0 24px rgba(173, 190, 214, 0.18);
-            }
-        }
-
-        @keyframes leaderboardRankPulseBronze {
-            0%, 100% {
-                opacity: 0.86;
-                text-shadow:
-                    0 0 7px rgba(229, 164, 108, 0.3),
-                    0 0 12px rgba(194, 126, 74, 0.14);
-            }
-            50% {
-                opacity: 1;
-                text-shadow:
-                    0 0 10px rgba(248, 194, 143, 0.72),
-                    0 0 16px rgba(216, 145, 89, 0.34),
-                    0 0 22px rgba(181, 110, 61, 0.16);
-            }
-        }
-
-        /* 2. Sıra (GÜMÜŞ - NEFES ALAN ÇERÇEVE) */
+        /* 2. Sıra (GÜMÜŞ - PARILTILI) */
         .leaderboard-item.rank-2 {
-            background:
-                radial-gradient(circle at top left, rgba(245, 247, 255, 0.22) 0%, rgba(245, 247, 255, 0) 30%),
-                linear-gradient(135deg, #171b24 0%, #3a4150 44%, #252936 100%);
-            border: 2px solid rgba(224, 232, 248, 0.72);
-            animation: silverAuraLux 3.4s ease-in-out infinite;
-            margin: 0;
+            background: linear-gradient(45deg, #1c1c24, #2a2a35);
+            border: 2px solid #c0c0c0;
+            animation: silverGlow 3s infinite alternate;
+            transform: scale(1.01);
+            margin: 1px 0;
         }
-        .leaderboard-item.rank-2 .leaderboard-rank {
-            color: #edf3ff;
-            text-shadow: 0 0 10px rgba(238, 244, 255, 0.5);
-            animation: leaderboardRankPulseSilver 2s ease-in-out infinite;
-        }
-        .leaderboard-item.rank-2 .leaderboard-name,
-        .leaderboard-item.rank-2 .leaderboard-score {
-            color: #f7f9ff;
-        }
-        .leaderboard-item.rank-2::after {
-            content: none;
-        }
-        .leaderboard-item.rank-2::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            border: 2px solid rgba(244, 247, 255, 0.56);
-            pointer-events: none;
-            z-index: 1;
-            animation: silverFrameBreathe 3.3s ease-in-out infinite;
-        }
+        .leaderboard-item.rank-2:hover { transform: scale(1.02); }
 
-        /* 3. Sıra (BRONZ - KÖŞE KIVILCIMI) */
+        /* 3. Sıra (BRONZ) */
         .leaderboard-item.rank-3 {
-            background:
-                radial-gradient(circle at top left, rgba(240, 190, 136, 0.18) 0%, rgba(240, 190, 136, 0) 30%),
-                linear-gradient(135deg, #29170f 0%, #5a3523 46%, #2e1a13 100%);
-            border: 2px solid rgba(208, 136, 76, 0.84);
-            animation: bronzeAuraLux 4.2s ease-in-out infinite;
+            background: linear-gradient(45deg, #2e1e14, #4a3020);
+            border: 2px solid #cd7f32;
+            box-shadow: 0 0 12px rgba(205, 127, 50, 0.5);
+            transform: scale(1);
         }
-        .leaderboard-item.rank-3 .leaderboard-rank {
-            color: #f1be97;
-            text-shadow: 0 0 8px rgba(229, 164, 108, 0.36);
-            animation: leaderboardRankPulseBronze 2s ease-in-out infinite;
-        }
-        .leaderboard-item.rank-3 .leaderboard-name,
-        .leaderboard-item.rank-3 .leaderboard-score {
-            color: #ffe5cf;
-        }
-        .leaderboard-item.rank-3::before,
-        .leaderboard-item.rank-3::after {
-            content: '';
-            position: absolute;
-            width: 16px;
-            height: 16px;
-            border-radius: 999px;
-            pointer-events: none;
-            background: radial-gradient(circle, rgba(255, 250, 241, 1) 0%, rgba(249, 201, 153, 0.96) 34%, rgba(255,255,255,0) 74%);
-            box-shadow: 0 0 14px rgba(227, 166, 107, 0.48);
-            top: 9px;
-            left: 9px;
-            opacity: 0;
-            z-index: 1;
-        }
-        .leaderboard-item.rank-3::after {
-            animation: bronzeCornerSpark 7.2s ease-in-out infinite;
-        }
-        .leaderboard-item.rank-3::before {
-            animation: bronzeCornerSparkAlt 9.1s ease-in-out infinite;
-        }
+        .leaderboard-item.rank-3:hover { transform: scale(1.01); }
 
         @keyframes pulse {
             0% { opacity: 1; }
@@ -4169,44 +3329,11 @@
         @media (max-width: 768px) {
             body { padding: 10px; }
             .container { border-radius: 8px; }
-            header {
-                padding: 18px 18px 16px;
-                overflow: visible;
-            }
+            header { padding: 15px 20px; }
             .main-content { padding: 0 10px 10px 10px; }
-            header h1 {
-                font-size: 1.6em;
-                min-width: 0;
-                width: 100%;
-                max-width: 100%;
-                padding-top: 0;
-                line-height: 1.06;
-                overflow: visible;
-            }
-            header h1::before {
-                font-size: clamp(1.85rem, 11vw, 3rem);
-                letter-spacing: 1px;
-                line-height: 0.96;
-                margin-bottom: 8px;
-                white-space: normal;
-                word-break: keep-all;
-                text-wrap: balance;
-            }
-            header h1::after {
-                font-size: 0.48em;
-                letter-spacing: 1.4px;
-                line-height: 1.25;
-                white-space: normal;
-                word-break: break-word;
-                text-wrap: balance;
-            }
-            body[data-theme="kitty"] header::after {
-                top: 10px;
-                right: 10px;
-                transform: scale(0.74);
-                transform-origin: top right;
-                opacity: 0.62;
-            }
+            header h1 { font-size: 1.8em; min-width: 100%; }
+            header h1::before { font-size: 1.5em; }
+            header h1::after { font-size: 0.5em; }
             .header-stats > span { font-size: 0.9em; padding: 6px 12px; }
             .week-nav { padding: 12px 15px !important; flex-wrap: wrap; gap: 10px; justify-content: center !important; }
             .week-nav h3 { font-size: 1.05em; width: 100%; text-align: center; order: -1; }
@@ -4225,7 +3352,6 @@
             .quote-container { padding: 15px 20px; }
             .quote-text { font-size: 1em; }
             .profile-modal-content { padding: 70px 18px 24px; width: min(96vw, 760px); max-height: calc(100vh - 20px); }
-            .profile-quick-actions { margin: 0 52px 16px 0; }
             .profile-modal-body { flex-direction: column; gap: 18px; }
             .profile-avatar-section { width: 100%; }
             .profile-avatar-badges { align-items: center; }
@@ -4259,20 +3385,6 @@
             .cropper-stage { width: 240px; height: 240px; }
         }
         @media (max-width: 480px) {
-            header {
-                padding: 16px 14px 14px;
-            }
-            header h1 {
-                font-size: 1.42em;
-            }
-            header h1::before {
-                font-size: clamp(1.7rem, 12vw, 2.45rem);
-                letter-spacing: 0.5px;
-            }
-            header h1::after {
-                font-size: 0.44em;
-                letter-spacing: 1px;
-            }
             .header-stats { flex-direction: column; align-items: stretch; }
             .header-stats > span { width: 100%; text-align: center; }
             .leaderboard-panel { width: 100%; right: -100%; }
@@ -4284,19 +3396,6 @@
             .support-card-actions { width: 100%; }
             .support-card-actions button { flex: 1 1 calc(50% - 4px); }
             .profile-modal-content { padding: 68px 14px 18px; }
-            .profile-quick-actions {
-                margin: 0 48px 14px 0;
-                padding: 10px;
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .profile-quick-actions-note {
-                font-size: 0.84em;
-            }
-            #profile-save-btn-top {
-                width: 100%;
-                justify-content: center;
-            }
             .profile-modal-close-btn { width: 42px; height: 42px; }
             .pomodoro-content { padding: 44px 14px 24px; border-radius: 28px; }
             .pomodoro-content h2 { padding: 0 32px; font-size: 1.3em; }
@@ -4438,9 +3537,6 @@
                     <button class="theme-button active" data-theme="luxury" onclick="setTheme('luxury')" title="Luxury Dark Theme">
                         <i class="fas fa-moon"></i>
                     </button>
-                    <button class="theme-button" data-theme="violet" onclick="setTheme('violet')" title="Violet Dream Theme">
-                        <i class="fas fa-gem"></i>
-                    </button>
                     <button class="theme-button" data-theme="kitty" onclick="setTheme('kitty')" title="Hello Kitty Theme">
                         <i class="fas fa-cat"></i>
                     </button>
@@ -4448,7 +3544,7 @@
                         <i class="fas fa-spider"></i>
                     </button>
                 </div>
-                <button class="pomodoro-btn" onclick="runCodexTimerAction('showModal')" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; padding: 12px 20px;">
+                <button class="pomodoro-btn" onclick="showPomodoroModal()" style="background-color: var(--pomodoro-accent); color: var(--header-text); font-size: 1.1em; padding: 12px 20px;">
                     <i class="fas fa-clock"></i> Pomodoro Başlat
                 </button>
                 <button id="my-notes-btn" class="notes-launch-btn" onclick="openMyNotesModal()" style="background-color: var(--accent-color); color: var(--header-text); font-size: 1.05em; padding: 12px 20px;">
@@ -4456,9 +3552,6 @@
                 </button>
                 <button id="support-btn" class="support-launch-btn" onclick="openSupportModal()" style="background-color: var(--button-bg); color: var(--header-text); font-size: 1.02em; padding: 12px 18px;">
                     <i class="fas fa-life-ring"></i> <span id="support-btn-text">Destek</span>
-                </button>
-                <button id="analytics-btn" class="analytics-launch-btn" onclick="openAnalyticsModal()" style="background-color: var(--header-bg); color: var(--header-text); font-size: 1.02em; padding: 12px 18px;">
-                    <i class="fas fa-chart-line"></i> Analizim
                 </button>
                 <button id="view-toggle-btn" onclick="toggleScheduleView()" style="background-color: var(--countdown-fill); color: var(--header-text);">
                     <i class="fas fa-arrows-alt-h"></i> <span id="view-toggle-text">Yatay Kaydırma Modu</span>
@@ -4601,70 +3694,31 @@
 
     <div id="pomodoro-modal" class="modal-overlay">
         <div class="pomodoro-content">
-            <button class="pomodoro-close-btn" onclick="runCodexTimerAction('hideModal')" type="button" title="Pomodoro ekranını gizle" aria-label="Pomodoro ekranını gizle">
+            <button class="pomodoro-close-btn" onclick="hidePomodoroModal()" type="button" title="Pomodoro ekranını gizle" aria-label="Pomodoro ekranını gizle">
                 <i class="fas fa-times"></i>
             </button>
             <h2 style="color: var(--pomodoro-accent); margin-bottom: 25px; font-size: 2em; text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);">ODAK ZAMANI</h2>
             <div class="pomodoro-time-inputs">
-                <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="runCodexTimerAction('updateInputs')">
+                <input type="number" id="study-hours" value="0" min="0" max="9" placeholder="Saat" oninput="updateTimerFromInputsAndReset()">
                 <span>:</span>
-                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="runCodexTimerAction('updateInputs')">
+                <input type="number" id="study-minutes" value="25" min="0" max="59" placeholder="Dakika" oninput="updateTimerFromInputsAndReset()">
                 <span>:</span>
-                <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="runCodexTimerAction('updateInputs')">
+                <input type="number" id="study-seconds" value="00" min="0" max="59" placeholder="Saniye" oninput="updateTimerFromInputsAndReset()">
             </div>
             <div class="timer-display" id="timer-display" role="timer" aria-live="polite" aria-label="Pomodoro sayaci">00:25:00</div>
             <p id="timer-status" style="font-size: 1.1em; font-weight: 700; color: var(--accent-color); margin-bottom: 30px;"></p>
             <div class="timer-controls">
                 <div>
-                    <button id="start-pause-btn" onclick="runCodexTimerAction('toggle')" style="background-color: var(--accent-color); color: var(--header-text);">
+                    <button id="start-pause-btn" onclick="toggleTimer()" style="background-color: var(--accent-color); color: var(--header-text);">
                         <i class="fas fa-play"></i> Başlat
                     </button>
                 </div>
-                <button id="save-btn" onclick="runCodexTimerAction('save')" style="background-color: var(--countdown-fill); color: var(--header-text);">
+                <button id="save-btn" onclick="saveWorkSession()" style="background-color: var(--countdown-fill); color: var(--header-text);">
                     <i class="fas fa-save"></i> Kaydet ve Kapat
                 </button>
-                <button id="reset-btn" onclick="runCodexTimerAction('reset', true, true)" style="background-color: var(--button-bg); color: var(--header-text);">
+                <button id="reset-btn" onclick="resetTimer(true, true)" style="background-color: var(--button-bg); color: var(--header-text);">
                     <i class="fas fa-undo"></i> Sıfırla
                 </button>
-            </div>
-        </div>
-    </div>
-
-    <div id="analytics-modal" class="modal-overlay">
-        <div class="analytics-modal-content">
-            <button class="profile-modal-close-btn" onclick="closeAnalyticsModal()" type="button" aria-label="Analiz panelini kapat">
-                <i class="fas fa-times"></i>
-            </button>
-            <div class="analytics-modal-header">
-                <h2>Analizim</h2>
-                <p>Gerçek çalışma ve mola oturumlarına göre hangi saatlerde çalıştığını, günlük toplamını ve haftalık temponu burada görebilirsin.</p>
-            </div>
-            <div id="analytics-hero" class="analytics-hero"></div>
-            <div class="analytics-insights-tabs">
-                <button id="analytics-tab-daily" class="analytics-insights-tab is-active" type="button" onclick="setAnalyticsTab('daily')">Günlük</button>
-                <button id="analytics-tab-weekly" class="analytics-insights-tab" type="button" onclick="setAnalyticsTab('weekly')">Haftalık</button>
-            </div>
-
-            <div id="analytics-daily-pane" class="analytics-pane">
-                <div class="analytics-toolbar">
-                    <label>
-                        Gün Seç
-                        <input id="analytics-date-input" type="date" onchange="handleAnalyticsDateChange(this.value)">
-                    </label>
-                </div>
-                <div id="analytics-daily-summary" class="analytics-summary-grid"></div>
-                <div id="analytics-daily-sessions" class="analytics-session-list"></div>
-            </div>
-
-            <div id="analytics-weekly-pane" class="analytics-pane" style="display:none;">
-                <div class="analytics-toolbar">
-                    <label>
-                        Hafta Seç
-                        <select id="analytics-week-select" onchange="handleAnalyticsWeekChange(this.value)"></select>
-                    </label>
-                </div>
-                <div id="analytics-weekly-summary" class="analytics-summary-grid"></div>
-                <div id="analytics-weekly-breakdown" class="analytics-week-breakdown"></div>
             </div>
         </div>
     </div>
@@ -4678,15 +3732,6 @@
                 <h2 id="profile-modal-title">Profilim</h2>
                 <p id="profile-member-since" class="profile-member-since">Üyelik Başlangıcı: -</p>
                 <div id="profile-title-wrapper" class="profile-title-wrapper"></div>
-            </div>
-            <div id="profile-quick-actions" class="profile-quick-actions" style="display:none;">
-                <div class="profile-quick-actions-note">
-                    <i class="fas fa-circle-check"></i>
-                    <span>Diğer profil değişikliklerini buradan kaydedebilirsin.</span>
-                </div>
-                <button id="profile-save-btn-top" onclick="saveProfileChanges()" style="display:none; background-color: var(--countdown-fill); color: var(--header-text);">
-                    <i class="fas fa-save"></i> Profili Kaydet
-                </button>
             </div>
             <div class="profile-modal-body">
                 <div class="profile-avatar-section">
@@ -4970,13 +4015,13 @@
         /* FIREBASE CONFIG - DOKUNULMAZ */
         /* ======================================= */
         const firebaseConfig = {
-            apiKey: "AIzaSyCZJR-ZJgsNF9iA3Hv1YqNWrKM5FFvasWw",
-            authDomain: "cosxomer3.firebaseapp.com",
-            projectId: "cosxomer3",
-            storageBucket: "cosxomer3.firebasestorage.app",
-            messagingSenderId: "611855250903",
-            appId: "1:611855250903:web:b01f0f5fe6cefeea3a4792",
-            measurementId: "G-866W2EQB2Y"
+            apiKey: "AIzaSyC2z_TgyyQjqMNFZllb1CJ0bc1KfgC337U",
+            authDomain: "cosxomer2.firebaseapp.com",
+            projectId: "cosxomer2",
+            storageBucket: "cosxomer2.firebasestorage.app",
+            messagingSenderId: "306432305663",
+            appId: "1:306432305663:web:b799b0fd13315fdfb85fca",
+            measurementId: "G-D01T6J1VFZ"
         };
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -5113,9 +4158,8 @@
             { id: "odakci", minAvgHours: 7, label: "Odakçı", icon: "✹", className: "title-odakci", requirement: "Günlük haftalık ortalama 7 saat", description: "Dikkatini dağıtmadan hedefe yürüyen sağlam çalışma düzeni." },
             { id: "komutan", minAvgHours: 8, label: "Komutan", icon: "◆", className: "title-komutan", requirement: "Günlük haftalık ortalama 8 saat", description: "Programını yöneten, haftaya hükmeden güçlü disiplin." },
             { id: "uzman", minAvgHours: 9, label: "Uzman", icon: "★", className: "title-uzman", requirement: "Günlük haftalık ortalama 9 saat", description: "Sınav hazırlığını profesyonel ciddiyetle sürdüren üst seviye." },
-            { id: "as1", minAvgHours: 10, label: "AS I", icon: "⚔", className: "title-as-1", requirement: "2 günlük ortalama 10 saat", description: "Savaş temposuna çıktın. Masaya oturduğunda süre değil irade konuşuyor." },
-            { id: "as2", minAvgHours: 11, label: "AS II", icon: "⚡", className: "title-as-2", requirement: "2 günlük ortalama 11 saat", description: "Bu seviye kararlılığın gösterisidir. Yoruldukça sertleşen öğrencilerin alanı." },
-            { id: "fatih", minAvgHours: 12, label: "Fatih", icon: "👑", className: "title-fatih", requirement: "2 günlük ortalama 12 saat", description: "En ışıltılı zirve. Hedefi takip etmeyen, hedefi fetheden çalışma düzeni." }
+            { id: "efsane", minAvgHours: 10, label: "Efsane", icon: "✪", className: "title-efsane", requirement: "Günlük haftalık ortalama 10 saat", description: "Nadir görülen tempo, yüksek direnç ve güçlü rekabet seviyesi." },
+            { id: "fatih", minAvgHours: 11, label: "Fatih", icon: "👑", className: "title-fatih", requirement: "Günlük haftalık ortalama 11 saat", description: "Zirve ünvanı. Hem tempoda hem kararlılıkta sistemin en üst seviyesi." }
         ];
 
         const STUDY_INSIGHTS = {
@@ -6367,15 +5411,7 @@
                 : `${primarySubject.label} dersi için henüz çalışma kaydı görünmüyor. İstersen görev ekleyip başlayabilirsin.`;
 
             if (overdueSubjects.length > 1) {
-                const remainingLabels = overdueSubjects.slice(1).map(item => item.label).filter(Boolean);
-                if (remainingLabels.length === 1) {
-                    message += ` Ayrıca bekleyen ders: ${remainingLabels[0]}.`;
-                } else if (remainingLabels.length > 1) {
-                    const listedLabels = remainingLabels.length === 2
-                        ? `${remainingLabels[0]} ve ${remainingLabels[1]}`
-                        : `${remainingLabels.slice(0, -1).join(", ")} ve ${remainingLabels[remainingLabels.length - 1]}`;
-                    message += ` Ayrıca bekleyen diğer dersler: ${listedLabels}.`;
-                }
+                message += ` Ayrıca ${overdueSubjects.length - 1} ders daha bekliyor.`;
             }
 
             document.getElementById('subject-reminder-title').innerText = `${primarySubject.label} için hatırlatma`;
@@ -6588,7 +5624,7 @@
             updateCropperPreview();
         }
 
-        async function applyCroppedProfileImage() {
+        function applyCroppedProfileImage() {
             const cropperImage = document.getElementById('cropper-image');
             const stage = document.getElementById('cropper-stage');
             if (!cropperImage || !stage || !cropBaseWidth || !cropBaseHeight) return;
@@ -6619,65 +5655,7 @@
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
             closeImageCropper();
-
-            if (!currentUser) {
-                showAlert("Profil resmi hazır.", "success");
-                return;
-            }
-
-            const quickSaveButton = document.getElementById('profile-save-btn-top');
-            const bottomSaveButton = document.getElementById('profile-save-btn');
-            const saveButtons = [quickSaveButton, bottomSaveButton].filter(Boolean);
-            const originalLabels = new Map(saveButtons.map(button => [button.id, button.innerHTML]));
-
-            saveButtons.forEach(button => {
-                button.disabled = true;
-                button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Profil resmi kaydediliyor';
-            });
-
-            try {
-                if (typeof currentUserLiveDoc === 'object' && currentUserLiveDoc) {
-                    currentUserLiveDoc = {
-                        ...currentUserLiveDoc,
-                        profileImage: currentProfileImage
-                    };
-                }
-
-                if (typeof refreshCurrentTotals === 'function') {
-                    refreshCurrentTotals();
-                }
-
-                if (typeof saveData === 'function') {
-                    await saveData({ authorized: true, immediate: true });
-                }
-
-                const latestPayload = typeof buildUserPayload === 'function' ? buildUserPayload() : null;
-                if (typeof syncPublicProfileSnapshotSafely === 'function') {
-                    syncPublicProfileSnapshotSafely(latestPayload);
-                }
-                if (typeof refreshLeaderboardOptimistically === 'function') {
-                    refreshLeaderboardOptimistically(null);
-                }
-                if (typeof renderLiveLeaderboardFromDocs === 'function') {
-                    renderLiveLeaderboardFromDocs();
-                }
-                if (typeof updateProfileButton === 'function') {
-                    updateProfileButton();
-                }
-                if (typeof renderSchedule === 'function') {
-                    renderSchedule();
-                }
-
-                showAlert("Profil resmi kaydedildi.", "success");
-            } catch (error) {
-                console.error("Profil resmi otomatik kaydedilemedi:", error);
-                showAlert("Profil resmi seçildi ama otomatik kaydedilemedi. Üstteki Profili Kaydet butonunu kullan.");
-            } finally {
-                saveButtons.forEach(button => {
-                    button.disabled = false;
-                    button.innerHTML = originalLabels.get(button.id) || '<i class="fas fa-save"></i> Profili Kaydet';
-                });
-            }
+            showAlert("Profil resmi hazır.", "success");
         }
 
         function initializeCropperEvents() {
@@ -6942,86 +5920,6 @@
             return `${weekYear}-W${weekNumber}`;
         }
 
-        function getInlineDateKey(referenceDate = new Date()) {
-            return referenceDate.toLocaleDateString('sv-SE');
-        }
-
-        function getInlineDailyScheduleSeconds(data, referenceDate = new Date()) {
-            const weekKey = getWeekKey(referenceDate);
-            const dayIdx = (referenceDate.getDay() + 6) % 7;
-            const dayData = data && data.schedule && data.schedule[weekKey] ? data.schedule[weekKey][dayIdx] : null;
-            return Math.max(0, parseInt(dayData && dayData.workedSeconds, 10) || 0);
-        }
-
-        function getSafeInlineDailySeconds(data, referenceDate = new Date()) {
-            const scheduleSeconds = getInlineDailyScheduleSeconds(data, referenceDate);
-            const explicitDateKey = String((data && (data.dailyStudyDateKey || data.todayDateKey)) || '').trim();
-            const currentDateKey = getInlineDateKey(referenceDate);
-
-            if (explicitDateKey && explicitDateKey !== currentDateKey) {
-                return scheduleSeconds;
-            }
-
-            if (!explicitDateKey) {
-                const dayStart = new Date(referenceDate);
-                dayStart.setHours(0, 0, 0, 0);
-                const lastSyncAt = Math.max(
-                    parseInt(data && data.lastTimerSyncAt, 10) || 0,
-                    parseInt(data && data.updatedAtMs, 10) || 0,
-                    parseInt(data && data.updatedAt, 10) || 0
-                );
-                if (lastSyncAt > 0 && lastSyncAt < dayStart.getTime()) {
-                    return scheduleSeconds;
-                }
-            }
-
-            return scheduleSeconds;
-        }
-
-        function getSafeInlineLiveSessionSeconds(data, referenceDate = new Date()) {
-            const now = referenceDate instanceof Date ? referenceDate : new Date(referenceDate);
-            const nowMs = now.getTime();
-            const currentDateKey = getInlineDateKey(now);
-            const activeTimer = data && data.activeTimer && typeof data.activeTimer === 'object'
-                ? data.activeTimer
-                : null;
-            const staleWindowMs = 3 * 60 * 60 * 1000;
-
-            if (activeTimer) {
-                const timerDateKey = String(activeTimer.sessionDateKey || '').trim();
-                const sameDay = !timerDateKey || timerDateKey === currentDateKey;
-                const startedAtMs = Math.max(0, parseInt(activeTimer.startedAtMs, 10) || 0);
-                const lastSeenAtMs = Math.max(
-                    startedAtMs,
-                    parseInt(activeTimer.lastSeenAtMs, 10) || 0,
-                    parseInt(data && data.lastTimerSyncAt, 10) || 0,
-                    parseInt(data && data.lastSyncTime, 10) || 0
-                );
-
-                if (sameDay && !!activeTimer.isRunning && startedAtMs > 0 && lastSeenAtMs > 0 && (nowMs - lastSeenAtMs) < staleWindowMs) {
-                    const effectiveNow = Math.min(nowMs, lastSeenAtMs + staleWindowMs);
-                    const runtimeSeconds = Math.max(0, Math.floor((effectiveNow - startedAtMs) / 1000));
-                    const elapsedSeconds = Math.max(0, (parseInt(activeTimer.baseElapsedSeconds, 10) || 0) + runtimeSeconds);
-                    const persistedSeconds = Math.max(0, parseInt(activeTimer.lastPersistedElapsedSeconds, 10) || 0);
-                    return Math.max(0, elapsedSeconds - persistedSeconds);
-                }
-            }
-
-            const isWorking = !!(data && (data.isWorking || data.isRunning));
-            if (!isWorking) return 0;
-
-            const lastSyncAt = Math.max(
-                parseInt(data && data.lastTimerSyncAt, 10) || 0,
-                parseInt(data && data.lastSyncTime, 10) || 0,
-                parseInt(data && data.updatedAtMs, 10) || 0
-            );
-            if (lastSyncAt <= 0) return 0;
-            if (getInlineDateKey(new Date(lastSyncAt)) !== currentDateKey) return 0;
-            if ((nowMs - lastSyncAt) >= staleWindowMs) return 0;
-
-            return Math.max(0, parseInt(data && data.currentSessionTime, 10) || 0);
-        }
-
         function renderSchedule() {
             const grid = document.querySelector('.schedule-grid');
             grid.innerHTML = '';
@@ -7259,25 +6157,6 @@
                 clearInterval(studyInsightInterval);
                 studyInsightInterval = null;
             }
-        }
-
-        function runCodexTimerAction(action) {
-            const args = Array.prototype.slice.call(arguments, 1);
-            const bridge = window.codexTimerBridge || {};
-            const fallbackMap = {
-                showModal: typeof showPomodoroModal === 'function' ? showPomodoroModal : null,
-                hideModal: typeof hidePomodoroModal === 'function' ? hidePomodoroModal : null,
-                updateInputs: typeof updateTimerFromInputsAndReset === 'function' ? updateTimerFromInputsAndReset : null,
-                toggle: typeof toggleTimer === 'function' ? toggleTimer : null,
-                save: typeof saveWorkSession === 'function' ? saveWorkSession : null,
-                reset: typeof resetTimer === 'function' ? resetTimer : null
-            };
-
-            const handler = typeof bridge[action] === 'function' ? bridge[action] : fallbackMap[action];
-            if (typeof handler === 'function') {
-                return handler.apply(window, args);
-            }
-            return undefined;
         }
 
         function showPomodoroModal() { 
@@ -7560,15 +6439,7 @@
                 : `${primarySubject.label} dersi için henüz çalışma kaydı görünmüyor. İstersen görev ekleyip başlayabilirsin.`;
 
             if (overdueSubjects.length > 1) {
-                const remainingLabels = overdueSubjects.slice(1).map(item => item.label).filter(Boolean);
-                if (remainingLabels.length === 1) {
-                    message += ` Ayrıca bekleyen ders: ${remainingLabels[0]}.`;
-                } else if (remainingLabels.length > 1) {
-                    const listedLabels = remainingLabels.length === 2
-                        ? `${remainingLabels[0]} ve ${remainingLabels[1]}`
-                        : `${remainingLabels.slice(0, -1).join(", ")} ve ${remainingLabels[remainingLabels.length - 1]}`;
-                    message += ` Ayrıca bekleyen diğer dersler: ${listedLabels}.`;
-                }
+                message += ` Ayrıca ${overdueSubjects.length - 1} ders daha bekliyor.`;
             }
 
             document.getElementById('subject-reminder-title').innerText = `${primarySubject.label} için hatırlatma`;
@@ -8131,17 +7002,15 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
-                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
-                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, explicitDailySeconds);
+                            targetSeconds = Math.max(data.schedule[todayWeekKey][todayDayIdx].workedSeconds || 0, parseInt(data.dailyStudyTime, 10) || 0);
                             targetQuestions = Math.max(data.schedule[todayWeekKey][todayDayIdx].questions || 0, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                         }
-                        targetSeconds = Math.max(targetSeconds, explicitDailySeconds);
+                        targetSeconds = Math.max(targetSeconds, parseInt(data.dailyStudyTime, 10) || 0);
                         targetQuestions = Math.max(targetQuestions, parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     } else if (data.schedule && data.schedule[todayWeekKey]) {
                         for (let i = 0; i < 7; i++) {
@@ -8152,14 +7021,14 @@
                         }
                     }
                     if (currentLeaderboardTab !== 'daily') {
-                        targetSeconds = Math.max(targetSeconds, currentWeekSeconds);
+                        targetSeconds = Math.max(targetSeconds, parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
                         targetQuestions = Math.max(targetQuestions, parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     }
-                    if (liveSessionSeconds > 0) {
-                        targetSeconds += liveSessionSeconds;
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -8175,7 +7044,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false
+                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
                         });
                     }
                 });
@@ -8264,11 +7133,10 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
-                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
                     
                     if (currentLeaderboardTab === 'daily') {
                         // Günlük verileri hesapla
@@ -8292,12 +7160,12 @@
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
 
-                    if (liveSessionSeconds > 0) {
-                        targetSeconds += liveSessionSeconds;
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
                     // Gösterim şartı
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({ 
                             uid: doc.id,
                             username: data.username, 
@@ -8308,7 +7176,7 @@
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
                             questions: targetQuestions,
-                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false
+                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false
                         });
                     }
                 });
@@ -9160,7 +8028,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                 showProfileModal({
                     uid,
                     username: data.username || cachedProfile.username || "Kullanıcı",
@@ -9199,7 +8067,6 @@
                     let targetQuestions = 0;
                     const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds);
-                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
@@ -9215,11 +8082,7 @@
                         }
                     }
 
-                    if (liveSessionSeconds > 0) {
-                        targetSeconds += liveSessionSeconds;
-                    }
-
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0))) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking))) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -9235,7 +8098,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false,
+                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false,
                             publicNotes: getPublicUserNotes(data.notes || [])
                         });
                     }
@@ -9366,7 +8229,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                 const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                 showProfileModal({
                     uid,
@@ -9406,14 +8269,13 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const currentWeekSeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0, getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
-                    const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const explicitDailySeconds = parseInt(data.dailyStudyTime, 10) || 0;
+                    const explicitWeeklySeconds = Math.max(parseInt(data.currentWeekSeconds, 10) || 0, parseInt(data.weeklyStudyTime, 10) || 0);
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
-                    const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
                     if (currentLeaderboardTab === 'daily') {
                         if (data.schedule && data.schedule[todayWeekKey] && data.schedule[todayWeekKey][todayDayIdx]) {
@@ -9434,11 +8296,11 @@
                         targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
-                    if (liveSessionSeconds > 0) {
-                        targetSeconds += liveSessionSeconds;
+                    if (data.isWorking) {
+                        targetSeconds += parseInt(data.currentSessionTime, 10) || 0;
                     }
 
-                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && liveSessionSeconds > 0) || resolvedIsAdmin)) {
+                    if (data.username && (targetSeconds > 0 || (currentLeaderboardTab === 'daily' && data.isWorking) || resolvedIsAdmin)) {
                         leaderboardData.push({
                             uid: doc.id,
                             username: data.username,
@@ -9456,7 +8318,7 @@
                             questions: targetQuestions,
                             totalWorkedSeconds: Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(data.schedule || {})),
                             totalQuestionsAllTime: data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(data.schedule || {}),
-                            isWorking: currentLeaderboardTab === 'daily' ? (liveSessionSeconds > 0) : false,
+                            isWorking: currentLeaderboardTab === 'daily' ? (data.isWorking || false) : false,
                             publicNotes: getPublicUserNotes(data.notes || [])
                         });
                     }
@@ -10752,19 +9614,9 @@
 
             updateWorkingStatus = function(status) {
                 if (!currentUser) return;
-                const safeStatus = !!status;
-                const basePayload = typeof buildUserPayload === 'function'
-                    ? buildUserPayload()
-                    : {};
                 db.collection('users')
                     .doc(currentUser.uid)
-                    .set({
-                        ...basePayload,
-                        isWorking: safeStatus,
-                        isRunning: safeStatus,
-                        currentSessionTime: safeStatus ? Math.max(0, parseInt(basePayload.currentSessionTime, 10) || 0) : 0,
-                        lastTimerSyncAt: Date.now()
-                    }, { merge: true })
+                    .set({ isWorking: status }, { merge: true })
                     .catch(error => console.error(error));
             };
 
@@ -11853,7 +10705,6 @@
         body[data-theme="kitty"] #titles-info-btn,
         body[data-theme="kitty"] #profile-image-trigger,
         body[data-theme="kitty"] #profile-save-btn,
-        body[data-theme="kitty"] #profile-save-btn-top,
         body[data-theme="kitty"] #my-note-save-btn,
         body[data-theme="kitty"] #my-note-cancel-btn,
         body[data-theme="kitty"] #study-insight-prev-btn,
@@ -11876,7 +10727,6 @@
         body[data-theme="kitty"] #titles-info-btn:hover,
         body[data-theme="kitty"] #profile-image-trigger:hover,
         body[data-theme="kitty"] #profile-save-btn:hover,
-        body[data-theme="kitty"] #profile-save-btn-top:hover,
         body[data-theme="kitty"] #my-note-save-btn:hover,
         body[data-theme="kitty"] #my-note-cancel-btn:hover,
         body[data-theme="kitty"] #study-insight-prev-btn:hover,
@@ -11938,273 +10788,10 @@
                 padding-right: 58px;
             }
         }
-        body[data-theme="violet"] {
-            --bg-color: #140918;
-            --container-bg: rgba(31, 15, 46, 0.92);
-            --header-bg: rgba(49, 24, 74, 0.9);
-            --header-text: #fff5ff;
-            --text-color: #eadcf9;
-            --border-color: rgba(204, 168, 255, 0.22);
-            --day-bg: rgba(38, 19, 57, 0.88);
-            --accent-color: #d78cff;
-            --accent-glow: rgba(215, 140, 255, 0.46);
-            --button-bg: #6b35a8;
-            --button-hover: #8446c3;
-            --progress-bg: rgba(255, 255, 255, 0.1);
-            --progress-fill: #f28cff;
-            --progress-complete: #ffd166;
-            --pomodoro-bg: rgba(39, 18, 58, 0.94);
-            --pomodoro-accent: #ff89d6;
-            --logo-content: "MOR MOD TAM ODAK";
-            --logo-accent: #ffc9f3;
-            --task-bg: rgba(48, 24, 71, 0.92);
-            --task-completed-bg: rgba(88, 48, 123, 0.82);
-            --day-header-color: #fff5ff;
-            --task-text-color: #fff7ff;
-            --theme-icon-color: #f5dbff;
-            --day-border: 1px solid rgba(214, 174, 255, 0.18);
-            --instagram-bg: #ff89d6;
-            --instagram-text: #ffffff;
-            --theme-controls-bg: rgba(40, 18, 61, 0.76);
-            --countdown-bg: rgba(42, 18, 64, 0.92);
-            --countdown-fill: #8be9ff;
-            --countdown-text: #fff5ff;
-            --countdown-shadow: rgba(139, 233, 255, 0.55);
-            background:
-                radial-gradient(circle at 12% 12%, rgba(255, 153, 247, 0.22), transparent 24%),
-                radial-gradient(circle at 85% 15%, rgba(179, 128, 255, 0.2), transparent 22%),
-                radial-gradient(circle at 78% 82%, rgba(255, 194, 240, 0.16), transparent 20%),
-                linear-gradient(180deg, #120716 0%, #1e0d2d 42%, #28123d 100%);
-            background-attachment: fixed;
-        }
-
-        body[data-theme="violet"]::before,
-        body[data-theme="violet"]::after {
-            content: "";
-            position: fixed;
-            pointer-events: none;
-            z-index: 0;
-            border-radius: 999px;
-            filter: blur(6px);
-            opacity: 0.8;
-        }
-
-        body[data-theme="violet"]::before {
-            top: 7%;
-            left: 4%;
-            width: 180px;
-            height: 180px;
-            background: radial-gradient(circle, rgba(255, 168, 241, 0.3) 0%, rgba(255, 168, 241, 0) 72%);
-        }
-
-        body[data-theme="violet"]::after {
-            right: 6%;
-            bottom: 10%;
-            width: 220px;
-            height: 220px;
-            background: radial-gradient(circle, rgba(147, 197, 253, 0.18) 0%, rgba(147, 197, 253, 0) 76%);
-        }
-
-        body[data-theme="violet"] header,
-        body[data-theme="violet"] .container,
-        body[data-theme="violet"] .quote-container,
-        body[data-theme="violet"] #yks-countdown-container,
-        body[data-theme="violet"] .subject-reminder-banner,
-        body[data-theme="violet"] .day-cell,
-        body[data-theme="violet"] .theme-controls,
-        body[data-theme="violet"] .auth-section,
-        body[data-theme="violet"] .study-insight-card,
-        body[data-theme="violet"] .leaderboard-panel,
-        body[data-theme="violet"] .pomodoro-content,
-        body[data-theme="violet"] .notes-modal-content,
-        body[data-theme="violet"] .support-modal-content,
-        body[data-theme="violet"] .notes-editor-panel,
-        body[data-theme="violet"] .notes-list-panel,
-        body[data-theme="violet"] .support-compose-panel,
-        body[data-theme="violet"] .support-messages-panel,
-        body[data-theme="violet"] .support-section,
-        body[data-theme="violet"] #profile-modal .profile-modal-content,
-        body[data-theme="violet"] .profile-avatar-section,
-        body[data-theme="violet"] .profile-stat-card,
-        body[data-theme="violet"] .profile-title-card,
-        body[data-theme="violet"] .profile-note-card,
-        body[data-theme="violet"] .support-message-card {
-            background:
-                linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03)),
-                rgba(30, 13, 45, 0.9) !important;
-            border: 1px solid rgba(214, 174, 255, 0.16) !important;
-            box-shadow: 0 22px 42px rgba(9, 4, 18, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
-            color: #f4e9ff !important;
-            backdrop-filter: blur(18px);
-            -webkit-backdrop-filter: blur(18px);
-        }
-
-        body[data-theme="violet"] header {
-            background:
-                radial-gradient(circle at top left, rgba(255, 178, 242, 0.16), transparent 28%),
-                linear-gradient(180deg, rgba(73, 34, 110, 0.96), rgba(35, 15, 52, 0.92)) !important;
-        }
-
-        body[data-theme="violet"] h1,
-        body[data-theme="violet"] h2,
-        body[data-theme="violet"] h3,
-        body[data-theme="violet"] .support-titlebox h2,
-        body[data-theme="violet"] .notes-panel-header h3,
-        body[data-theme="violet"] #profile-modal .profile-modal-header h2 {
-            color: #fff3ff !important;
-            font-family: 'Playfair Display', 'Inter', serif;
-            text-shadow: 0 8px 24px rgba(255, 160, 240, 0.12);
-            letter-spacing: 0.01em;
-        }
-
-        body[data-theme="violet"] .quote-text,
-        body[data-theme="violet"] .quote-author,
-        body[data-theme="violet"] .support-modal-subtitle,
-        body[data-theme="violet"] .support-card-meta,
-        body[data-theme="violet"] .support-message-body,
-        body[data-theme="violet"] .support-reply-text,
-        body[data-theme="violet"] .notes-panel-header p,
-        body[data-theme="violet"] .profile-member-since,
-        body[data-theme="violet"] .profile-title-card p,
-        body[data-theme="violet"] .profile-note-card .note-card-content,
-        body[data-theme="violet"] .header-stats > span,
-        body[data-theme="violet"] .subject-hint,
-        body[data-theme="violet"] .support-admin-stat span,
-        body[data-theme="violet"] .support-private-note {
-            color: rgba(244, 233, 255, 0.82) !important;
-        }
-
-        body[data-theme="violet"] button,
-        body[data-theme="violet"] .profile-chip,
-        body[data-theme="violet"] #instagram-link,
-        body[data-theme="violet"] .leaderboard-tab,
-        body[data-theme="violet"] .support-card-actions button {
-            color: #fff7ff !important;
-            background:
-                linear-gradient(135deg, rgba(255, 139, 214, 0.95), rgba(123, 67, 201, 0.96)) !important;
-            border: 1px solid rgba(255, 203, 246, 0.24) !important;
-            box-shadow: 0 16px 30px rgba(18, 7, 27, 0.28), 0 0 18px rgba(215, 140, 255, 0.2) !important;
-        }
-
-        body[data-theme="violet"] button:hover,
-        body[data-theme="violet"] .profile-chip:hover,
-        body[data-theme="violet"] #instagram-link:hover,
-        body[data-theme="violet"] .leaderboard-tab:hover,
-        body[data-theme="violet"] .support-card-actions button:hover {
-            filter: brightness(1.06) saturate(1.06);
-            box-shadow: 0 20px 36px rgba(18, 7, 27, 0.34), 0 0 22px rgba(255, 166, 240, 0.26) !important;
-        }
-
-        body[data-theme="violet"] .theme-button {
-            color: #f6e6ff !important;
-            background:
-                linear-gradient(180deg, rgba(93, 52, 144, 0.86), rgba(48, 24, 71, 0.92)) !important;
-            border-color: rgba(221, 188, 255, 0.18) !important;
-        }
-
-        body[data-theme="violet"] .theme-button.active,
-        body[data-theme="violet"] .timer-mode-toggle__button.is-active,
-        body[data-theme="violet"] .leaderboard-tab.active,
-        body[data-theme="violet"] .support-pill.unread,
-        body[data-theme="violet"] .support-pill.private,
-        body[data-theme="violet"] .notes-folder-chip.is-active {
-            background:
-                linear-gradient(135deg, rgba(255, 198, 244, 0.96), rgba(216, 150, 255, 0.96)) !important;
-            color: #3b1657 !important;
-            box-shadow: 0 14px 28px rgba(255, 178, 242, 0.22) !important;
-        }
-
-        body[data-theme="violet"] #support-submit-btn,
-        body[data-theme="violet"] #save-btn,
-        body[data-theme="violet"] #start-pause-btn,
-        body[data-theme="violet"] #leaderboard-toggle-btn,
-        body[data-theme="violet"] #profile-save-btn,
-        body[data-theme="violet"] #profile-save-btn-top,
-        body[data-theme="violet"] #my-note-save-btn {
-            background:
-                linear-gradient(135deg, rgba(120, 246, 255, 0.95), rgba(107, 53, 168, 0.96)) !important;
-            color: #ffffff !important;
-        }
-
-        body[data-theme="violet"] #support-submit-btn:hover,
-        body[data-theme="violet"] #save-btn:hover,
-        body[data-theme="violet"] #start-pause-btn:hover,
-        body[data-theme="violet"] #leaderboard-toggle-btn:hover,
-        body[data-theme="violet"] #profile-save-btn:hover,
-        body[data-theme="violet"] #profile-save-btn-top:hover,
-        body[data-theme="violet"] #my-note-save-btn:hover {
-            color: #ffffff !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-panel {
-            background:
-                linear-gradient(180deg, rgba(40, 18, 61, 0.98), rgba(24, 10, 37, 0.98)) !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-item {
-            background:
-                linear-gradient(135deg, rgba(93, 52, 144, 0.22), rgba(34, 16, 51, 0.86)) !important;
-            border-color: rgba(226, 195, 255, 0.18) !important;
-            box-shadow: 0 18px 32px rgba(8, 4, 16, 0.24) !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-item.rank-1 {
-            background:
-                radial-gradient(circle at top left, rgba(255, 241, 184, 0.28) 0%, rgba(255, 241, 184, 0) 34%),
-                linear-gradient(135deg, rgba(93, 42, 149, 0.92), rgba(175, 118, 35, 0.92), rgba(58, 24, 93, 0.96)) !important;
-            border-color: rgba(255, 220, 116, 0.92) !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-item.rank-2 {
-            background:
-                radial-gradient(circle at top left, rgba(243, 246, 255, 0.18) 0%, rgba(243, 246, 255, 0) 32%),
-                linear-gradient(135deg, rgba(101, 66, 162, 0.88), rgba(117, 126, 154, 0.88), rgba(45, 24, 73, 0.94)) !important;
-            border-color: rgba(224, 232, 252, 0.74) !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-item.rank-3 {
-            background:
-                radial-gradient(circle at top left, rgba(231, 183, 145, 0.16) 0%, rgba(231, 183, 145, 0) 32%),
-                linear-gradient(135deg, rgba(101, 50, 106, 0.88), rgba(146, 93, 44, 0.86), rgba(45, 23, 58, 0.94)) !important;
-            border-color: rgba(216, 146, 93, 0.7) !important;
-        }
-
-        body[data-theme="violet"] .leaderboard-name,
-        body[data-theme="violet"] .leaderboard-score,
-        body[data-theme="violet"] .leaderboard-questions,
-        body[data-theme="violet"] .leaderboard-header h3,
-        body[data-theme="violet"] .close-leaderboard {
-            color: #fff5ff !important;
-        }
-
-        body[data-theme="violet"] .profile-field-group input,
-        body[data-theme="violet"] .profile-field-group textarea,
-        body[data-theme="violet"] .profile-track-select,
-        body[data-theme="violet"] .support-compose-fields textarea,
-        body[data-theme="violet"] .support-reply-box textarea,
-        body[data-theme="violet"] .notes-editor-fields input,
-        body[data-theme="violet"] .notes-editor-fields textarea,
-        body[data-theme="violet"] .question-input-box input,
-        body[data-theme="violet"] .pomodoro-time-inputs input,
-        body[data-theme="violet"] .question-subject-select {
-            background: rgba(80, 42, 118, 0.42) !important;
-            border-color: rgba(229, 198, 255, 0.16) !important;
-            color: #fff5ff !important;
-        }
-
-        body[data-theme="violet"] .profile-field-group input::placeholder,
-        body[data-theme="violet"] .profile-field-group textarea::placeholder,
-        body[data-theme="violet"] .support-compose-fields textarea::placeholder,
-        body[data-theme="violet"] .support-reply-box textarea::placeholder,
-        body[data-theme="violet"] .notes-editor-fields input::placeholder,
-        body[data-theme="violet"] .notes-editor-fields textarea::placeholder,
-        body[data-theme="violet"] .question-input-box input::placeholder {
-            color: rgba(244, 233, 255, 0.5) !important;
-        }
     </style>
-<script src="codex-hotfix-4.js?v=20260402-0712"></script>
+<script src="codex-hotfix-4.js?v=20260329-0508"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260405-0745"></script>
+<script src="codex-upgrade-7.js?v=20260406-0010"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
@@ -12253,7 +10840,7 @@
                     modal.style.touchAction = 'pan-y';
                 });
 
-                Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content, .analytics-modal-content')).forEach(function (panel) {
+                Array.from(document.querySelectorAll('.profile-modal-content, .notes-modal-content, .support-modal-content, .titles-modal-content, .pomodoro-content, .cropper-modal-content')).forEach(function (panel) {
                     panel.style.overflowY = 'auto';
                     panel.style.overflowX = 'hidden';
                     panel.style.maxHeight = mobileViewport ? '80vh' : panel.style.maxHeight;
