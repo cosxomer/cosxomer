@@ -1045,6 +1045,9 @@
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
         }
+        if (currentUser?.uid && typeof saveCodexCachedUserProfile === "function") {
+            saveCodexCachedUserProfile(currentUser.uid, currentUserLiveDoc, currentUser);
+        }
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
@@ -8551,6 +8554,9 @@
                 schedule: sanitizeScheduleData(scheduleData || {})
             };
             currentUserProfileHydrated = true;
+            if (typeof saveCodexCachedUserProfile === "function") {
+                saveCodexCachedUserProfile(currentUser.uid, currentUserLiveDoc, currentUser);
+            }
         }
         if (restoredTimerRecovery && currentUser?.uid) {
             currentUserLiveDoc = {
@@ -10492,6 +10498,13 @@
                 currentUser = user;
                 currentUserProfileHydrated = false;
                 currentUserHasRemoteProfile = false;
+                const cachedProfile = typeof getCodexCachedUserProfile === "function"
+                    ? getCodexCachedUserProfile(user.uid)
+                    : null;
+                if (cachedProfile && typeof cachedProfile === "object") {
+                    currentUserHasRemoteProfile = true;
+                    bootstrapExtendedUserData(cachedProfile);
+                }
                 currentUserPublicProfileBootstrapPromise = db.collection(PUBLIC_PROFILE_COLLECTION).doc(user.uid).get()
                     .then(doc => {
                         currentUserPublicProfileDoc = doc.exists ? (doc.data() || {}) : null;

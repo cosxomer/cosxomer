@@ -6504,6 +6504,50 @@
             };
         }
 
+        function getCodexUserProfileCacheKey(uid) {
+            const safeUid = String(uid || "").trim();
+            return safeUid ? `codexUserProfileCacheV2:${safeUid}` : "";
+        }
+
+        function getCodexCachedUserProfile(uid) {
+            const cacheKey = getCodexUserProfileCacheKey(uid);
+            if (!cacheKey) return null;
+            try {
+                const rawValue = localStorage.getItem(cacheKey);
+                if (!rawValue) return null;
+                const parsed = JSON.parse(rawValue);
+                return parsed && typeof parsed === 'object' ? parsed : null;
+            } catch (error) {
+                console.warn("Profil cache okunamadi:", error);
+                return null;
+            }
+        }
+
+        function saveCodexCachedUserProfile(uid, profileData = {}, user = currentUser) {
+            const cacheKey = getCodexUserProfileCacheKey(uid);
+            if (!cacheKey || !profileData || typeof profileData !== 'object') return;
+            try {
+                const existing = getCodexCachedUserProfile(uid) || {};
+                const merged = mergeInlineUserProfileSources(existing, profileData, user);
+                const hasMeaningfulProfile = !!(
+                    merged.username
+                    || merged.profileImage
+                    || merged.studyTrack
+                    || (merged.schedule && Object.keys(merged.schedule).length)
+                );
+                if (!hasMeaningfulProfile) return;
+                localStorage.setItem(cacheKey, JSON.stringify({
+                    ...existing,
+                    ...merged,
+                    uid: String(uid || merged.uid || ""),
+                    schedule: merged.schedule || existing.schedule || {},
+                    notes: Array.isArray(merged.notes) ? merged.notes : (existing.notes || [])
+                }));
+            } catch (error) {
+                console.warn("Profil cache yazilamadi:", error);
+            }
+        }
+
         function updateProfileButton() {
             document.getElementById('username-display').innerText = currentUsername || "Ömer";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
@@ -6917,14 +6961,12 @@
                     db.collection('users').doc(user.uid).get().catch(() => null),
                     db.collection('publicProfiles').doc(user.uid).get().catch(() => null)
                 ]).then(([userDoc, profileDoc]) => {
-                    if (!userDoc?.exists && !profileDoc?.exists) {
-                        saveToFirestore();
-                        return;
-                    }
+                    const cachedProfile = getCodexCachedUserProfile(user.uid);
+                    const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
 
                     const data = mergeInlineUserProfileSources(
-                        userDoc?.exists ? (userDoc.data() || {}) : {},
-                        profileDoc?.exists ? (profileDoc.data() || {}) : {},
+                        userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
+                        profileDoc?.exists ? (profileDoc.data() || {}) : (cachedProfile || {}),
                         user
                     );
                     currentUserLiveDoc = {
@@ -6939,6 +6981,9 @@
                     userNotes = normalizeUserNotes(data.notes || []);
                     totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
                     totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    if (hasRemoteData) {
+                        saveCodexCachedUserProfile(user.uid, data, user);
+                    }
                     updateProfileButton();
                     updateMyNotesButton();
                     renderSchedule();
@@ -8207,9 +8252,11 @@
                     db.collection('users').doc(user.uid).get().catch(() => null),
                     db.collection('publicProfiles').doc(user.uid).get().catch(() => null)
                 ]).then(([userDoc, profileDoc]) => {
+                    const cachedProfile = getCodexCachedUserProfile(user.uid);
+                    const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
                     const data = mergeInlineUserProfileSources(
-                        userDoc?.exists ? (userDoc.data() || {}) : {},
-                        profileDoc?.exists ? (profileDoc.data() || {}) : {},
+                        userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
+                        profileDoc?.exists ? (profileDoc.data() || {}) : (cachedProfile || {}),
                         user
                     );
                     studyTrack = data.studyTrack || "";
@@ -8217,6 +8264,9 @@
                     currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
                     totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
                     totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    if (hasRemoteData) {
+                        saveCodexCachedUserProfile(user.uid, data, user);
+                    }
                     updateProfileButton();
                     updateSubjectReminder();
                     resetStudyInsightRotation();
@@ -12339,9 +12389,9 @@
             color: rgba(244, 233, 255, 0.5) !important;
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260408-1217"></script>
+<script src="codex-hotfix-4.js?v=20260408-1547"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260408-1217"></script>
+<script src="codex-upgrade-7.js?v=20260408-1547"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
