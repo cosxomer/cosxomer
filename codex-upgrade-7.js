@@ -42,6 +42,8 @@
     let currentUserLiveDoc = null;
     let currentUserPublicProfileDoc = null;
     let currentUserPublicProfileBootstrapPromise = null;
+    let currentUserProfileHydrated = false;
+    let currentUserHasRemoteProfile = false;
     let leaderboardRealtimeDocs = [];
     let leaderboardProfileSourceDocs = [];
     let leaderboardLiveSourceDocs = [];
@@ -4066,6 +4068,74 @@
         };
     }
 
+    function canWriteCurrentUserProfileSafely() {
+        if (!currentUser?.uid) return false;
+        if (!hasBootstrappedUsersRealtime) return false;
+        return !currentUserHasRemoteProfile || currentUserProfileHydrated;
+    }
+
+    function resolveWritableCurrentUserProfile(basePayload = {}, options = {}) {
+        const mergedProfile = mergeCurrentUserProfileSources(
+            currentUserLiveDoc || {},
+            currentUserPublicProfileDoc || {},
+            getCurrentRuntimeProfileSeed(),
+            basePayload || {}
+        );
+        const resolvedEmail = pickPreferredProfileText(
+            [currentUser?.email, mergedProfile.email, basePayload.email],
+            { allowWeak: true }
+        );
+        const allowWeakFallback = options.allowWeakFallback === true || !currentUserHasRemoteProfile;
+        const resolvedUsername = pickPreferredProfileText(
+            [
+                mergedProfile.username,
+                mergedProfile.name,
+                basePayload.username,
+                basePayload.name,
+                currentUsername,
+                currentUser?.displayName
+            ],
+            { email: resolvedEmail }
+        ) || (allowWeakFallback ? (resolvedEmail?.split?.("@")?.[0] || "") : "");
+        const resolvedStudyTrack = pickPreferredProfileText(
+            [mergedProfile.studyTrack, basePayload.studyTrack, studyTrack],
+            { allowWeak: true }
+        );
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(
+                resolvedStudyTrack || "",
+                getFirstNonEmptyArray(
+                    mergedProfile.selectedSubjects,
+                    basePayload.selectedSubjects,
+                    selectedSubjects
+                )
+            )
+            : getFirstNonEmptyArray(
+                mergedProfile.selectedSubjects,
+                basePayload.selectedSubjects,
+                selectedSubjects
+            );
+        return {
+            mergedProfile,
+            email: String(resolvedEmail || "").trim(),
+            username: String(resolvedUsername || "").trim(),
+            about: pickPreferredProfileText(
+                [currentProfileAbout, mergedProfile.about, basePayload.about],
+                { allowWeak: true }
+            ),
+            profileImage: pickPreferredProfileText(
+                [currentProfileImage, mergedProfile.profileImage, basePayload.profileImage],
+                { allowWeak: true }
+            ),
+            accountCreatedAt: pickPreferredProfileText(
+                [currentAccountCreatedAt, mergedProfile.accountCreatedAt, basePayload.accountCreatedAt],
+                { allowWeak: true }
+            ),
+            studyTrack: String(resolvedStudyTrack || "").trim(),
+            selectedSubjects: resolvedSelectedSubjects
+        };
+    }
+
     function mergeCurrentUserProfileSources(...sources) {
         const safeSources = sources
             .filter(source => source && typeof source === "object")
@@ -4688,7 +4758,16 @@
     }
 
     function buildPublicProfilePayload(basePayload = {}) {
-        const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
+        const safeProfile = resolveWritableCurrentUserProfile(basePayload);
+        const safeSchedule = sanitizeScheduleData(
+            getMostInformativeProfileSchedule(
+                scheduleData || {},
+                basePayload.schedule || {},
+                safeProfile.mergedProfile?.schedule || {},
+                currentUserLiveDoc?.schedule || {},
+                currentUserPublicProfileDoc?.schedule || {}
+            )
+        );
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, currentUserLiveDoc || {});
@@ -4711,14 +4790,6 @@
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
-        const resolvedUsername = String(
-            currentUsername
-            || basePayload.username
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || basePayload.email?.split?.("@")?.[0]
-            || ""
-        ).trim();
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || basePayload.uid || "",
             schedule: safeSchedule,
@@ -4729,14 +4800,14 @@
 
         return {
             uid: currentUser?.uid || basePayload.uid || "",
-            username: resolvedUsername || "Kullanici",
-            about: currentProfileAbout || basePayload.about || "",
-            profileImage: currentProfileImage || basePayload.profileImage || "",
-            accountCreatedAt: currentAccountCreatedAt || basePayload.accountCreatedAt || "",
-            studyTrack: studyTrack || basePayload.studyTrack || "",
+            username: safeProfile.username || "Kullanici",
+            about: safeProfile.about || "",
+            profileImage: safeProfile.profileImage || "",
+            accountCreatedAt: safeProfile.accountCreatedAt || "",
+            studyTrack: safeProfile.studyTrack || "",
             selectedSubjects: typeof normalizeSelectedSubjects === "function"
-                ? normalizeSelectedSubjects(studyTrack || basePayload.studyTrack || "", selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || []))
-                : (selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || [])),
+                ? normalizeSelectedSubjects(safeProfile.studyTrack || "", safeProfile.selectedSubjects || [])
+                : (safeProfile.selectedSubjects || []),
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!basePayload.isAdmin,
@@ -4780,31 +4851,37 @@
 
     function buildLeaderboardDocumentPayload(basePayload = {}) {
         const isCurrentUserTarget = isCurrentUserPayloadTarget(basePayload);
-        const safeSchedule = sanitizeScheduleData(basePayload.schedule || (isCurrentUserTarget ? (scheduleData || {}) : {}));
+        const safeProfile = isCurrentUserTarget
+            ? resolveWritableCurrentUserProfile(basePayload)
+            : {
+                mergedProfile: basePayload || {},
+                email: String(basePayload.email || "").trim(),
+                username: String(basePayload.username || basePayload.name || "").trim(),
+                about: String(basePayload.about || "").trim(),
+                profileImage: String(basePayload.profileImage || "").trim(),
+                accountCreatedAt: String(basePayload.accountCreatedAt || "").trim(),
+                studyTrack: String(basePayload.studyTrack || "").trim(),
+                selectedSubjects: Array.isArray(basePayload.selectedSubjects) ? [...basePayload.selectedSubjects] : []
+            };
+        const safeSchedule = sanitizeScheduleData(
+            getMostInformativeProfileSchedule(
+                isCurrentUserTarget ? (scheduleData || {}) : {},
+                basePayload.schedule || {},
+                safeProfile.mergedProfile?.schedule || {},
+                currentUserLiveDoc?.schedule || {},
+                currentUserPublicProfileDoc?.schedule || {}
+            )
+        );
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
         const resolvedTitleAwards = getStoredTitleAwards(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
-        const resolvedEmail = String(
-            (isCurrentUserTarget ? (currentUser?.email || "") : "")
-            || basePayload.email
-            || ""
-        ).trim();
-        const resolvedUsername = String(
-            (isCurrentUserTarget ? (currentUsername || "") : "")
-            || basePayload.username
-            || (isCurrentUserTarget ? (currentUser?.displayName || "") : "")
-            || resolvedEmail.split("@")[0]
-            || ""
-        ).trim();
-        const resolvedStudyTrack = String(
-            (isCurrentUserTarget ? (studyTrack || "") : "")
-            || basePayload.studyTrack
-            || ""
-        ).trim();
+        const resolvedEmail = safeProfile.email || "";
+        const resolvedUsername = safeProfile.username || "";
+        const resolvedStudyTrack = safeProfile.studyTrack || "";
         const resolvedSelectedSubjectsSource = isCurrentUserTarget && Array.isArray(selectedSubjects) && selectedSubjects.length
-            ? selectedSubjects
-            : (basePayload.selectedSubjects || []);
+            ? safeProfile.selectedSubjects
+            : ((safeProfile.selectedSubjects && safeProfile.selectedSubjects.length) ? safeProfile.selectedSubjects : (basePayload.selectedSubjects || []));
         const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
             ? normalizeSelectedSubjects(resolvedStudyTrack, resolvedSelectedSubjectsSource)
             : resolvedSelectedSubjectsSource;
@@ -4870,9 +4947,9 @@
             role: resolvedRole,
             isAdmin: resolvedIsAdmin,
             adminTitle: resolvedAdminTitle,
-            about: String((isCurrentUserTarget ? (currentProfileAbout || "") : "") || basePayload.about || "").trim(),
-            profileImage: (isCurrentUserTarget ? (currentProfileImage || "") : "") || basePayload.profileImage || "",
-            accountCreatedAt: (isCurrentUserTarget ? (currentAccountCreatedAt || "") : "") || basePayload.accountCreatedAt || "",
+            about: safeProfile.about || "",
+            profileImage: safeProfile.profileImage || "",
+            accountCreatedAt: safeProfile.accountCreatedAt || "",
             studyTrack: resolvedStudyTrack,
             selectedSubjects: resolvedSelectedSubjects,
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
@@ -4962,15 +5039,11 @@
         if (!currentUser?.uid) return Promise.resolve();
         scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
+        const safeProfile = resolveWritableCurrentUserProfile();
 
         const dailyQuestions = getCurrentDayQuestionsFromSchedule(scheduleData);
         const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(scheduleData);
-        const resolvedUsername = String(
-            currentUsername
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || ""
-        ).trim();
+        const resolvedUsername = String(safeProfile.username || "").trim();
 
         const questionPatch = {
             uid: currentUser.uid,
@@ -5154,7 +5227,14 @@
     }
 
     function buildRealtimeStudyPayload(options = {}) {
-        scheduleData = sanitizeScheduleData(scheduleData || {});
+        const safeProfile = resolveWritableCurrentUserProfile();
+        scheduleData = sanitizeScheduleData(
+            getMostInformativeProfileSchedule(
+                scheduleData || {},
+                currentUserLiveDoc?.schedule || {},
+                currentUserPublicProfileDoc?.schedule || {}
+            )
+        );
         refreshCurrentTotals();
 
         const syncTimestamp = Date.now();
@@ -5184,14 +5264,7 @@
         const resolvedBreakSessionTime = activeBreakTimerRecord
             ? sessionPendingSeconds
             : 0;
-        const resolvedName = String(
-            currentUsername
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || currentUserLiveDoc?.username
-            || currentUserLiveDoc?.name
-            || ""
-        ).trim() || "Kullanici";
+        const resolvedName = safeProfile.username || "Kullanici";
         const legacyWorkingStartedAt = activeStudyTimerRecord
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
@@ -5211,6 +5284,7 @@
         return {
             schedule: scheduleData,
             name: resolvedName,
+            username: resolvedName,
             totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
             totalStudyTime: totalWorkedSecondsAllTime || 0,
             totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
@@ -5239,7 +5313,12 @@
             lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
             lastSavedTimestamp: syncTimestamp,
             sessionFinalized: !(activeStudyTimerRecord || activeBreakTimerRecord),
-            emailVerified: !!currentUser?.emailVerified
+            emailVerified: !!currentUser?.emailVerified,
+            profileImage: safeProfile.profileImage || "",
+            about: safeProfile.about || "",
+            accountCreatedAt: safeProfile.accountCreatedAt || "",
+            studyTrack: safeProfile.studyTrack || "",
+            selectedSubjects: safeProfile.selectedSubjects || []
         };
     }
 
@@ -5248,7 +5327,14 @@
     }
 
     function buildOptimisticCurrentUserData(baseData = {}, activeSessionOverride) {
-        const normalizedLocalSchedule = sanitizeScheduleData(scheduleData || {});
+        const safeProfile = resolveWritableCurrentUserProfile(baseData);
+        const normalizedLocalSchedule = sanitizeScheduleData(
+            getMostInformativeProfileSchedule(
+                scheduleData || {},
+                currentUserLiveDoc?.schedule || {},
+                currentUserPublicProfileDoc?.schedule || {}
+            )
+        );
         const normalizedBaseSchedule = sanitizeScheduleData(baseData.schedule || {});
         const resolvedSchedule = hasAnyScheduleEntries(normalizedLocalSchedule) ? normalizedLocalSchedule : normalizedBaseSchedule;
         const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
@@ -5296,14 +5382,14 @@
 
         return {
             ...baseData,
-            username: currentUsername || baseData.username || "Kullanıcı",
-            name: currentUsername || baseData.name || baseData.username || "Kullanici",
-            email: currentUser?.email || baseData.email || "",
+            username: safeProfile.username || baseData.username || "Kullanıcı",
+            name: safeProfile.username || baseData.name || baseData.username || "Kullanici",
+            email: safeProfile.email || currentUser?.email || baseData.email || "",
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
-            about: currentProfileAbout || baseData.about || "",
-            profileImage: currentProfileImage || baseData.profileImage || "",
-            accountCreatedAt: currentAccountCreatedAt || baseData.accountCreatedAt || "",
-            studyTrack: studyTrack || baseData.studyTrack || "",
+            about: safeProfile.about || baseData.about || "",
+            profileImage: safeProfile.profileImage || baseData.profileImage || "",
+            accountCreatedAt: safeProfile.accountCreatedAt || baseData.accountCreatedAt || "",
+            studyTrack: safeProfile.studyTrack || baseData.studyTrack || "",
             selectedSubjects: resolvedSelectedSubjects,
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
@@ -7352,6 +7438,7 @@
             const publicProfileData = currentUserPublicProfileBootstrapPromise
                 ? await currentUserPublicProfileBootstrapPromise.catch(() => null)
                 : currentUserPublicProfileDoc;
+            currentUserHasRemoteProfile = !!(currentUserDoc || publicProfileData);
             const currentData = mergeCurrentUserProfileSources(
                 currentUserDoc?.data?.() || {},
                 publicProfileData || {},
@@ -7365,6 +7452,7 @@
                 applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
             } else {
                 currentUserLiveDoc = null;
+                currentUserProfileHydrated = false;
             }
 
             if (initialSync) {
@@ -8429,12 +8517,12 @@
                     safeData.username,
                     safeData.name,
                     currentUser?.displayName,
-                    safeData.email?.split?.("@")?.[0]
+                    currentUsername
                 ],
                 {
                     email: safeData.email || currentUser?.email || ""
                 }
-            );
+            ) || (!currentUserHasRemoteProfile ? (safeData.email?.split?.("@")?.[0] || "") : "");
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -8462,6 +8550,7 @@
                 ...safeData,
                 schedule: sanitizeScheduleData(scheduleData || {})
             };
+            currentUserProfileHydrated = true;
         }
         if (restoredTimerRecovery && currentUser?.uid) {
             currentUserLiveDoc = {
@@ -9068,6 +9157,12 @@
             }
 
             if (!isAuthorized && !ensureManualWriteAllowed(label)) {
+                resolvers.forEach(resolve => resolve());
+                return Promise.resolve();
+            }
+
+            if (!canWriteCurrentUserProfileSafely()) {
+                console.warn(`${label} profil bootstrap tamamlanmadan atlandi.`);
                 resolvers.forEach(resolve => resolve());
                 return Promise.resolve();
             }
@@ -9967,7 +10062,7 @@
                     basePayload.name
                 ],
                 { email: resolvedEmail }
-            ) || resolvedEmail?.split?.("@")?.[0] || "Kullanici";
+            ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
             const resolvedStudyTrack = pickPreferredProfileText(
                 [studyTrack, mergedProfile.studyTrack, basePayload.studyTrack],
                 { allowWeak: true }
@@ -10100,7 +10195,7 @@
                 const resolvedUsername = pickPreferredProfileText(
                     [currentUsername, mergedProfile.username, mergedProfile.name, seed.username, seed.name],
                     { email: resolvedEmail }
-                ) || resolvedEmail?.split?.("@")?.[0] || "Kullanici";
+                ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
                 const resolvedStudyTrack = pickPreferredProfileText(
                     [studyTrack, mergedProfile.studyTrack, seed.studyTrack],
                     { allowWeak: true }
@@ -10369,6 +10464,8 @@
                 currentUserLiveDoc = null;
                 currentUserPublicProfileDoc = null;
                 currentUserPublicProfileBootstrapPromise = null;
+                currentUserProfileHydrated = false;
+                currentUserHasRemoteProfile = false;
                 currentUserWriteChain = Promise.resolve();
                 requiresEmailVerification = false;
                 hasBootstrappedUsersRealtime = false;
@@ -10393,9 +10490,12 @@
             }
 
                 currentUser = user;
+                currentUserProfileHydrated = false;
+                currentUserHasRemoteProfile = false;
                 currentUserPublicProfileBootstrapPromise = db.collection(PUBLIC_PROFILE_COLLECTION).doc(user.uid).get()
                     .then(doc => {
                         currentUserPublicProfileDoc = doc.exists ? (doc.data() || {}) : null;
+                        currentUserHasRemoteProfile = currentUserHasRemoteProfile || !!doc.exists;
                         return currentUserPublicProfileDoc;
                     })
                     .catch(error => {
