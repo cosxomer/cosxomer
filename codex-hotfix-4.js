@@ -494,7 +494,7 @@
                     <div id="support-admin-time-user-results" style="display:flex; flex-direction:column; gap:8px; max-height:220px; overflow:auto; padding-right:2px;"></div>
                     <select id="support-admin-time-scope" style="width:100%; padding:11px 12px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(15,23,42,0.55); color:var(--header-text);">
                         <option value="today">Bugun</option>
-                        <option value="yesterday">Dun</option>
+                        <option value="yesterday">Dün</option>
                         <option value="week">Haftalik</option>
                         <option value="total">Toplam</option>
                     </select>
@@ -972,19 +972,35 @@
         const adjustmentRequestedAtMs = Date.now();
         const scheduleUpdate = buildAdjustedWorkedSchedule(userData.schedule || {}, normalizedSeconds, scope, referenceDate);
         const nextSchedule = scheduleUpdate.nextSchedule;
+        const preservedSchedule = cloneAdminScheduleData(userData.schedule || {});
         const targetMeta = scheduleUpdate.currentMeta;
         const currentMeta = getAdminAdjustmentDateMeta(new Date());
-        const totalWorkedSeconds = scheduleUpdate.appliedTotalSeconds;
-        const dailyStudyTime = getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx);
-        const weeklyStudyTime = getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey);
+        const isWeeklyAdjustment = scheduleUpdate.normalizedScope === 'week';
+        const effectiveSchedule = isWeeklyAdjustment ? preservedSchedule : nextSchedule;
+        const preservedDaySeconds = getAdminScheduleDayWorkedSeconds(preservedSchedule, currentMeta.weekKey, currentMeta.dayIdx);
+        const preservedTotalWorkedSeconds = Math.max(
+            0,
+            parseAdminTimeValue(userData.totalWorkedSeconds, 0),
+            parseAdminTimeValue(userData.totalStudyTime, 0),
+            getWorkedSecondsTotal(preservedSchedule)
+        );
+        const totalWorkedSeconds = isWeeklyAdjustment
+            ? preservedTotalWorkedSeconds
+            : scheduleUpdate.appliedTotalSeconds;
+        const dailyStudyTime = isWeeklyAdjustment
+            ? preservedDaySeconds
+            : getAdminScheduleDayWorkedSeconds(nextSchedule, currentMeta.weekKey, currentMeta.dayIdx);
+        const weeklyStudyTime = isWeeklyAdjustment
+            ? normalizedSeconds
+            : getAdminScheduleWeekWorkedSeconds(nextSchedule, currentMeta.weekKey);
         const totalQuestionsAllTime = typeof calculateTotalQuestionsFromSchedule === 'function'
-            ? calculateTotalQuestionsFromSchedule(nextSchedule)
+            ? calculateTotalQuestionsFromSchedule(effectiveSchedule)
             : Math.max(0, parseAdminTimeValue(userData.totalQuestionsAllTime, 0));
         const dailyQuestions = typeof getCurrentDayQuestionsFromSchedule === 'function'
-            ? getCurrentDayQuestionsFromSchedule(nextSchedule, new Date())
+            ? getCurrentDayQuestionsFromSchedule(effectiveSchedule, new Date())
             : Math.max(0, parseAdminTimeValue(userData.dailyQuestionCount, 0));
         const weeklyQuestions = typeof getCurrentWeekQuestionsFromSchedule === 'function'
-            ? getCurrentWeekQuestionsFromSchedule(nextSchedule, new Date())
+            ? getCurrentWeekQuestionsFromSchedule(effectiveSchedule, new Date())
             : Math.max(dailyQuestions, parseAdminTimeValue(userData.weeklyQuestionCount, 0));
         const nowMs = Date.now();
         const identityPatch = {
@@ -1031,7 +1047,8 @@
                 requestedAt: adjustmentRequestedAt,
                 requestedAtMs: adjustmentRequestedAtMs,
                 targetSeconds: normalizedSeconds,
-                appliedDaySeconds: scheduleUpdate.appliedTargetDaySeconds
+                appliedDaySeconds: dailyStudyTime,
+                appliedWeekSeconds: weeklyStudyTime
             },
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,
@@ -1046,7 +1063,7 @@
             usersPatch: {
                 ...identityPatch,
                 ...sharedPatch,
-                schedule: nextSchedule
+                schedule: effectiveSchedule
             },
             publicProfilePatch: {
                 ...identityPatch,
@@ -1055,7 +1072,7 @@
             leaderboardPatch: {
                 ...identityPatch,
                 ...sharedPatch,
-                schedule: nextSchedule
+                schedule: effectiveSchedule
             }
         };
     }

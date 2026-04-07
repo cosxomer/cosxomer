@@ -40,6 +40,8 @@
     let leaderboardRealtimeUnsubscribe = null;
     let currentUserResetUnsubscribe = null;
     let currentUserLiveDoc = null;
+    let currentUserPublicProfileDoc = null;
+    let currentUserPublicProfileBootstrapPromise = null;
     let leaderboardRealtimeDocs = [];
     let leaderboardProfileSourceDocs = [];
     let leaderboardLiveSourceDocs = [];
@@ -984,8 +986,59 @@
     }
 
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
-        const dailyResetState = getDailySnapshotResetState(userData || {});
+        const mergedUserData = mergeCurrentUserProfileSources(
+            userData || {},
+            currentUserPublicProfileDoc || {},
+            currentUserLiveDoc || {},
+            getCurrentRuntimeProfileSeed()
+        );
+        const dailyResetState = getDailySnapshotResetState(mergedUserData || {});
         currentUserLiveDoc = dailyResetState.normalizedData;
+        const resolvedEmail = String(currentUser?.email || currentUserLiveDoc?.email || "").trim();
+        const resolvedUsername = pickPreferredProfileText(
+            [currentUsername, currentUserLiveDoc?.username, currentUserLiveDoc?.name],
+            { email: resolvedEmail }
+        );
+        if (resolvedUsername) {
+            currentUsername = resolvedUsername;
+        }
+        const resolvedProfileImage = pickPreferredProfileText(
+            [currentProfileImage, currentUserLiveDoc?.profileImage],
+            { allowWeak: true }
+        );
+        if (resolvedProfileImage) {
+            currentProfileImage = resolvedProfileImage;
+        }
+        const resolvedAbout = pickPreferredProfileText(
+            [currentProfileAbout, currentUserLiveDoc?.about],
+            { allowWeak: true }
+        );
+        if (resolvedAbout) {
+            currentProfileAbout = resolvedAbout;
+        }
+        const resolvedAccountCreatedAt = pickPreferredProfileText(
+            [currentAccountCreatedAt, currentUserLiveDoc?.accountCreatedAt],
+            { allowWeak: true }
+        );
+        if (resolvedAccountCreatedAt) {
+            currentAccountCreatedAt = resolvedAccountCreatedAt;
+        }
+        const resolvedStudyTrack = pickPreferredProfileText(
+            [studyTrack, currentUserLiveDoc?.studyTrack],
+            { allowWeak: true }
+        );
+        if (resolvedStudyTrack) {
+            studyTrack = resolvedStudyTrack;
+        }
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(
+                studyTrack || currentUserLiveDoc?.studyTrack || "",
+                getFirstNonEmptyArray(selectedSubjects, currentUserLiveDoc?.selectedSubjects)
+            )
+            : getFirstNonEmptyArray(selectedSubjects, currentUserLiveDoc?.selectedSubjects);
+        if (Array.isArray(resolvedSelectedSubjects) && resolvedSelectedSubjects.length) {
+            selectedSubjects = [...resolvedSelectedSubjects];
+        }
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
@@ -1051,6 +1104,11 @@
             parseInteger(adjustment.appliedDaySeconds, 0),
             targetSeconds
         );
+        const appliedWeekSeconds = Math.max(
+            0,
+            parseInteger(adjustment.appliedWeekSeconds, 0),
+            targetSeconds
+        );
 
         if (!token || !dateKey || !requestedAtMs) return null;
 
@@ -1061,7 +1119,8 @@
             scope,
             requestedAtMs,
             targetSeconds,
-            appliedDaySeconds
+            appliedDaySeconds,
+            appliedWeekSeconds
         };
     }
 
@@ -3749,6 +3808,32 @@
         return seconds;
     }
 
+    function getAdminWeeklyAdjustmentTarget(userData = {}, referenceDate = new Date()) {
+        const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
+        if (!adjustment || adjustment.scope !== "week") return null;
+
+        const { weekKey } = getCurrentDayMeta(referenceDate);
+        if (adjustment.weekKey && adjustment.weekKey !== weekKey) return null;
+
+        return Math.max(
+            0,
+            parseInteger(adjustment.appliedWeekSeconds, 0),
+            parseInteger(adjustment.targetSeconds, 0)
+        );
+    }
+
+    function getResolvedCurrentWeekWorkedSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
+        const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate);
+        const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
+        if (adminWeeklyTarget !== null) return adminWeeklyTarget;
+
+        return Math.max(
+            scheduleWeeklySeconds,
+            parseInteger(userData?.weeklyStudyTime, 0),
+            parseInteger(userData?.currentWeekSeconds, 0)
+        );
+    }
+
     function getCurrentWeekBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey } = getCurrentDayMeta(referenceDate);
         const weekData = schedule?.[weekKey] || {};
@@ -3925,6 +4010,143 @@
             if (Array.isArray(source) && source.length) return [...source];
         }
         return [];
+    }
+
+    function isWeakProfileIdentityValue(value = "", email = "") {
+        const resolvedValue = String(value || "").trim();
+        if (!resolvedValue) return true;
+
+        const normalizedValue = resolvedValue.toLocaleLowerCase("tr-TR");
+        if (normalizedValue === "kullanici" || normalizedValue === "kullanıcı") {
+            return true;
+        }
+
+        const emailLocalPart = String(email || "")
+            .split("@")[0]
+            .trim()
+            .toLocaleLowerCase("tr-TR");
+
+        return !!emailLocalPart && normalizedValue === emailLocalPart;
+    }
+
+    function pickPreferredProfileText(candidates = [], options = {}) {
+        const safeCandidates = Array.isArray(candidates) ? candidates : [candidates];
+        const email = String(options?.email || "").trim();
+        const allowWeak = options?.allowWeak === true;
+        let fallback = "";
+
+        for (const candidate of safeCandidates) {
+            const resolvedValue = String(candidate || "").trim();
+            if (!resolvedValue) continue;
+            if (!fallback) fallback = resolvedValue;
+            if (allowWeak || !isWeakProfileIdentityValue(resolvedValue, email)) {
+                return resolvedValue;
+            }
+        }
+
+        return fallback;
+    }
+
+    function getCurrentRuntimeProfileSeed() {
+        return {
+            uid: currentUser?.uid || "",
+            username: currentUsername || "",
+            email: currentUser?.email || "",
+            about: currentProfileAbout || "",
+            profileImage: currentProfileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || "",
+            studyTrack: studyTrack || "",
+            selectedSubjects: Array.isArray(selectedSubjects) ? [...selectedSubjects] : [],
+            schedule: sanitizeScheduleData(scheduleData || {}),
+            totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
+            totalStudyTime: totalWorkedSecondsAllTime || 0,
+            totalQuestionsAllTime: totalQuestionsAllTime || 0,
+            notes: normalizeUserNotes(userNotes || []),
+            noteFolders: normalizeNoteFolders(noteFolders || [])
+        };
+    }
+
+    function mergeCurrentUserProfileSources(...sources) {
+        const safeSources = sources
+            .filter(source => source && typeof source === "object")
+            .map(source => ({ ...source }));
+
+        const resolvedEmail = pickPreferredProfileText(
+            safeSources.map(source => source.email),
+            { allowWeak: true }
+        );
+        const resolvedUsername = pickPreferredProfileText(
+            safeSources.flatMap(source => [source.username, source.name]),
+            { email: resolvedEmail }
+        );
+        const resolvedStudyTrack = pickPreferredProfileText(
+            safeSources.map(source => source.studyTrack),
+            { allowWeak: true }
+        );
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(
+                resolvedStudyTrack,
+                getFirstNonEmptyArray(...safeSources.map(source => source.selectedSubjects))
+            )
+            : getFirstNonEmptyArray(...safeSources.map(source => source.selectedSubjects));
+        const resolvedSchedule = getMostInformativeProfileSchedule(
+            ...safeSources.map(source => source.schedule)
+        );
+        const resolvedProfileImage = pickPreferredProfileText(
+            safeSources.map(source => source.profileImage),
+            { allowWeak: true }
+        );
+        const resolvedAbout = pickPreferredProfileText(
+            safeSources.map(source => source.about),
+            { allowWeak: true }
+        );
+        const resolvedAccountCreatedAt = pickPreferredProfileText(
+            safeSources.map(source => source.accountCreatedAt),
+            { allowWeak: true }
+        );
+        const resolvedNotes = typeof normalizeUserNotes === "function"
+            ? normalizeUserNotes(getFirstNonEmptyArray(...safeSources.map(source => source.notes)))
+            : getFirstNonEmptyArray(...safeSources.map(source => source.notes));
+        const resolvedNoteFolders = typeof normalizeNoteFolders === "function"
+            ? normalizeNoteFolders(getFirstNonEmptyArray(...safeSources.map(source => source.noteFolders)))
+            : getFirstNonEmptyArray(...safeSources.map(source => source.noteFolders));
+        const resolvedTotalWorkedSeconds = Math.max(
+            ...safeSources.map(source => Math.max(
+                parseInteger(source.totalWorkedSeconds, 0),
+                parseInteger(source.totalStudyTime, 0)
+            )),
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
+                : 0
+        );
+        const resolvedTotalQuestionsAllTime = Math.max(
+            ...safeSources.map(source => parseInteger(source.totalQuestionsAllTime, 0)),
+            typeof calculateTotalQuestionsFromSchedule === "function"
+                ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
+                : 0
+        );
+
+        return {
+            ...safeSources.reduce((accumulator, source) => ({ ...accumulator, ...source }), {}),
+            uid: pickPreferredProfileText(safeSources.map(source => source.uid), { allowWeak: true }) || currentUser?.uid || "",
+            email: resolvedEmail,
+            username: resolvedUsername || "",
+            name: pickPreferredProfileText(
+                safeSources.flatMap(source => [source.name, source.username, resolvedUsername]),
+                { email: resolvedEmail, allowWeak: true }
+            ) || resolvedUsername || "",
+            about: resolvedAbout,
+            profileImage: resolvedProfileImage,
+            accountCreatedAt: resolvedAccountCreatedAt,
+            studyTrack: resolvedStudyTrack,
+            selectedSubjects: resolvedSelectedSubjects,
+            schedule: resolvedSchedule,
+            totalWorkedSeconds: resolvedTotalWorkedSeconds,
+            totalStudyTime: resolvedTotalWorkedSeconds,
+            totalQuestionsAllTime: resolvedTotalQuestionsAllTime,
+            notes: resolvedNotes,
+            noteFolders: resolvedNoteFolders
+        };
     }
 
     function getMostInformativeProfileSchedule(...scheduleCandidates) {
@@ -5203,9 +5425,12 @@
         const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
         const unsavedDelta = isTimerVisibleForLeaderboard(visibleSession) ? getPendingTimerDelta(visibleSession) : 0;
         const currentDayWorked = getCurrentDayWorkedSeconds() + unsavedDelta;
-        const currentWeekTotals = typeof getCurrentWeekTotalsFromSchedule === "function"
-            ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds + unsavedDelta
-            : totalWorkedSecondsAllTime + unsavedDelta;
+        const baseWeeklySeconds = getResolvedCurrentWeekWorkedSeconds(
+            currentUserLiveDoc || {},
+            scheduleData || {},
+            new Date()
+        );
+        const currentWeekTotals = baseWeeklySeconds + unsavedDelta;
 
         const todayNode = document.getElementById("today-worked-time");
         const weekNode = document.getElementById("all-time-score");
@@ -6156,7 +6381,11 @@
         const scheduleDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate, {
             displayReferenceMs: dayDisplayReferenceMs
         });
-        const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(normalizedUserData?.schedule || {}, currentDate);
+        const scheduleWeeklySeconds = getResolvedCurrentWeekWorkedSeconds(
+            normalizedUserData,
+            normalizedUserData?.schedule || {},
+            currentDate
+        );
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
@@ -6453,9 +6682,11 @@
         const dailyQuestions = Math.max(questionBreakdown.dailyQuestions, displayedQuestionCounts.dailyQuestions);
         const weeklyQuestions = Math.max(questionBreakdown.weeklyQuestions, displayedQuestionCounts.weeklyQuestions);
         const questions = currentLeaderboardTab === "daily" ? dailyQuestions : weeklyQuestions;
-        const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
-            ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
-            : seconds;
+        const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(
+            data,
+            data.schedule || {},
+            new Date()
+        );
         const isWorking = currentLeaderboardTab === "daily"
             && resolveObservedWorkingBadge(currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID, seconds, liveSessionSnapshot.isLive);
         const hasVisibleStats = seconds > 0 || isWorking;
@@ -6642,7 +6873,7 @@
             referenceDate,
             getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, Date.now())
         );
-        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+        const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(rawData, safeSchedule, referenceDate);
         updateInferredWorkingPresence(rawData, docId);
         const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
@@ -6683,7 +6914,7 @@
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
             updateInferredWorkingPresence(rawData, doc.id);
             const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
-            const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+            const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(rawData, safeSchedule, referenceDate);
             const dailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
                 safeSchedule,
                 referenceDate,
@@ -7113,15 +7344,23 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        const handleUsersSnapshot = snapshot => {
+        const handleUsersSnapshot = async snapshot => {
             const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
             applyLeaderboardCloudDocs(docs);
 
             const currentUserDoc = (snapshot.docs || []).find(doc => doc.id === currentUser?.uid) || null;
-            const currentData = currentUserDoc?.data?.() || {};
+            const publicProfileData = currentUserPublicProfileBootstrapPromise
+                ? await currentUserPublicProfileBootstrapPromise.catch(() => null)
+                : currentUserPublicProfileDoc;
+            const currentData = mergeCurrentUserProfileSources(
+                currentUserDoc?.data?.() || {},
+                publicProfileData || {},
+                currentUserLiveDoc || {},
+                getCurrentRuntimeProfileSeed()
+            );
             const initialSync = !hasBootstrappedUsersRealtime;
 
-            if (currentUserDoc) {
+            if (currentUserDoc || publicProfileData) {
                 syncCurrentUserLiveDoc(currentData, { silent: initialSync });
                 applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
             } else {
@@ -8174,18 +8413,28 @@
 
     function bootstrapExtendedUserData(userData = {}) {
         const rawData = userData && typeof userData === "object" ? userData : {};
-        const dailyResetState = getDailySnapshotResetState(rawData);
+        const mergedProfile = mergeCurrentUserProfileSources(
+            rawData,
+            currentUserPublicProfileDoc || {},
+            currentUserLiveDoc || {},
+            getCurrentRuntimeProfileSeed()
+        );
+        const dailyResetState = getDailySnapshotResetState(mergedProfile);
         const safeData = dailyResetState.normalizedData;
         clearLoadedUserData();
 
         if (typeof currentUsername !== "undefined") {
-            currentUsername = String(
-                safeData.username
-                || currentUser?.displayName
-                || currentUser?.email?.split("@")[0]
-                || safeData.email?.split?.("@")?.[0]
-                || ""
-            ).trim();
+            currentUsername = pickPreferredProfileText(
+                [
+                    safeData.username,
+                    safeData.name,
+                    currentUser?.displayName,
+                    safeData.email?.split?.("@")?.[0]
+                ],
+                {
+                    email: safeData.email || currentUser?.email || ""
+                }
+            );
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -9702,8 +9951,65 @@
 
             const basePayload = originalBuildUserPayload ? originalBuildUserPayload() : {};
             const syncTimestamp = Date.now();
-            const resolvedEmail = currentUser?.email || basePayload.email || "";
-            const questionCounters = buildQuestionCounterPayload(scheduleData);
+            const mergedProfile = mergeCurrentUserProfileSources(
+                getCurrentRuntimeProfileSeed(),
+                currentUserLiveDoc || {},
+                currentUserPublicProfileDoc || {},
+                basePayload
+            );
+            const resolvedEmail = currentUser?.email || mergedProfile.email || basePayload.email || "";
+            const resolvedUsername = pickPreferredProfileText(
+                [
+                    currentUsername,
+                    mergedProfile.username,
+                    mergedProfile.name,
+                    basePayload.username,
+                    basePayload.name
+                ],
+                { email: resolvedEmail }
+            ) || resolvedEmail?.split?.("@")?.[0] || "Kullanici";
+            const resolvedStudyTrack = pickPreferredProfileText(
+                [studyTrack, mergedProfile.studyTrack, basePayload.studyTrack],
+                { allowWeak: true }
+            );
+            const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+                ? normalizeSelectedSubjects(
+                    resolvedStudyTrack || "",
+                    getFirstNonEmptyArray(
+                        selectedSubjects,
+                        mergedProfile.selectedSubjects,
+                        basePayload.selectedSubjects
+                    )
+                )
+                : getFirstNonEmptyArray(
+                    selectedSubjects,
+                    mergedProfile.selectedSubjects,
+                    basePayload.selectedSubjects
+                );
+            const resolvedSchedule = getMostInformativeProfileSchedule(
+                scheduleData,
+                mergedProfile.schedule,
+                basePayload.schedule
+            );
+            const resolvedTotalWorkedSeconds = Math.max(
+                totalWorkedSecondsAllTime || 0,
+                parseInteger(mergedProfile.totalWorkedSeconds, 0),
+                parseInteger(mergedProfile.totalStudyTime, 0),
+                parseInteger(basePayload.totalWorkedSeconds, 0),
+                parseInteger(basePayload.totalStudyTime, 0),
+                typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                    ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
+                    : 0
+            );
+            const resolvedTotalQuestionsAllTime = Math.max(
+                totalQuestionsAllTime || 0,
+                parseInteger(mergedProfile.totalQuestionsAllTime, 0),
+                parseInteger(basePayload.totalQuestionsAllTime, 0),
+                typeof calculateTotalQuestionsFromSchedule === "function"
+                    ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
+                    : 0
+            );
+            const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
             const activeStudySession = isTimerVisibleForLeaderboard(timerState.session) ? timerState.session : null;
             const activeTimerRecord = activeStudySession ? serializeTimerSession(activeStudySession) : null;
             const activeBreakTimerRecord = timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
@@ -9720,7 +10026,7 @@
                 : 0;
             const titleInfo = buildResolvedTitleInfo({
                 uid: currentUser?.uid || basePayload.uid || "",
-                schedule: scheduleData,
+                schedule: resolvedSchedule,
                 activeTimer: activeTimerRecord,
                 selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload),
                 titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload)
@@ -9734,23 +10040,27 @@
                 };
             return {
                 ...basePayload,
-                username: currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
-                normalizedUsername: normalizeUsernameLookup(currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici"),
-                name: currentUsername || basePayload.name || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
+                username: resolvedUsername,
+                normalizedUsername: normalizeUsernameLookup(resolvedUsername),
+                name: pickPreferredProfileText(
+                    [resolvedUsername, mergedProfile.name, basePayload.name, basePayload.username],
+                    { email: resolvedEmail, allowWeak: true }
+                ) || resolvedUsername,
                 email: resolvedEmail,
                 ...adminProfile,
                 emailVerified: !!currentUser?.emailVerified,
-                studyTrack: studyTrack || basePayload.studyTrack || "",
-                selectedSubjects: typeof normalizeSelectedSubjects === "function"
-                    ? normalizeSelectedSubjects(studyTrack || "", selectedSubjects || [])
-                    : (selectedSubjects || []),
-                notes: normalizeUserNotes(userNotes || []),
-                noteFolders: normalizeNoteFolders(noteFolders),
-                schedule: scheduleData,
-                totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
-                totalStudyTime: totalWorkedSecondsAllTime || 0,
-                totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
-                totalQuestionsAllTime: totalQuestionsAllTime || 0,
+                about: currentProfileAbout || mergedProfile.about || basePayload.about || "",
+                profileImage: currentProfileImage || mergedProfile.profileImage || basePayload.profileImage || "",
+                accountCreatedAt: currentAccountCreatedAt || mergedProfile.accountCreatedAt || basePayload.accountCreatedAt || new Date().toISOString(),
+                studyTrack: resolvedStudyTrack || "",
+                selectedSubjects: resolvedSelectedSubjects,
+                notes: normalizeUserNotes((userNotes && userNotes.length) ? userNotes : (mergedProfile.notes || basePayload.notes || [])),
+                noteFolders: normalizeNoteFolders((noteFolders && noteFolders.length) ? noteFolders : (mergedProfile.noteFolders || basePayload.noteFolders || [])),
+                schedule: resolvedSchedule,
+                totalWorkedSeconds: resolvedTotalWorkedSeconds,
+                totalStudyTime: resolvedTotalWorkedSeconds,
+                totalTime: Math.max(0, parseInteger(resolvedTotalWorkedSeconds, 0)) * 1000,
+                totalQuestionsAllTime: resolvedTotalQuestionsAllTime,
                 ...questionCounters,
                 selectedTitleId: titleInfo.selectedTitleId,
                 titleAwards: titleInfo.titleAwards,
@@ -9780,6 +10090,27 @@
             const originalGetCurrentUserSeedData = getCurrentUserSeedData;
             getCurrentUserSeedData = function() {
                 const seed = originalGetCurrentUserSeedData();
+                const mergedProfile = mergeCurrentUserProfileSources(
+                    getCurrentRuntimeProfileSeed(),
+                    currentUserLiveDoc || {},
+                    currentUserPublicProfileDoc || {},
+                    seed
+                );
+                const resolvedEmail = currentUser?.email || mergedProfile.email || seed.email || "";
+                const resolvedUsername = pickPreferredProfileText(
+                    [currentUsername, mergedProfile.username, mergedProfile.name, seed.username, seed.name],
+                    { email: resolvedEmail }
+                ) || resolvedEmail?.split?.("@")?.[0] || "Kullanici";
+                const resolvedStudyTrack = pickPreferredProfileText(
+                    [studyTrack, mergedProfile.studyTrack, seed.studyTrack],
+                    { allowWeak: true }
+                );
+                const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+                    ? normalizeSelectedSubjects(
+                        resolvedStudyTrack || "",
+                        getFirstNonEmptyArray(selectedSubjects, mergedProfile.selectedSubjects, seed.selectedSubjects)
+                    )
+                    : getFirstNonEmptyArray(selectedSubjects, mergedProfile.selectedSubjects, seed.selectedSubjects);
                 const titleInfo = buildResolvedTitleInfo({
                     uid: currentUser?.uid || seed.uid || "",
                     schedule: scheduleData,
@@ -9792,9 +10123,18 @@
                     : null;
                 return {
                     ...seed,
-                    username: currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
-                    normalizedUsername: normalizeUsernameLookup(currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici"),
-                    name: currentUsername || seed.name || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
+                    username: resolvedUsername,
+                    normalizedUsername: normalizeUsernameLookup(resolvedUsername),
+                    name: pickPreferredProfileText(
+                        [resolvedUsername, mergedProfile.name, seed.name, seed.username],
+                        { email: resolvedEmail, allowWeak: true }
+                    ) || resolvedUsername,
+                    email: resolvedEmail,
+                    about: currentProfileAbout || mergedProfile.about || seed.about || "",
+                    profileImage: currentProfileImage || mergedProfile.profileImage || seed.profileImage || "",
+                    accountCreatedAt: currentAccountCreatedAt || mergedProfile.accountCreatedAt || seed.accountCreatedAt || new Date().toISOString(),
+                    studyTrack: resolvedStudyTrack || "",
+                    selectedSubjects: resolvedSelectedSubjects,
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
                     totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
@@ -10027,6 +10367,8 @@
             if (!user) {
                 currentUser = null;
                 currentUserLiveDoc = null;
+                currentUserPublicProfileDoc = null;
+                currentUserPublicProfileBootstrapPromise = null;
                 currentUserWriteChain = Promise.resolve();
                 requiresEmailVerification = false;
                 hasBootstrappedUsersRealtime = false;
@@ -10050,8 +10392,18 @@
                 return;
             }
 
-            currentUser = user;
-            localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
+                currentUser = user;
+                currentUserPublicProfileBootstrapPromise = db.collection(PUBLIC_PROFILE_COLLECTION).doc(user.uid).get()
+                    .then(doc => {
+                        currentUserPublicProfileDoc = doc.exists ? (doc.data() || {}) : null;
+                        return currentUserPublicProfileDoc;
+                    })
+                    .catch(error => {
+                        console.error("Kullanici public profil verisi yuklenemedi:", error);
+                        currentUserPublicProfileDoc = null;
+                        return null;
+                    });
+                localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
             try {
                 await user.reload();

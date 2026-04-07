@@ -5041,6 +5041,7 @@
         let activeUserNoteVisibility = false;
         let currentProfileModalData = null;
         let currentProfileModalEditable = false;
+        let currentUserLiveDoc = null;
         const ADMIN_USERNAME = "cosxomer";
         const ADMIN_EMAIL = "omrfrk.37.kaya@gmail.com";
         const ADMIN_SPECIAL_TITLE = "Kurucu Admin";
@@ -6424,6 +6425,85 @@
             };
         }
 
+        function isWeakInlineProfileName(value, email = "") {
+            const resolvedValue = String(value || "").trim();
+            if (!resolvedValue) return true;
+            const normalizedValue = resolvedValue.toLocaleLowerCase('tr-TR');
+            if (normalizedValue === 'kullanici' || normalizedValue === 'kullanıcı') return true;
+            const emailLocalPart = String(email || '').split('@')[0].trim().toLocaleLowerCase('tr-TR');
+            return !!emailLocalPart && normalizedValue === emailLocalPart;
+        }
+
+        function pickInlinePreferredProfileName(candidates = [], email = "") {
+            let fallback = "";
+            (Array.isArray(candidates) ? candidates : [candidates]).forEach(candidate => {
+                if (fallback) return;
+                const resolvedValue = String(candidate || "").trim();
+                if (resolvedValue) {
+                    fallback = resolvedValue;
+                }
+            });
+
+            for (const candidate of (Array.isArray(candidates) ? candidates : [candidates])) {
+                const resolvedValue = String(candidate || "").trim();
+                if (!resolvedValue) continue;
+                if (!isWeakInlineProfileName(resolvedValue, email)) return resolvedValue;
+            }
+
+            return fallback;
+        }
+
+        function mergeInlineUserProfileSources(userData = {}, publicData = {}, user = currentUser) {
+            const safeUser = userData && typeof userData === 'object' ? userData : {};
+            const safePublic = publicData && typeof publicData === 'object' ? publicData : {};
+            const resolvedEmail = String(safeUser.email || safePublic.email || user?.email || "").trim();
+            const resolvedUsername = pickInlinePreferredProfileName([
+                safeUser.username,
+                safePublic.username,
+                safeUser.name,
+                safePublic.name,
+                currentUsername
+            ], resolvedEmail);
+            const resolvedStudyTrack = String(
+                safeUser.studyTrack
+                || safePublic.studyTrack
+                || studyTrack
+                || ""
+            ).trim();
+            const preferredSubjects = Array.isArray(safeUser.selectedSubjects) && safeUser.selectedSubjects.length
+                ? safeUser.selectedSubjects
+                : (Array.isArray(safePublic.selectedSubjects) && safePublic.selectedSubjects.length
+                    ? safePublic.selectedSubjects
+                    : selectedSubjects);
+            const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === 'function'
+                ? normalizeSelectedSubjects(resolvedStudyTrack, preferredSubjects || [])
+                : (Array.isArray(preferredSubjects) ? [...preferredSubjects] : []);
+            const resolvedSchedule = safeUser.schedule || safePublic.schedule || scheduleData || {};
+            return {
+                ...safePublic,
+                ...safeUser,
+                email: resolvedEmail,
+                username: resolvedUsername || safeUser.username || safePublic.username || "",
+                about: safeUser.about || safePublic.about || "",
+                profileImage: safeUser.profileImage || safePublic.profileImage || "",
+                accountCreatedAt: safeUser.accountCreatedAt || safePublic.accountCreatedAt || "",
+                studyTrack: resolvedStudyTrack,
+                selectedSubjects: resolvedSelectedSubjects,
+                schedule: resolvedSchedule,
+                totalWorkedSeconds: Math.max(
+                    parseInt(safeUser.totalWorkedSeconds, 10) || 0,
+                    parseInt(safePublic.totalWorkedSeconds, 10) || 0,
+                    calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
+                ),
+                totalQuestionsAllTime: Math.max(
+                    parseInt(safeUser.totalQuestionsAllTime, 10) || 0,
+                    parseInt(safePublic.totalQuestionsAllTime, 10) || 0,
+                    calculateTotalQuestionsFromSchedule(resolvedSchedule)
+                ),
+                notes: normalizeUserNotes(safeUser.notes || safePublic.notes || [])
+            };
+        }
+
         function updateProfileButton() {
             document.getElementById('username-display').innerText = currentUsername || "Ömer";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
@@ -6833,26 +6913,39 @@
                 document.getElementById('logout-btn').style.display = 'flex';
                 document.getElementById('cloud-sync-btn').style.display = 'flex';
                 
-                db.collection('users').doc(user.uid).get().then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        scheduleData = data.schedule || {};
-                        currentUsername = data.username || "Ömer";
-                        currentProfileAbout = data.about || "";
-                        currentProfileImage = data.profileImage || "";
-                        currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
-                        userNotes = normalizeUserNotes(data.notes || []);
-                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                        totalQuestionsAllTime = data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(scheduleData);
-                        updateProfileButton();
-                        updateMyNotesButton();
-                        renderSchedule();
-                    } else {
+                Promise.all([
+                    db.collection('users').doc(user.uid).get().catch(() => null),
+                    db.collection('publicProfiles').doc(user.uid).get().catch(() => null)
+                ]).then(([userDoc, profileDoc]) => {
+                    if (!userDoc?.exists && !profileDoc?.exists) {
                         saveToFirestore();
+                        return;
                     }
+
+                    const data = mergeInlineUserProfileSources(
+                        userDoc?.exists ? (userDoc.data() || {}) : {},
+                        profileDoc?.exists ? (profileDoc.data() || {}) : {},
+                        user
+                    );
+                    currentUserLiveDoc = {
+                        ...(currentUserLiveDoc || {}),
+                        ...data
+                    };
+                    scheduleData = data.schedule || {};
+                    currentUsername = data.username || currentUsername || "Ömer";
+                    currentProfileAbout = data.about || "";
+                    currentProfileImage = data.profileImage || "";
+                    currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
+                    userNotes = normalizeUserNotes(data.notes || []);
+                    totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    updateProfileButton();
+                    updateMyNotesButton();
+                    renderSchedule();
                 });
             } else {
                 currentUser = null;
+                currentUserLiveDoc = null;
                 document.getElementById('login-gate').style.display = 'flex';
                 document.getElementById('login-gate').style.opacity = '1';
                 document.getElementById('user-info').style.display = 'none';
@@ -7109,7 +7202,14 @@
             }
 
             document.getElementById('week-display').innerText = `${currentWeekStart.toLocaleDateString('tr-TR')} Haftası`;
-            document.getElementById('all-time-score').innerText = `🏆 Haftalık Süre: ${formatSeconds(totalWeeklySeconds)}`; 
+            const displayedWeekIsCurrent = weekKey === getWeekKey(new Date());
+            const currentLiveDoc = typeof currentUserLiveDoc === 'object' && currentUserLiveDoc
+                ? currentUserLiveDoc
+                : {};
+            const resolvedWeeklySeconds = displayedWeekIsCurrent
+                ? getResolvedCurrentWeekSeconds(currentLiveDoc, scheduleData || {}, new Date())
+                : totalWeeklySeconds;
+            document.getElementById('all-time-score').innerText = `🏆 Haftalık Süre: ${formatSeconds(resolvedWeeklySeconds)}`; 
             document.getElementById('week-question-count').innerText = `🎯 Haftalık Soru: ${totalWeeklyQuestions}`;
         }
 
@@ -7454,6 +7554,33 @@
                 }
             }
             return { seconds, questions };
+        }
+
+        function getAdminWeeklyAdjustmentTarget(userData = {}, referenceDate = new Date()) {
+            if (typeof normalizeAdminTimeAdjustment !== 'function') return null;
+            const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
+            if (!adjustment || adjustment.scope !== 'week') return null;
+
+            const currentWeekKey = getWeekKey(referenceDate);
+            if (adjustment.weekKey && adjustment.weekKey !== currentWeekKey) return null;
+
+            return Math.max(
+                0,
+                parseInt(adjustment.appliedWeekSeconds, 10) || 0,
+                parseInt(adjustment.targetSeconds, 10) || 0
+            );
+        }
+
+        function getResolvedCurrentWeekSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
+            const scheduleWeeklySeconds = getCurrentWeekTotalsFromSchedule(schedule || {}).seconds || 0;
+            const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
+            if (adminWeeklyTarget !== null) return adminWeeklyTarget;
+
+            return Math.max(
+                scheduleWeeklySeconds,
+                parseInt(userData?.currentWeekSeconds, 10) || 0,
+                parseInt(userData?.weeklyStudyTime, 10) || 0
+            );
         }
 
         function getCurrentTitleInfoFromSeconds(totalSeconds) {
@@ -8076,14 +8203,20 @@
 
         auth.onAuthStateChanged(user => {
             if (user) {
-                db.collection('users').doc(user.uid).get().then(doc => {
-                    if (!doc.exists) return;
-                    const data = doc.data();
+                Promise.all([
+                    db.collection('users').doc(user.uid).get().catch(() => null),
+                    db.collection('publicProfiles').doc(user.uid).get().catch(() => null)
+                ]).then(([userDoc, profileDoc]) => {
+                    const data = mergeInlineUserProfileSources(
+                        userDoc?.exists ? (userDoc.data() || {}) : {},
+                        profileDoc?.exists ? (profileDoc.data() || {}) : {},
+                        user
+                    );
                     studyTrack = data.studyTrack || "";
                     selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
                     currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
                     totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                    totalQuestionsAllTime = data.totalQuestionsAllTime || calculateTotalQuestionsFromSchedule(scheduleData);
+                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
                     updateProfileButton();
                     updateSubjectReminder();
                     resetStudyInsightRotation();
@@ -8131,7 +8264,7 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const currentWeekSeconds = getResolvedCurrentWeekSeconds(data, data.schedule || {}, today);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
                     const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
@@ -8152,7 +8285,7 @@
                         }
                     }
                     if (currentLeaderboardTab !== 'daily') {
-                        targetSeconds = Math.max(targetSeconds, currentWeekSeconds);
+                        targetSeconds = currentWeekSeconds;
                         targetQuestions = Math.max(targetQuestions, parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     }
                     if (liveSessionSeconds > 0) {
@@ -8265,7 +8398,7 @@
                     let targetSeconds = 0;
                     let targetQuestions = 0;
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const explicitWeeklySeconds = getResolvedCurrentWeekSeconds(data, data.schedule || {}, today);
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
@@ -8288,7 +8421,7 @@
                                 }
                             }
                         }
-                        targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
+                        targetSeconds = explicitWeeklySeconds;
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
 
@@ -9160,7 +9293,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                const currentWeekSeconds = getResolvedCurrentWeekSeconds(data, data.schedule || {}, new Date());
                 showProfileModal({
                     uid,
                     username: data.username || cachedProfile.username || "Kullanıcı",
@@ -9197,7 +9330,10 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekTotals = getCurrentWeekTotalsFromSchedule(data.schedule || {});
+                    const currentWeekTotals = {
+                        ...getCurrentWeekTotalsFromSchedule(data.schedule || {}),
+                        seconds: getResolvedCurrentWeekSeconds(data, data.schedule || {}, today)
+                    };
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekTotals.seconds);
                     const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
 
@@ -9213,6 +9349,7 @@
                                 targetQuestions += (data.schedule[todayWeekKey][i].questions || 0);
                             }
                         }
+                        targetSeconds = currentWeekTotals.seconds;
                     }
 
                     if (liveSessionSeconds > 0) {
@@ -9366,7 +9503,7 @@
                 const profileDoc = await db.collection('publicProfiles').doc(uid).get();
                 if (!profileDoc.exists) return;
                 const data = profileDoc.data();
-                const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                const currentWeekSeconds = getResolvedCurrentWeekSeconds(data, data.schedule || {}, new Date());
                 const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                 showProfileModal({
                     uid,
@@ -9406,11 +9543,11 @@
                     const data = doc.data();
                     let targetSeconds = 0;
                     let targetQuestions = 0;
-                    const currentWeekSeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const currentWeekSeconds = getResolvedCurrentWeekSeconds(data, data.schedule || {}, today);
                     const titleInfo = getCurrentTitleInfoFromSeconds(currentWeekSeconds);
                     const resolvedIsAdmin = !!data.isAdmin || isAdminIdentity(data.username || "", data.email || "");
                     const explicitDailySeconds = getSafeInlineDailySeconds(data, today);
-                    const explicitWeeklySeconds = getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds || 0;
+                    const explicitWeeklySeconds = currentWeekSeconds;
                     const explicitDailyQuestions = Math.max(parseInt(data.dailyQuestionCount, 10) || 0, parseInt(data.dailyQuestions, 10) || 0, parseInt(data.daily, 10) || 0);
                     const explicitWeeklyQuestions = Math.max(parseInt(data.weeklyQuestionCount, 10) || 0, parseInt(data.weeklyQuestions, 10) || 0, parseInt(data.weekly, 10) || 0);
                     const liveSessionSeconds = getSafeInlineLiveSessionSeconds(data, today);
@@ -9431,7 +9568,7 @@
                         }
                     }
                     if (currentLeaderboardTab !== 'daily') {
-                        targetSeconds = Math.max(targetSeconds, explicitWeeklySeconds);
+                        targetSeconds = explicitWeeklySeconds;
                         targetQuestions = Math.max(targetQuestions, explicitWeeklyQuestions);
                     }
                     if (liveSessionSeconds > 0) {
@@ -12202,9 +12339,9 @@
             color: rgba(244, 233, 255, 0.5) !important;
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260402-0712"></script>
+<script src="codex-hotfix-4.js?v=20260407-1638"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260407-1138"></script>
+<script src="codex-upgrade-7.js?v=20260407-1638"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
