@@ -6283,6 +6283,7 @@
         const activeTimer = rawData?.activeTimer || null;
         const activeTimerRunning = isTimerRecordRunning(activeTimer, now);
         const explicitWorkingFlag = !!rawData?.isWorking || !!rawData?.isRunning || activeTimerRunning;
+        const sessionFinalized = rawData?.sessionFinalized === true;
         const lastSyncAt = getLeaderboardSessionLastSyncAt(rawData);
         const syncLooksFresh = lastSyncAt > 0 && (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
         const inferredPresence = inferredWorkingPresenceByUserId.get(docId) || null;
@@ -6313,8 +6314,13 @@
         }
 
         const legacyLooksFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
-        const inferredWorking = !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh && legacyLooksFresh;
-        const isWorking = activeTimerRunning || (explicitWorkingFlag && legacyLooksFresh && (rawCurrentSessionTime > 0 || syncLooksFresh)) || inferredWorking;
+        const canUseLegacyPresence = !sessionFinalized && legacyLooksFresh;
+        const inferredWorking = !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh && canUseLegacyPresence;
+        const hasRemoteLiveEvidence = rawCurrentSessionTime > 0 || syncLooksFresh || explicitWorkingFlag || inferredStartedAtMs > 0;
+        const isWorking = activeTimerRunning
+            || (explicitWorkingFlag && canUseLegacyPresence && hasRemoteLiveEvidence)
+            || (canUseLegacyPresence && rawCurrentSessionTime > 0)
+            || inferredWorking;
 
         if (isWorking && legacyWorkingStartedAt > 0) {
             legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
@@ -6336,9 +6342,13 @@
         const activeTimer = userData?.activeTimer || null;
         const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
         const legacyWorkingStartedAt = Math.max(0, parseInteger(userData?.legacyWorkingStartedAt, 0));
+        const sessionFinalized = userData?.sessionFinalized === true;
         const lastSyncAt = getLeaderboardSessionLastSyncAt(userData);
         const isRunning = !!userData?.isRunning || !!userData?.isWorking;
         const activeTimerVisible = isTimerVisibleForLeaderboard(activeTimer, now);
+        const legacyIsFresh = !sessionFinalized
+            && legacyWorkingStartedAt > 0
+            && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
 
         if (activeTimerVisible) {
             return {
@@ -6349,10 +6359,19 @@
         }
 
         if (currentSessionTime <= 0) {
-            const legacyIsFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
-            if (legacyIsFresh && !!userData?.isWorking) {
+            if (legacyIsFresh && isRunning) {
+                const secondsSinceLastSync = lastSyncAt > 0
+                    ? Math.max(0, Math.floor((now - lastSyncAt) / 1000))
+                    : 0;
                 return {
-                    seconds: Math.max(0, Math.floor((now - legacyWorkingStartedAt) / 1000)),
+                    seconds: Math.max(
+                        0,
+                        secondsSinceLastSync,
+                        lastSyncAt > 0
+                            ? Math.floor((now - legacyWorkingStartedAt) / 1000)
+                                - Math.max(0, Math.floor((lastSyncAt - legacyWorkingStartedAt) / 1000))
+                            : Math.floor((now - legacyWorkingStartedAt) / 1000)
+                    ),
                     isLive: true,
                     lastSyncAt: Math.max(lastSyncAt, legacyWorkingStartedAt)
                 };
@@ -6374,11 +6393,12 @@
 
         const secondsSinceLastSync = Math.max(0, Math.floor((now - lastSyncAt) / 1000));
         const isFresh = (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
-        const fallbackSeconds = Math.max(currentSessionTime, secondsSinceLastSync);
+        const fallbackSeconds = Math.max(currentSessionTime, currentSessionTime + secondsSinceLastSync, secondsSinceLastSync);
+        const canExtendWithLegacy = legacyIsFresh && isRunning;
 
         return {
-            seconds: (isFresh && isRunning) ? fallbackSeconds : 0,
-            isLive: isFresh && isRunning,
+            seconds: ((isFresh || canExtendWithLegacy) && isRunning) ? fallbackSeconds : 0,
+            isLive: (isFresh || canExtendWithLegacy) && isRunning,
             lastSyncAt
         };
     }
