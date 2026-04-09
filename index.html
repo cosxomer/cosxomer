@@ -3236,8 +3236,8 @@
         }
 
         .cropper-stage {
-            width: 280px;
-            height: 280px;
+            width: min(82vw, 320px);
+            aspect-ratio: 1 / 1;
             position: relative;
             overflow: hidden;
             border-radius: 20px;
@@ -3263,7 +3263,7 @@
 
         .cropper-circle-mask {
             position: absolute;
-            inset: 18px;
+            inset: clamp(14px, 5.5%, 18px);
             border-radius: 50%;
             box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.45);
             border: 2px solid rgba(255, 255, 255, 0.9);
@@ -3279,6 +3279,39 @@
         .cropper-controls label {
             color: var(--accent-color);
             font-weight: 700;
+        }
+
+        .cropper-zoom-toolbar {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .cropper-zoom-btn {
+            min-width: 44px;
+            padding: 10px 12px;
+            border-radius: 12px;
+        }
+
+        .cropper-zoom-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            font-size: 0.88em;
+            opacity: 0.82;
+        }
+
+        .cropper-zoom-value {
+            color: var(--header-text);
+            font-weight: 800;
+            min-width: 52px;
+            text-align: center;
+        }
+
+        .cropper-fit-btn {
+            width: 100%;
         }
 
         .cropper-actions {
@@ -4256,7 +4289,7 @@
             .study-insight-option { width: 100%; justify-content: flex-start; }
             .pomodoro-close-btn { top: 16px; right: 16px; width: 42px; height: 42px; }
             .cropper-modal-content { padding: 20px; }
-            .cropper-stage { width: 240px; height: 240px; }
+            .cropper-stage { width: min(80vw, 256px); aspect-ratio: 1 / 1; }
         }
         @media (max-width: 480px) {
             header {
@@ -4781,7 +4814,7 @@
     <div id="image-cropper-modal" class="modal-overlay">
         <div class="cropper-modal-content">
             <h3>Profil Resmini Ayarla</h3>
-            <p>Çember içinde görünmesini istediğin kısmı sürükleyerek ve yakınlaştırarak ayarla.</p>
+            <p>Çember içinde görünmesini istediğin kısmı sürükleyerek, uzaklaştırarak ve yakınlaştırarak ayarla.</p>
             <div class="cropper-stage-wrapper">
                 <div id="cropper-stage" class="cropper-stage">
                     <img id="cropper-image" alt="Profil Resmi Kırpma Önizleme">
@@ -4790,9 +4823,25 @@
             </div>
             <div class="cropper-controls">
                 <div class="profile-field-group">
-                    <label for="cropper-zoom-range">Yakınlaştır</label>
-                    <input type="range" id="cropper-zoom-range" min="1" max="3" step="0.01" oninput="handleCropZoomChange(this.value)">
+                    <label for="cropper-zoom-range">Kadraj Ayarı</label>
+                    <div class="cropper-zoom-toolbar">
+                        <button type="button" class="cropper-zoom-btn" onclick="stepCropZoom(-0.08)">
+                            <i class="fas fa-search-minus"></i>
+                        </button>
+                        <input type="range" id="cropper-zoom-range" min="1" max="3.8" step="0.01" oninput="handleCropZoomChange(this.value)">
+                        <button type="button" class="cropper-zoom-btn" onclick="stepCropZoom(0.08)">
+                            <i class="fas fa-search-plus"></i>
+                        </button>
+                    </div>
+                    <div class="cropper-zoom-meta">
+                        <span>Uzak</span>
+                        <strong id="cropper-zoom-value" class="cropper-zoom-value">%100</strong>
+                        <span>Yakın</span>
+                    </div>
                 </div>
+                <button type="button" class="cropper-fit-btn" onclick="resetCropZoomToFit()" style="background-color: var(--button-bg); color: var(--header-text);">
+                    <i class="fas fa-expand"></i> Görsele Sığdır
+                </button>
             </div>
             <div class="cropper-actions">
                 <button onclick="closeImageCropper()" style="background-color: var(--button-bg); color: var(--header-text);">
@@ -5009,6 +5058,8 @@
         let cropImageNaturalHeight = 0;
         let cropBaseWidth = 0;
         let cropBaseHeight = 0;
+        let cropMinScale = 1;
+        let cropMaxScale = 3.8;
         let cropScale = 1;
         let cropOffsetX = 0;
         let cropOffsetY = 0;
@@ -6559,6 +6610,8 @@
             cropImageNaturalHeight = 0;
             cropBaseWidth = 0;
             cropBaseHeight = 0;
+            cropMinScale = 1;
+            cropMaxScale = 3.8;
             cropScale = 1;
             cropOffsetX = 0;
             cropOffsetY = 0;
@@ -6566,6 +6619,25 @@
             cropPointerId = null;
             document.getElementById('image-cropper-modal').style.display = 'none';
             document.getElementById('cropper-stage').classList.remove('dragging');
+        }
+
+        function getCropMaskInset(stage) {
+            if (!stage) return 18;
+            return Math.max(14, Math.min(18, Math.round(Math.min(stage.clientWidth, stage.clientHeight) * 0.055)));
+        }
+
+        function syncCropZoomUi() {
+            const zoomInput = document.getElementById('cropper-zoom-range');
+            const zoomValue = document.getElementById('cropper-zoom-value');
+            if (zoomInput) {
+                zoomInput.min = cropMinScale.toFixed(2);
+                zoomInput.max = cropMaxScale.toFixed(2);
+                zoomInput.value = cropScale.toFixed(2);
+            }
+            if (zoomValue) {
+                const relativePercent = cropMinScale > 0 ? Math.round((cropScale / cropMinScale) * 100) : 100;
+                zoomValue.textContent = `%${relativePercent}`;
+            }
         }
 
         function closeProfileModal() {
@@ -6640,7 +6712,7 @@
             const zoomInput = document.getElementById('cropper-zoom-range');
 
             cropImageSource = source;
-            zoomInput.value = 1;
+            zoomInput.value = cropMinScale;
             document.getElementById('image-cropper-modal').style.display = 'flex';
 
             cropperImage.onload = () => {
@@ -6649,20 +6721,25 @@
 
                 const stageWidth = stage.clientWidth;
                 const stageHeight = stage.clientHeight;
+                const maskInset = getCropMaskInset(stage);
+                const cropDiameter = Math.max(1, Math.min(stageWidth, stageHeight) - (maskInset * 2));
                 const imageRatio = cropImageNaturalWidth / cropImageNaturalHeight;
 
-                if (imageRatio > stageWidth / stageHeight) {
-                    cropBaseHeight = stageHeight;
-                    cropBaseWidth = stageHeight * imageRatio;
+                if (imageRatio > 1) {
+                    cropBaseHeight = cropDiameter;
+                    cropBaseWidth = cropDiameter * imageRatio;
                 } else {
-                    cropBaseWidth = stageWidth;
-                    cropBaseHeight = stageWidth / imageRatio;
+                    cropBaseWidth = cropDiameter;
+                    cropBaseHeight = cropDiameter / imageRatio;
                 }
 
-                cropScale = 1;
-                cropOffsetX = (stageWidth - cropBaseWidth) / 2;
-                cropOffsetY = (stageHeight - cropBaseHeight) / 2;
+                cropMinScale = 1;
+                cropMaxScale = Math.max(3.8, Math.min(6, Math.max(cropImageNaturalWidth, cropImageNaturalHeight) / 180));
+                cropScale = cropMinScale;
+                cropOffsetX = (stageWidth - (cropBaseWidth * cropScale)) / 2;
+                cropOffsetY = (stageHeight - (cropBaseHeight * cropScale)) / 2;
                 clampCropOffsets();
+                syncCropZoomUi();
                 updateCropperPreview();
             };
 
@@ -6675,11 +6752,14 @@
 
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
-            const minOffsetX = stage.clientWidth - displayedWidth;
-            const minOffsetY = stage.clientHeight - displayedHeight;
+            const maskInset = getCropMaskInset(stage);
+            const maxOffsetX = maskInset;
+            const maxOffsetY = maskInset;
+            const minOffsetX = stage.clientWidth - maskInset - displayedWidth;
+            const minOffsetY = stage.clientHeight - maskInset - displayedHeight;
 
-            cropOffsetX = Math.min(0, Math.max(minOffsetX, cropOffsetX));
-            cropOffsetY = Math.min(0, Math.max(minOffsetY, cropOffsetY));
+            cropOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, cropOffsetX));
+            cropOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, cropOffsetY));
         }
 
         function updateCropperPreview() {
@@ -6701,7 +6781,7 @@
             const focusX = (centerX - cropOffsetX) / previousWidth;
             const focusY = (centerY - cropOffsetY) / previousHeight;
 
-            cropScale = parseFloat(value) || 1;
+            cropScale = Math.max(cropMinScale, Math.min(cropMaxScale, parseFloat(value) || cropMinScale));
 
             const nextWidth = cropBaseWidth * cropScale;
             const nextHeight = cropBaseHeight * cropScale;
@@ -6710,6 +6790,22 @@
 
             clampCropOffsets();
             updateCropperPreview();
+            syncCropZoomUi();
+        }
+
+        function stepCropZoom(delta) {
+            handleCropZoomChange(cropScale + delta);
+        }
+
+        function resetCropZoomToFit() {
+            const stage = document.getElementById('cropper-stage');
+            if (!stage || !cropBaseWidth || !cropBaseHeight) return;
+            cropScale = cropMinScale;
+            cropOffsetX = (stage.clientWidth - (cropBaseWidth * cropScale)) / 2;
+            cropOffsetY = (stage.clientHeight - (cropBaseHeight * cropScale)) / 2;
+            clampCropOffsets();
+            updateCropperPreview();
+            syncCropZoomUi();
         }
 
         async function applyCroppedProfileImage() {
@@ -6717,8 +6813,8 @@
             const stage = document.getElementById('cropper-stage');
             if (!cropperImage || !stage || !cropBaseWidth || !cropBaseHeight) return;
 
-            const maskInset = 18;
-            const cropSize = stage.clientWidth - (maskInset * 2);
+            const maskInset = getCropMaskInset(stage);
+            const cropSize = Math.min(stage.clientWidth, stage.clientHeight) - (maskInset * 2);
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
 
@@ -6733,12 +6829,14 @@
             sy = Math.max(0, Math.min(cropImageNaturalHeight - sHeight, sy));
 
             const canvas = document.createElement('canvas');
-            canvas.width = 320;
-            canvas.height = 320;
+            canvas.width = 512;
+            canvas.height = 512;
             const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(cropperImage, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-            currentProfileImage = canvas.toDataURL('image/jpeg', 0.82);
+            currentProfileImage = canvas.toDataURL('image/jpeg', 0.9);
             document.getElementById('profile-preview-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
@@ -6835,6 +6933,12 @@
                 clampCropOffsets();
                 updateCropperPreview();
             });
+
+            stage.addEventListener('wheel', event => {
+                if (!cropImageSource) return;
+                event.preventDefault();
+                stepCropZoom(event.deltaY > 0 ? -0.06 : 0.06);
+            }, { passive: false });
 
             stage.addEventListener('pointerup', event => {
                 if (stage.hasPointerCapture(event.pointerId)) {
