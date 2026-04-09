@@ -5058,6 +5058,7 @@
         let cropImageNaturalHeight = 0;
         let cropBaseWidth = 0;
         let cropBaseHeight = 0;
+        let cropFitScale = 1;
         let cropMinScale = 1;
         let cropMaxScale = 3.8;
         let cropScale = 1;
@@ -6610,6 +6611,7 @@
             cropImageNaturalHeight = 0;
             cropBaseWidth = 0;
             cropBaseHeight = 0;
+            cropFitScale = 1;
             cropMinScale = 1;
             cropMaxScale = 3.8;
             cropScale = 1;
@@ -6725,17 +6727,17 @@
                 const cropDiameter = Math.max(1, Math.min(stageWidth, stageHeight) - (maskInset * 2));
                 const imageRatio = cropImageNaturalWidth / cropImageNaturalHeight;
 
-                if (imageRatio > 1) {
-                    cropBaseHeight = cropDiameter;
-                    cropBaseWidth = cropDiameter * imageRatio;
-                } else {
-                    cropBaseWidth = cropDiameter;
-                    cropBaseHeight = cropDiameter / imageRatio;
-                }
+                const coverScale = Math.max(cropDiameter / cropImageNaturalWidth, cropDiameter / cropImageNaturalHeight);
+                cropBaseWidth = cropImageNaturalWidth * coverScale;
+                cropBaseHeight = cropImageNaturalHeight * coverScale;
 
-                cropMinScale = 1;
+                cropFitScale = Math.min(
+                    1,
+                    Math.min(cropDiameter / cropBaseWidth, cropDiameter / cropBaseHeight)
+                );
+                cropMinScale = cropFitScale;
                 cropMaxScale = Math.max(3.8, Math.min(6, Math.max(cropImageNaturalWidth, cropImageNaturalHeight) / 180));
-                cropScale = cropMinScale;
+                cropScale = 1;
                 cropOffsetX = (stageWidth - (cropBaseWidth * cropScale)) / 2;
                 cropOffsetY = (stageHeight - (cropBaseHeight * cropScale)) / 2;
                 clampCropOffsets();
@@ -6753,10 +6755,19 @@
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
             const maskInset = getCropMaskInset(stage);
-            const maxOffsetX = maskInset;
-            const maxOffsetY = maskInset;
-            const minOffsetX = stage.clientWidth - maskInset - displayedWidth;
-            const minOffsetY = stage.clientHeight - maskInset - displayedHeight;
+            const cropSize = Math.min(stage.clientWidth, stage.clientHeight) - (maskInset * 2);
+            const maxOffsetX = displayedWidth <= cropSize
+                ? maskInset + ((cropSize - displayedWidth) / 2)
+                : maskInset;
+            const maxOffsetY = displayedHeight <= cropSize
+                ? maskInset + ((cropSize - displayedHeight) / 2)
+                : maskInset;
+            const minOffsetX = displayedWidth <= cropSize
+                ? maxOffsetX
+                : stage.clientWidth - maskInset - displayedWidth;
+            const minOffsetY = displayedHeight <= cropSize
+                ? maxOffsetY
+                : stage.clientHeight - maskInset - displayedHeight;
 
             cropOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, cropOffsetX));
             cropOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, cropOffsetY));
@@ -6800,7 +6811,7 @@
         function resetCropZoomToFit() {
             const stage = document.getElementById('cropper-stage');
             if (!stage || !cropBaseWidth || !cropBaseHeight) return;
-            cropScale = cropMinScale;
+            cropScale = cropFitScale;
             cropOffsetX = (stage.clientWidth - (cropBaseWidth * cropScale)) / 2;
             cropOffsetY = (stage.clientHeight - (cropBaseHeight * cropScale)) / 2;
             clampCropOffsets();
@@ -6818,25 +6829,22 @@
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
 
-            let sx = ((maskInset - cropOffsetX) / displayedWidth) * cropImageNaturalWidth;
-            let sy = ((maskInset - cropOffsetY) / displayedHeight) * cropImageNaturalHeight;
-            let sWidth = (cropSize / displayedWidth) * cropImageNaturalWidth;
-            let sHeight = (cropSize / displayedHeight) * cropImageNaturalHeight;
-
-            sWidth = Math.min(cropImageNaturalWidth, sWidth);
-            sHeight = Math.min(cropImageNaturalHeight, sHeight);
-            sx = Math.max(0, Math.min(cropImageNaturalWidth - sWidth, sx));
-            sy = Math.max(0, Math.min(cropImageNaturalHeight - sHeight, sy));
-
             const canvas = document.createElement('canvas');
             canvas.width = 512;
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
-            ctx.drawImage(cropperImage, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            currentProfileImage = canvas.toDataURL('image/jpeg', 0.9);
+            const drawScale = canvas.width / cropSize;
+            const drawX = (cropOffsetX - maskInset) * drawScale;
+            const drawY = (cropOffsetY - maskInset) * drawScale;
+            const drawWidth = displayedWidth * drawScale;
+            const drawHeight = displayedHeight * drawScale;
+            ctx.drawImage(cropperImage, drawX, drawY, drawWidth, drawHeight);
+
+            currentProfileImage = canvas.toDataURL('image/png');
             document.getElementById('profile-preview-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
