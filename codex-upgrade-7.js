@@ -9190,25 +9190,47 @@
             if (!currentTask) return;
 
             const previousLabel = String(currentTask.text || "").trim();
+            const previousSelectedTaskLabel = String(timerTaskState.selectedTaskLabel || safeStorageGet(TIMER_TRACK_KEY, "") || "").trim();
             const nextLabel = prompt("Görevi Düzenle:", previousLabel);
             if (nextLabel === null) return;
 
             const normalizedNextLabel = String(nextLabel).trim();
             if (!normalizedNextLabel) return;
+            if (normalizedNextLabel === previousLabel) return;
 
-            dayData.tasks[taskIdx].text = normalizedNextLabel;
-            dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
-            dayData.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(dayData.taskWorkedSeconds || {}, dayData.tasks || []);
+            const previousQuestionMap = normalizeTaskQuestionMap(dayData);
+            const previousWorkedMap = normalizeTaskWorkedSecondsMap(
+                dayData.taskWorkedSeconds || dayData.taskStudySeconds || {},
+                dayData.tasks || []
+            );
 
-            const carriedAmount = parseInteger(dayData.subjectQuestions?.[previousLabel], 0);
-            if (carriedAmount > 0 && previousLabel !== normalizedNextLabel) {
-                delete dayData.subjectQuestions[previousLabel];
-                dayData.subjectQuestions[normalizedNextLabel] = parseInteger(dayData.subjectQuestions[normalizedNextLabel], 0) + carriedAmount;
+            const nextQuestionMap = { ...(previousQuestionMap || {}) };
+            const carriedQuestionAmount = parseInteger(nextQuestionMap?.[previousLabel], 0);
+            if (carriedQuestionAmount > 0) {
+                delete nextQuestionMap[previousLabel];
+                nextQuestionMap[normalizedNextLabel] = parseInteger(nextQuestionMap[normalizedNextLabel], 0) + carriedQuestionAmount;
             }
 
-            dayData = moveTaskWorkedSeconds(dayData, previousLabel, normalizedNextLabel);
+            const nextWorkedMap = { ...(previousWorkedMap || {}) };
+            const carriedWorkedSeconds = parseInteger(nextWorkedMap?.[previousLabel], 0);
+            if (carriedWorkedSeconds > 0) {
+                delete nextWorkedMap[previousLabel];
+                nextWorkedMap[normalizedNextLabel] = parseInteger(nextWorkedMap[normalizedNextLabel], 0) + carriedWorkedSeconds;
+            }
+
+            dayData.tasks[taskIdx].text = normalizedNextLabel;
+            dayData.subjectQuestions = normalizeSubjectQuestionMap(nextQuestionMap);
+            dayData.taskWorkedSeconds = nextWorkedMap;
             scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
+
+            const isSelectedTaskRenamed = previousLabel && previousSelectedTaskLabel === previousLabel;
+            if (isSelectedTaskRenamed) {
+                persistTimerTaskSelection(normalizedNextLabel);
+            }
+
             saveData();
+            renderPomodoroTaskSelector();
+            refreshVisibleTaskWorkedBadges();
             renderSchedule();
         };
 
