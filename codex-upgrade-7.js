@@ -8384,8 +8384,10 @@
 
     function getSafePomodoroTaskLabel(currentValue = "", referenceDate = new Date()) {
         const { taskOptions } = getTodayTaskSelectionState(referenceDate);
+        const normalizedValue = String(currentValue || "").trim();
         if (!taskOptions.length) return "";
-        return taskOptions.includes(currentValue) ? currentValue : taskOptions[0];
+        if (!normalizedValue) return "";
+        return taskOptions.includes(normalizedValue) ? normalizedValue : "";
     }
 
     function getCurrentTimerTaskLabel(referenceDate = new Date()) {
@@ -8620,7 +8622,7 @@
         if (fieldNode) fieldNode.classList.toggle("is-open", !!timerTaskState.isPickerOpen);
         if (panelNode) panelNode.hidden = !timerTaskState.isPickerOpen;
         if (toggleNode) toggleNode.setAttribute("aria-expanded", timerTaskState.isPickerOpen ? "true" : "false");
-        if (toggleValueNode) toggleValueNode.textContent = safeTaskLabel || "Bir görev seç";
+        if (toggleValueNode) toggleValueNode.textContent = safeTaskLabel || "Sadece kronometre";
 
         if (!taskOptions.length) {
             select.innerHTML = '<option value="">Bugün görev eklemeden ders seçilemez</option>';
@@ -8632,7 +8634,7 @@
                 toggleNode.disabled = true;
                 toggleNode.setAttribute("aria-expanded", "false");
             }
-            if (toggleValueNode) toggleValueNode.textContent = "Bugün görev yok";
+            if (toggleValueNode) toggleValueNode.textContent = "Sadece kronometre";
             if (summaryNode) summaryNode.textContent = "Henüz görev yok";
             if (hintNode) hintNode.textContent = "Bugün görev eklediğinde buradan seçip süreyi o görevin altına işleyebileceksin.";
             return;
@@ -8640,9 +8642,9 @@
 
         if (toggleNode) toggleNode.disabled = false;
         select.disabled = isBreakTimerMode(timerState.mode);
-        select.innerHTML = taskOptions.map(taskLabel => `
+        select.innerHTML = ['<option value="">Sadece kronometre</option>', ...taskOptions.map(taskLabel => `
             <option value="${escapeHtml(taskLabel)}">${escapeHtml(taskLabel)}</option>
-        `).join("");
+        `)].join("");
         select.value = safeTaskLabel;
 
         const storedSeconds = getDayTaskWorkedSeconds(dayData, safeTaskLabel);
@@ -8658,7 +8660,9 @@
         if (hintNode) {
             hintNode.textContent = isBreakTimerMode(timerState.mode)
                 ? "Mola modunda ders seçimi sabit kalır; çalışma süresi yalnızca çalışma modunda derse işlenir."
-                : "Süreyi kaydettiğinde seçtiğin görev altına çalışma süresi yazılır.";
+                : (safeTaskLabel
+                    ? "Süreyi kaydettiğinde seçtiğin görev altına çalışma süresi yazılır."
+                    : "Sadece kronometre seçiliyken süre genel kronometre olarak çalışır, derse işlenmez.");
         }
     }
 
@@ -8698,7 +8702,7 @@
     async function maybePersistCurrentTaskBeforeSwitch(nextTaskLabel = "") {
         const currentTaskLabel = getCurrentTimerTaskLabel(new Date());
         const normalizedNextLabel = String(nextTaskLabel || "").trim();
-        if (!currentTaskLabel || !normalizedNextLabel || currentTaskLabel === normalizedNextLabel) {
+        if (!currentTaskLabel || currentTaskLabel === normalizedNextLabel) {
             return true;
         }
 
