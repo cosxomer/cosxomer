@@ -96,6 +96,12 @@
         selectedWeekKey: ""
     };
 
+    const timerTaskState = {
+        selectedTaskLabel: "",
+        isSwitchingTask: false,
+        isPickerOpen: false
+    };
+
     function normalizeTimerMode(mode = "") {
         const normalizedMode = String(mode || "").trim().toLowerCase();
         if (normalizedMode === "stopwatch") return "stopwatch";
@@ -165,6 +171,17 @@
             return false;
         }
     }
+
+    function safeStorageRemove(key) {
+        try {
+            localStorage.removeItem(key);
+            return true;
+        } catch (error) {
+            return false;
+        }
+    }
+
+    timerTaskState.selectedTaskLabel = safeStorageGet(TIMER_TRACK_KEY, "");
 
     function buildPerUserDailyNoticeKey(baseKey, user = currentUser, referenceDate = new Date()) {
         const dateKey = getCurrentDayMeta(referenceDate).dateKey;
@@ -1301,6 +1318,96 @@
         return true;
     }
 
+    function normalizeTaskWorkedSecondsMap(taskWorkedSeconds = {}, tasks = []) {
+        const allowedTaskLabels = new Set(
+            (Array.isArray(tasks) ? tasks : [])
+                .map(task => String(task?.text || "").trim())
+                .filter(Boolean)
+        );
+
+        const nextMap = {};
+        Object.entries(taskWorkedSeconds || {}).forEach(([taskLabel, rawSeconds]) => {
+            const normalizedLabel = String(taskLabel || "").trim();
+            const normalizedSeconds = Math.max(0, parseInteger(rawSeconds, 0));
+            if (!normalizedLabel || normalizedSeconds <= 0) return;
+            if (allowedTaskLabels.size && !allowedTaskLabels.has(normalizedLabel)) return;
+            nextMap[normalizedLabel] = normalizedSeconds;
+        });
+
+        return nextMap;
+    }
+
+    function getDayTaskWorkedSeconds(dayData, taskLabel = "") {
+        const normalizedLabel = String(taskLabel || "").trim();
+        if (!normalizedLabel) return 0;
+        const normalizedDay = ensureDayObject(dayData || {});
+        return Math.max(0, parseInteger(normalizedDay.taskWorkedSeconds?.[normalizedLabel], 0));
+    }
+
+    function addWorkedSecondsToTask(dayData, taskLabel = "", deltaSeconds = 0) {
+        const normalizedLabel = String(taskLabel || "").trim();
+        const normalizedDelta = Math.max(0, parseInteger(deltaSeconds, 0));
+        if (!normalizedLabel || normalizedDelta <= 0) return ensureDayObject(dayData || {});
+
+        const normalizedDay = ensureDayObject(dayData || {});
+        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
+            normalizedDay.taskWorkedSeconds || {},
+            normalizedDay.tasks || []
+        );
+        normalizedDay.taskWorkedSeconds[normalizedLabel] = Math.max(
+            0,
+            parseInteger(normalizedDay.taskWorkedSeconds[normalizedLabel], 0) + normalizedDelta
+        );
+        return normalizedDay;
+    }
+
+    function moveTaskWorkedSeconds(dayData, previousLabel = "", nextLabel = "") {
+        const normalizedPreviousLabel = String(previousLabel || "").trim();
+        const normalizedNextLabel = String(nextLabel || "").trim();
+        if (!normalizedPreviousLabel || !normalizedNextLabel || normalizedPreviousLabel === normalizedNextLabel) {
+            return dayData;
+        }
+
+        const normalizedDay = ensureDayObject(dayData || {});
+        const carriedSeconds = parseInteger(normalizedDay.taskWorkedSeconds?.[normalizedPreviousLabel], 0);
+        if (carriedSeconds <= 0) return normalizedDay;
+
+        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
+            normalizedDay.taskWorkedSeconds || {},
+            normalizedDay.tasks || []
+        );
+        delete normalizedDay.taskWorkedSeconds[normalizedPreviousLabel];
+        normalizedDay.taskWorkedSeconds[normalizedNextLabel] = Math.max(
+            0,
+            parseInteger(normalizedDay.taskWorkedSeconds[normalizedNextLabel], 0) + carriedSeconds
+        );
+        return normalizedDay;
+    }
+
+    function removeTaskWorkedSeconds(dayData, taskLabel = "") {
+        const normalizedLabel = String(taskLabel || "").trim();
+        if (!normalizedLabel) return ensureDayObject(dayData || {});
+
+        const normalizedDay = ensureDayObject(dayData || {});
+        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
+            normalizedDay.taskWorkedSeconds || {},
+            normalizedDay.tasks || []
+        );
+        delete normalizedDay.taskWorkedSeconds[normalizedLabel];
+        return normalizedDay;
+    }
+
+    function formatTaskWorkedDuration(seconds = 0) {
+        const normalizedSeconds = Math.max(0, parseInteger(seconds, 0));
+        if (normalizedSeconds <= 0) return "";
+        if (typeof formatSeconds === "function") return formatSeconds(normalizedSeconds);
+        const hours = Math.floor(normalizedSeconds / 3600);
+        const minutes = Math.floor((normalizedSeconds % 3600) / 60);
+        if (hours > 0) return `${hours}s ${minutes}dk`;
+        if (minutes > 0) return `${minutes}dk`;
+        return `${normalizedSeconds}s`;
+    }
+
     function ensureDayObject(day = {}) {
         const workedSeconds = Math.max(0, parseInteger(day.workedSeconds, 0));
         const breakSeconds = Math.max(0, parseInteger(day.breakSeconds, 0));
@@ -1308,19 +1415,25 @@
         const subjectQuestions = normalizeSubjectQuestionMap(day.subjectQuestions || {});
         const subjectQuestionTotal = Object.values(subjectQuestions).reduce((sum, amount) => sum + amount, 0);
         const normalizedQuestions = Math.min(QUESTION_LIMIT, subjectQuestionTotal || rawQuestions);
+        const normalizedTasks = Array.isArray(day.tasks)
+            ? day.tasks.map(task => ({
+                text: String(task && task.text ? task.text : "").trim(),
+                completed: !!(task && task.completed)
+            })).filter(task => task.text)
+            : [];
+        const taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
+            day.taskWorkedSeconds || day.taskStudySeconds || {},
+            normalizedTasks
+        );
 
         return {
             ...day,
-            tasks: Array.isArray(day.tasks)
-                ? day.tasks.map(task => ({
-                    text: String(task && task.text ? task.text : "").trim(),
-                    completed: !!(task && task.completed)
-                })).filter(task => task.text)
-                : [],
+            tasks: normalizedTasks,
             workedSeconds,
             breakSeconds,
             questions: normalizedQuestions,
             subjectQuestions: subjectQuestionTotal ? subjectQuestions : (normalizedQuestions ? createFallbackSubjectQuestionMap(day, normalizedQuestions) : {}),
+            taskWorkedSeconds,
             studySessions: normalizeStudySessions(day.studySessions || day.sessions || []),
             breakSessions: normalizeStudySessions(day.breakSessions || day.breaks || [])
         };
@@ -2790,6 +2903,112 @@
         }
     }
 
+    function ensurePomodoroTaskSelectorUi() {
+        ensurePomodoroTaskFeatureStyles();
+        const modal = document.getElementById("pomodoro-modal");
+        const timerDisplay = modal?.querySelector("#timer-display");
+        if (!modal || !timerDisplay) return;
+
+        let field = document.getElementById("pomodoro-task-field");
+        if (!field) {
+            field = document.createElement("div");
+            field.id = "pomodoro-task-field";
+            field.className = "pomodoro-task-field";
+            field.innerHTML = `
+                <button id="pomodoro-task-toggle" class="pomodoro-task-field__toggle" type="button" aria-expanded="false" aria-controls="pomodoro-task-panel">
+                    <span class="pomodoro-task-field__toggle-main">
+                        <span class="pomodoro-task-field__toggle-label">Ders Seç</span>
+                        <span id="pomodoro-task-toggle-value" class="pomodoro-task-field__toggle-value">Bir görev seç</span>
+                    </span>
+                    <span id="pomodoro-task-summary" class="pomodoro-task-field__summary">Henüz süre yok</span>
+                </button>
+                <div id="pomodoro-task-panel" class="pomodoro-task-field__panel" hidden>
+                    <label for="pomodoro-task-select">Bugünkü Görevler</label>
+                    <div class="pomodoro-task-field__row">
+                        <select id="pomodoro-task-select" aria-label="Bugün hangi görev için çalıştığını seç"></select>
+                    </div>
+                    <p id="pomodoro-task-hint" class="pomodoro-task-field__hint">Bugün görev eklediğinde bu listede görünecek.</p>
+                </div>
+            `;
+            timerDisplay.insertAdjacentElement("beforebegin", field);
+
+            const toggle = field.querySelector("#pomodoro-task-toggle");
+            if (toggle) {
+                toggle.addEventListener("click", () => {
+                    if (toggle.disabled) return;
+                    timerTaskState.isPickerOpen = !timerTaskState.isPickerOpen;
+                    renderPomodoroTaskSelector();
+                });
+            }
+
+            const select = field.querySelector("#pomodoro-task-select");
+            if (select) {
+                select.addEventListener("change", async event => {
+                    if (timerTaskState.isSwitchingTask) return;
+                    timerTaskState.isSwitchingTask = true;
+
+                    const nextTaskLabel = String(event.currentTarget?.value || "").trim();
+                    const currentTaskLabel = getCurrentTimerTaskLabel(new Date());
+
+                    try {
+                        const switched = await maybePersistCurrentTaskBeforeSwitch(nextTaskLabel);
+                        if (!switched) {
+                            event.currentTarget.value = currentTaskLabel;
+                            return;
+                        }
+                        persistTimerTaskSelection(nextTaskLabel);
+                        timerTaskState.isPickerOpen = false;
+                        renderPomodoroTaskSelector();
+                        refreshVisibleTaskWorkedBadges();
+                    } catch (error) {
+                        console.error("Pomodoro görev değişimi kaydedilemedi:", error);
+                        event.currentTarget.value = currentTaskLabel;
+                        safeShowAlert("Ders değiştirilemedi. Lütfen tekrar dene.");
+                    } finally {
+                        timerTaskState.isSwitchingTask = false;
+                    }
+                });
+            }
+        }
+
+        renderPomodoroTaskSelector();
+    }
+
+    function ensureAnalyticsGraphUi() {
+        ensurePomodoroTaskFeatureStyles();
+        const tabsRoot = document.querySelector("#analytics-modal .analytics-insights-tabs");
+        const weeklyPane = document.getElementById("analytics-weekly-pane");
+        if (!tabsRoot || !weeklyPane) return;
+
+        if (!document.getElementById("analytics-tab-graph")) {
+            const graphTab = document.createElement("button");
+            graphTab.id = "analytics-tab-graph";
+            graphTab.className = "analytics-insights-tab";
+            graphTab.type = "button";
+            graphTab.textContent = "Grafik";
+            graphTab.addEventListener("click", () => setAnalyticsTab("graph"));
+            tabsRoot.appendChild(graphTab);
+        }
+
+        if (!document.getElementById("analytics-graph-pane")) {
+            const graphPane = document.createElement("div");
+            graphPane.id = "analytics-graph-pane";
+            graphPane.className = "analytics-pane";
+            graphPane.style.display = "none";
+            graphPane.innerHTML = `
+                <div class="analytics-toolbar">
+                    <label>
+                        Gün Seç
+                        <input id="analytics-graph-date-input" type="date" onchange="handleAnalyticsDateChange(this.value)">
+                    </label>
+                </div>
+                <div id="analytics-graph-total" class="analytics-graph-total-card"></div>
+                <div id="analytics-graph-list" class="analytics-graph-list"></div>
+            `;
+            weeklyPane.insertAdjacentElement("afterend", graphPane);
+        }
+    }
+
     function setTimerMode(mode, options = {}) {
         const normalizedMode = normalizeTimerMode(mode);
 
@@ -4074,7 +4293,35 @@
     function canWriteCurrentUserProfileSafely() {
         if (!currentUser?.uid) return false;
         if (!hasBootstrappedUsersRealtime) return false;
-        return !currentUserHasRemoteProfile || currentUserProfileHydrated;
+        if (!currentUserProfileHydrated) return false;
+        return currentUserHasRemoteProfile;
+    }
+
+    function getHydrationSafeCachedProfile(uid = currentUser?.uid) {
+        if (!uid || typeof getCodexCachedUserProfile !== "function") return null;
+        const cachedProfile = getCodexCachedUserProfile(uid);
+        if (!cachedProfile || typeof cachedProfile !== "object") return null;
+
+        const safeSchedule = sanitizeScheduleData(cachedProfile.schedule || {});
+        const safeNotes = normalizeUserNotes(cachedProfile.notes || []);
+        const safeUsername = pickPreferredProfileText(
+            [cachedProfile.username, cachedProfile.name],
+            { email: cachedProfile.email || currentUser?.email || "" }
+        );
+        const hasMeaningfulProfile = !!(
+            safeUsername
+            || String(cachedProfile.profileImage || "").trim()
+            || String(cachedProfile.studyTrack || "").trim()
+            || Object.keys(safeSchedule).length
+            || safeNotes.length
+        );
+
+        if (!hasMeaningfulProfile) return null;
+        return {
+            ...cachedProfile,
+            schedule: safeSchedule,
+            notes: safeNotes
+        };
     }
 
     function resolveWritableCurrentUserProfile(basePayload = {}, options = {}) {
@@ -5791,6 +6038,63 @@
         };
     }
 
+    function buildDailyHourlyAnalytics(referenceDate = new Date()) {
+        const safeDate = referenceDate instanceof Date ? new Date(referenceDate) : parseAnalyticsDateKey(referenceDate);
+        const { dateKey, dayData } = getScheduleDayDataByDate(safeDate);
+        const sessions = normalizeStudySessions(dayData.studySessions || []);
+        const dayStart = parseAnalyticsDateKey(dateKey);
+        dayStart.setHours(0, 0, 0, 0);
+        const buckets = Array.from({ length: 24 }, (_, hourIndex) => {
+            const bucketStart = new Date(dayStart);
+            bucketStart.setHours(hourIndex, 0, 0, 0);
+            const bucketEnd = new Date(bucketStart);
+            bucketEnd.setHours(hourIndex + 1, 0, 0, 0);
+            return {
+                hourIndex,
+                label: `${String(hourIndex).padStart(2, "0")}:00`,
+                startMs: bucketStart.getTime(),
+                endMs: bucketEnd.getTime(),
+                durationMs: 0
+            };
+        });
+
+        sessions.forEach(session => {
+            const sessionStartMs = Math.max(dayStart.getTime(), parseInteger(session.startTime, 0));
+            const sessionEndMs = Math.min(dayStart.getTime() + (24 * 60 * 60 * 1000), parseInteger(session.endTime, 0));
+            if (sessionEndMs <= sessionStartMs) return;
+
+            buckets.forEach(bucket => {
+                const overlapStart = Math.max(sessionStartMs, bucket.startMs);
+                const overlapEnd = Math.min(sessionEndMs, bucket.endMs);
+                if (overlapEnd > overlapStart) {
+                    bucket.durationMs += overlapEnd - overlapStart;
+                }
+            });
+        });
+
+        const pendingInterval = !isBreakTimerMode(timerState.session?.mode)
+            ? getPendingTimerInterval(timerState.session, Date.now())
+            : null;
+        if (pendingInterval && getDateKeyFromTimestamp(pendingInterval.startMs) === dateKey) {
+            buckets.forEach(bucket => {
+                const overlapStart = Math.max(pendingInterval.startMs, bucket.startMs);
+                const overlapEnd = Math.min(pendingInterval.endMs, bucket.endMs);
+                if (overlapEnd > overlapStart) {
+                    bucket.durationMs += overlapEnd - overlapStart;
+                }
+            });
+        }
+
+        const totalDurationMs = buckets.reduce((sum, bucket) => sum + bucket.durationMs, 0);
+        return {
+            dateKey,
+            dateLabel: formatAnalyticsDateLabel(safeDate),
+            totalDurationMs,
+            totalDurationLabel: formatAnalyticsDuration(totalDurationMs),
+            buckets
+        };
+    }
+
     function renderAnalyticsHero(options = {}) {
         const heroNode = document.getElementById("analytics-hero");
         if (!heroNode) return;
@@ -6019,22 +6323,72 @@
         `).join("");
     }
 
+    function renderGraphAnalytics() {
+        const totalNode = document.getElementById("analytics-graph-total");
+        const listNode = document.getElementById("analytics-graph-list");
+        const dateInput = document.getElementById("analytics-graph-date-input");
+        if (!totalNode || !listNode || !dateInput) return;
+
+        const selectedDate = parseAnalyticsDateKey(
+            analyticsState.selectedDateKey
+            || getCurrentDayMeta(new Date()).dateKey
+        );
+        const graphData = buildDailyHourlyAnalytics(selectedDate);
+        analyticsState.selectedDateKey = graphData.dateKey;
+        dateInput.value = graphData.dateKey;
+
+        renderAnalyticsHero({
+            label: "Saat Aralığına Göre Çalışma",
+            value: graphData.totalDurationLabel,
+            subtitle: graphData.dateLabel,
+            meta: "Günün hangi saatlerinde ne kadar çalıştığın burada görünür."
+        });
+
+        totalNode.innerHTML = `
+            <span>Toplam Çalışma</span>
+            <strong>${escapeHtml(graphData.totalDurationLabel)}</strong>
+            <div class="analytics-hero-meta">${escapeHtml(graphData.dateLabel)}</div>
+        `;
+
+        const maxDurationMs = Math.max(1, ...graphData.buckets.map(bucket => bucket.durationMs));
+        listNode.innerHTML = graphData.buckets.map(bucket => {
+            const width = bucket.durationMs > 0
+                ? Math.max(6, Math.round((bucket.durationMs / maxDurationMs) * 100))
+                : 0;
+            return `
+                <div class="analytics-graph-row">
+                    <span class="analytics-graph-hour">${escapeHtml(bucket.label)}</span>
+                    <div class="analytics-graph-track">
+                        <div class="analytics-graph-fill" style="width:${width}%"></div>
+                    </div>
+                    <span class="analytics-graph-duration">${bucket.durationMs > 0 ? escapeHtml(formatAnalyticsDuration(bucket.durationMs)) : "0s"}</span>
+                </div>
+            `;
+        }).join("");
+    }
+
     function renderAnalyticsPanel() {
         const modal = document.getElementById("analytics-modal");
         if (!modal) return;
 
         const dailyTabButton = document.getElementById("analytics-tab-daily");
         const weeklyTabButton = document.getElementById("analytics-tab-weekly");
+        const graphTabButton = document.getElementById("analytics-tab-graph");
         const dailyPane = document.getElementById("analytics-daily-pane");
         const weeklyPane = document.getElementById("analytics-weekly-pane");
+        const graphPane = document.getElementById("analytics-graph-pane");
 
         if (dailyTabButton) dailyTabButton.classList.toggle("is-active", analyticsState.tab === "daily");
         if (weeklyTabButton) weeklyTabButton.classList.toggle("is-active", analyticsState.tab === "weekly");
+        if (graphTabButton) graphTabButton.classList.toggle("is-active", analyticsState.tab === "graph");
         if (dailyPane) dailyPane.style.display = analyticsState.tab === "daily" ? "" : "none";
         if (weeklyPane) weeklyPane.style.display = analyticsState.tab === "weekly" ? "" : "none";
+        if (graphPane) graphPane.style.display = analyticsState.tab === "graph" ? "" : "none";
 
         if (analyticsState.tab === "weekly") {
             renderWeeklyAnalytics();
+        } else if (analyticsState.tab === "graph") {
+            renderGraphAnalytics();
         } else {
             renderDailyAnalytics();
         }
@@ -6070,7 +6424,9 @@
     };
 
     window.setAnalyticsTab = function(tab = "daily") {
-        analyticsState.tab = tab === "weekly" ? "weekly" : "daily";
+        analyticsState.tab = tab === "weekly"
+            ? "weekly"
+            : (tab === "graph" ? "graph" : "daily");
         renderAnalyticsPanel();
     };
 
@@ -7441,6 +7797,8 @@
             const publicProfileData = currentUserPublicProfileBootstrapPromise
                 ? await currentUserPublicProfileBootstrapPromise.catch(() => null)
                 : currentUserPublicProfileDoc;
+            const cachedProfile = getHydrationSafeCachedProfile(currentUser?.uid);
+            const hasCachedProfile = !!cachedProfile;
             currentUserHasRemoteProfile = !!(currentUserDoc || publicProfileData);
             const currentData = mergeCurrentUserProfileSources(
                 currentUserDoc?.data?.() || {},
@@ -7454,8 +7812,12 @@
                 syncCurrentUserLiveDoc(currentData, { silent: initialSync });
                 applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
             } else {
-                currentUserLiveDoc = null;
-                currentUserProfileHydrated = false;
+                currentUserHasRemoteProfile = false;
+                if (!currentUserProfileHydrated && hasCachedProfile) {
+                    bootstrapExtendedUserData(cachedProfile);
+                } else {
+                    console.warn("Remote profil verisi gelmedi; yerel profil korunuyor.");
+                }
             }
 
             if (initialSync) {
@@ -7469,9 +7831,19 @@
                     requiresEmailVerification = false;
                     hideVerificationGate();
                 }
-                bootstrapExtendedUserData(currentData);
-                renderSchedule();
-                renderMyNotesPanel();
+                if (currentUserDoc || publicProfileData) {
+                    bootstrapExtendedUserData(currentData);
+                    renderSchedule();
+                    renderMyNotesPanel();
+                } else if (hasCachedProfile) {
+                    if (!currentUserProfileHydrated) {
+                        bootstrapExtendedUserData(cachedProfile);
+                    }
+                    renderSchedule();
+                    renderMyNotesPanel();
+                } else {
+                    console.warn("Startup sadece offline/boş profil ile açıldı; write koruması aktif kaldı.");
+                }
                 hasBootstrappedUsersRealtime = true;
             }
 
@@ -7955,6 +8327,7 @@
         if (!content) return;
 
         content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
+        ensurePomodoroTaskSelectorUi();
         updateTimerButtons();
         updateTimerSessionPill();
 
@@ -7980,6 +8353,8 @@
         }
 
         updateLiveStudyPreview();
+        renderPomodoroTaskSelector();
+        refreshVisibleTaskWorkedBadges();
     }
 
     function getDayQuestionSubjectOptions(dayData) {
@@ -7994,6 +8369,357 @@
         });
 
         return ordered;
+    }
+
+    function getTodayTaskSelectionState(referenceDate = new Date()) {
+        const { weekKey, dayIdx, dateKey, dayData } = getScheduleDayDataByDate(referenceDate);
+        return {
+            weekKey,
+            dayIdx,
+            dateKey,
+            dayData,
+            taskOptions: getDayQuestionSubjectOptions(dayData)
+        };
+    }
+
+    function getSafePomodoroTaskLabel(currentValue = "", referenceDate = new Date()) {
+        const { taskOptions } = getTodayTaskSelectionState(referenceDate);
+        if (!taskOptions.length) return "";
+        return taskOptions.includes(currentValue) ? currentValue : taskOptions[0];
+    }
+
+    function getCurrentTimerTaskLabel(referenceDate = new Date()) {
+        const preferredLabel = String(timerTaskState.selectedTaskLabel || safeStorageGet(TIMER_TRACK_KEY, "") || "").trim();
+        return getSafePomodoroTaskLabel(preferredLabel, referenceDate);
+    }
+
+    function persistTimerTaskSelection(taskLabel = "") {
+        const normalizedLabel = String(taskLabel || "").trim();
+        timerTaskState.selectedTaskLabel = normalizedLabel;
+        if (normalizedLabel) {
+            safeStorageSet(TIMER_TRACK_KEY, normalizedLabel);
+        } else {
+            safeStorageRemove(TIMER_TRACK_KEY);
+        }
+        return normalizedLabel;
+    }
+
+    function getCurrentTaskTimerDeltaSeconds(referenceDate = new Date()) {
+        if (!timerState.session || isBreakTimerMode(timerState.session.mode)) return 0;
+        if (hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate)) return 0;
+        const selectedTaskLabel = getCurrentTimerTaskLabel(referenceDate);
+        if (!selectedTaskLabel) return 0;
+        return Math.max(0, getTimerElapsedSeconds(timerState.session) - parseInteger(timerState.session.lastPersistedElapsedSeconds, 0));
+    }
+
+    function getCurrentTaskWorkedSecondsPreview(taskLabel = "", dayIdx = null, referenceDate = new Date()) {
+        const normalizedTaskLabel = String(taskLabel || "").trim();
+        if (!normalizedTaskLabel) return 0;
+        const { dayIdx: todayDayIdx } = getTodayTaskSelectionState(referenceDate);
+        if (dayIdx !== null && parseInteger(dayIdx, -1) !== todayDayIdx) return 0;
+        if (normalizedTaskLabel !== getCurrentTimerTaskLabel(referenceDate)) return 0;
+        return getCurrentTaskTimerDeltaSeconds(referenceDate);
+    }
+
+    function ensurePomodoroTaskFeatureStyles() {
+        if (document.getElementById("codex-pomodoro-task-styles")) return;
+
+        const style = document.createElement("style");
+        style.id = "codex-pomodoro-task-styles";
+        style.textContent = `
+            .pomodoro-task-field {
+                margin: 6px 0 14px;
+            }
+            .pomodoro-task-field__toggle {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                padding: 11px 14px;
+                border-radius: 16px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.52));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+                color: #fff;
+                cursor: pointer;
+            }
+            .pomodoro-task-field__toggle:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+            }
+            .pomodoro-task-field__toggle-main {
+                min-width: 0;
+                display: grid;
+                gap: 2px;
+                text-align: left;
+            }
+            .pomodoro-task-field__toggle-label {
+                font-size: 0.78em;
+                font-weight: 800;
+                letter-spacing: 0.04em;
+                text-transform: uppercase;
+                color: rgba(226, 232, 240, 0.74);
+            }
+            .pomodoro-task-field__toggle-value {
+                font-size: 0.94em;
+                font-weight: 700;
+                color: rgba(255,255,255,0.96);
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: min(54vw, 240px);
+            }
+            .pomodoro-task-field__panel {
+                margin-top: 10px;
+                padding: 14px 16px;
+                border-radius: 18px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.52));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
+            }
+            .pomodoro-task-field__panel label {
+                display: block;
+                margin-bottom: 10px;
+                font-size: 0.86em;
+                font-weight: 700;
+                color: rgba(226, 232, 240, 0.88);
+            }
+            .pomodoro-task-field__row {
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                flex-wrap: wrap;
+            }
+            .pomodoro-task-field__row select {
+                flex: 1 1 240px;
+                min-width: 0;
+                border-radius: 14px;
+                border: 1px solid rgba(255,255,255,0.1);
+                background: rgba(15, 23, 42, 0.68);
+                color: #fff;
+                padding: 12px 14px;
+                font-size: 0.96em;
+                font-weight: 600;
+            }
+            .pomodoro-task-field__summary {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                min-height: 34px;
+                padding: 7px 11px;
+                border-radius: 999px;
+                border: 1px solid rgba(56, 189, 248, 0.32);
+                background: rgba(56, 189, 248, 0.14);
+                color: #bae6fd;
+                font-size: 0.78em;
+                font-weight: 700;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+            .pomodoro-task-field__hint {
+                margin: 10px 0 0;
+                font-size: 0.78em;
+                line-height: 1.45;
+                color: rgba(226, 232, 240, 0.7);
+            }
+            .task-worked-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                margin-right: 8px;
+                padding: 4px 9px;
+                border-radius: 999px;
+                border: 1px solid rgba(34, 197, 94, 0.24);
+                background: rgba(34, 197, 94, 0.12);
+                color: #bbf7d0;
+                font-size: 0.72em;
+                font-weight: 700;
+                white-space: nowrap;
+            }
+            .task-worked-badge.is-live {
+                border-color: rgba(250, 204, 21, 0.34);
+                background: rgba(250, 204, 21, 0.16);
+                color: #fde68a;
+            }
+            .analytics-graph-total-card {
+                display: grid;
+                gap: 6px;
+                margin-bottom: 20px;
+                padding: 18px;
+                border-radius: 22px;
+                border: 1px solid rgba(255,255,255,0.08);
+                background: linear-gradient(160deg, rgba(8, 47, 73, 0.86), rgba(17, 24, 39, 0.76));
+                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 34px rgba(2, 6, 23, 0.24);
+            }
+            .analytics-graph-total-card span {
+                font-size: 0.8em;
+                color: rgba(186, 230, 253, 0.8);
+                text-transform: uppercase;
+                letter-spacing: 0.08em;
+            }
+            .analytics-graph-total-card strong {
+                font-size: clamp(2rem, 4vw, 2.8rem);
+                color: #fff;
+            }
+            .analytics-graph-list {
+                display: grid;
+                gap: 12px;
+            }
+            .analytics-graph-row {
+                display: grid;
+                grid-template-columns: 74px minmax(0, 1fr) 72px;
+                gap: 10px;
+                align-items: center;
+            }
+            .analytics-graph-hour {
+                font-size: 0.78em;
+                font-weight: 700;
+                color: rgba(226, 232, 240, 0.72);
+            }
+            .analytics-graph-track {
+                position: relative;
+                height: 14px;
+                overflow: hidden;
+                border-radius: 999px;
+                background: rgba(148, 163, 184, 0.16);
+                border: 1px solid rgba(255,255,255,0.06);
+            }
+            .analytics-graph-fill {
+                position: absolute;
+                inset: 0 auto 0 0;
+                border-radius: inherit;
+                background: linear-gradient(90deg, rgba(56, 189, 248, 0.94), rgba(168, 85, 247, 0.94));
+                box-shadow: 0 0 18px rgba(56, 189, 248, 0.24);
+            }
+            .analytics-graph-duration {
+                font-size: 0.76em;
+                font-weight: 700;
+                color: rgba(226, 232, 240, 0.84);
+                text-align: right;
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    function renderPomodoroTaskSelector() {
+        const select = document.getElementById("pomodoro-task-select");
+        const summaryNode = document.getElementById("pomodoro-task-summary");
+        const hintNode = document.getElementById("pomodoro-task-hint");
+        const toggleValueNode = document.getElementById("pomodoro-task-toggle-value");
+        const toggleNode = document.getElementById("pomodoro-task-toggle");
+        const panelNode = document.getElementById("pomodoro-task-panel");
+        const fieldNode = document.getElementById("pomodoro-task-field");
+        if (!select) return;
+
+        const { dayData, taskOptions } = getTodayTaskSelectionState(new Date());
+        const safeTaskLabel = getSafePomodoroTaskLabel(getCurrentTimerTaskLabel(new Date()), new Date());
+        persistTimerTaskSelection(safeTaskLabel);
+
+        if (fieldNode) fieldNode.classList.toggle("is-open", !!timerTaskState.isPickerOpen);
+        if (panelNode) panelNode.hidden = !timerTaskState.isPickerOpen;
+        if (toggleNode) toggleNode.setAttribute("aria-expanded", timerTaskState.isPickerOpen ? "true" : "false");
+        if (toggleValueNode) toggleValueNode.textContent = safeTaskLabel || "Bir görev seç";
+
+        if (!taskOptions.length) {
+            select.innerHTML = '<option value="">Bugün görev eklemeden ders seçilemez</option>';
+            select.disabled = true;
+            timerTaskState.isPickerOpen = false;
+            if (fieldNode) fieldNode.classList.remove("is-open");
+            if (panelNode) panelNode.hidden = true;
+            if (toggleNode) {
+                toggleNode.disabled = true;
+                toggleNode.setAttribute("aria-expanded", "false");
+            }
+            if (toggleValueNode) toggleValueNode.textContent = "Bugün görev yok";
+            if (summaryNode) summaryNode.textContent = "Henüz görev yok";
+            if (hintNode) hintNode.textContent = "Bugün görev eklediğinde buradan seçip süreyi o görevin altına işleyebileceksin.";
+            return;
+        }
+
+        if (toggleNode) toggleNode.disabled = false;
+        select.disabled = isBreakTimerMode(timerState.mode);
+        select.innerHTML = taskOptions.map(taskLabel => `
+            <option value="${escapeHtml(taskLabel)}">${escapeHtml(taskLabel)}</option>
+        `).join("");
+        select.value = safeTaskLabel;
+
+        const storedSeconds = getDayTaskWorkedSeconds(dayData, safeTaskLabel);
+        const liveSeconds = getCurrentTaskWorkedSecondsPreview(safeTaskLabel, getTodayTaskSelectionState(new Date()).dayIdx, new Date());
+        const totalSeconds = storedSeconds + liveSeconds;
+
+        if (summaryNode) {
+            summaryNode.textContent = totalSeconds > 0
+                ? `Toplam: ${formatTaskWorkedDuration(totalSeconds)}`
+                : "Henüz süre yok";
+        }
+
+        if (hintNode) {
+            hintNode.textContent = isBreakTimerMode(timerState.mode)
+                ? "Mola modunda ders seçimi sabit kalır; çalışma süresi yalnızca çalışma modunda derse işlenir."
+                : "Süreyi kaydettiğinde seçtiğin görev altına çalışma süresi yazılır.";
+        }
+    }
+
+    function refreshVisibleTaskWorkedBadges() {
+        const { dayIdx: todayDayIdx, dayData } = getTodayTaskSelectionState(new Date());
+        const taskList = document.getElementById(`task-list-${todayDayIdx}`);
+        if (!taskList) return;
+
+        const taskItems = [...taskList.querySelectorAll(".task-item")];
+        taskItems.forEach((item, taskIdx) => {
+            const contentWrapper = item.querySelector(".task-content-wrapper");
+            if (!contentWrapper) return;
+
+            let badge = contentWrapper.querySelector(".task-worked-badge");
+            if (!badge) {
+                badge = document.createElement("span");
+                badge.className = "task-worked-badge";
+                const deleteIcon = contentWrapper.querySelector(".fa-times");
+                if (deleteIcon) {
+                    contentWrapper.insertBefore(badge, deleteIcon);
+                } else {
+                    contentWrapper.appendChild(badge);
+                }
+            }
+
+            const taskLabel = String(dayData?.tasks?.[taskIdx]?.text || "").trim();
+            const storedSeconds = getDayTaskWorkedSeconds(dayData, taskLabel);
+            const liveSeconds = getCurrentTaskWorkedSecondsPreview(taskLabel, todayDayIdx, new Date());
+            const totalSeconds = storedSeconds + liveSeconds;
+
+            badge.textContent = totalSeconds > 0 ? `Süre ${formatTaskWorkedDuration(totalSeconds)}` : "";
+            badge.style.display = totalSeconds > 0 ? "inline-flex" : "none";
+            badge.classList.toggle("is-live", liveSeconds > 0);
+        });
+    }
+
+    async function maybePersistCurrentTaskBeforeSwitch(nextTaskLabel = "") {
+        const currentTaskLabel = getCurrentTimerTaskLabel(new Date());
+        const normalizedNextLabel = String(nextTaskLabel || "").trim();
+        if (!currentTaskLabel || !normalizedNextLabel || currentTaskLabel === normalizedNextLabel) {
+            return true;
+        }
+
+        const pendingSeconds = getCurrentTaskTimerDeltaSeconds(new Date());
+        if (pendingSeconds <= 0) {
+            persistTimerTaskSelection(normalizedNextLabel);
+            return true;
+        }
+
+        const shouldSave = confirm(`"${currentTaskLabel}" için ${formatTaskWorkedDuration(pendingSeconds)} kaydedilsin mi?`);
+        if (!shouldSave) {
+            return false;
+        }
+
+        const result = await saveCurrentTimerSession({
+            closeModal: false,
+            successMessage: `${currentTaskLabel} için süre kaydedildi.`,
+            nextTaskLabel: normalizedNextLabel
+        });
+
+        return !!result;
     }
 
     function getQuestionTrackingOptions(dayData) {
@@ -8174,8 +8900,27 @@
 
             const taskLabel = String(dayData?.tasks?.[taskIdx]?.text || "").trim();
             const solvedCount = parseInteger(normalizeTaskQuestionMap(dayData)?.[taskLabel], 0);
+            const storedWorkedSeconds = getDayTaskWorkedSeconds(dayData, taskLabel);
+            const liveWorkedSeconds = getCurrentTaskWorkedSecondsPreview(taskLabel, dayIdx, new Date());
+            const totalWorkedSeconds = storedWorkedSeconds + liveWorkedSeconds;
             badge.textContent = `${solvedCount} soru`;
             badge.classList.toggle("is-hidden", solvedCount <= 0);
+
+            let timeBadge = contentWrapper.querySelector(".task-worked-badge");
+            if (!timeBadge) {
+                timeBadge = document.createElement("span");
+                timeBadge.className = "task-worked-badge";
+                const deleteIcon = contentWrapper.querySelector(".fa-times");
+                if (deleteIcon) {
+                    contentWrapper.insertBefore(timeBadge, deleteIcon);
+                } else {
+                    contentWrapper.appendChild(timeBadge);
+                }
+            }
+
+            timeBadge.textContent = totalWorkedSeconds > 0 ? `Süre ${formatTaskWorkedDuration(totalWorkedSeconds)}` : "";
+            timeBadge.style.display = totalWorkedSeconds > 0 ? "inline-flex" : "none";
+            timeBadge.classList.toggle("is-live", liveWorkedSeconds > 0);
             item.title = "Soldaki sayı ile ya da sürükleyerek sıralayabilirsin.";
         });
     }
@@ -8449,6 +9194,7 @@
 
             dayData.tasks[taskIdx].text = normalizedNextLabel;
             dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
+            dayData.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(dayData.taskWorkedSeconds || {}, dayData.tasks || []);
 
             const carriedAmount = parseInteger(dayData.subjectQuestions?.[previousLabel], 0);
             if (carriedAmount > 0 && previousLabel !== normalizedNextLabel) {
@@ -8456,6 +9202,7 @@
                 dayData.subjectQuestions[normalizedNextLabel] = parseInteger(dayData.subjectQuestions[normalizedNextLabel], 0) + carriedAmount;
             }
 
+            dayData = moveTaskWorkedSeconds(dayData, previousLabel, normalizedNextLabel);
             scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
             saveData();
             renderSchedule();
@@ -8473,6 +9220,7 @@
             dayData.tasks.splice(taskIdx, 1);
             dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
             delete dayData.subjectQuestions[removedLabel];
+            dayData = removeTaskWorkedSeconds(dayData, removedLabel);
             scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
             saveData();
             renderSchedule();
@@ -8500,6 +9248,8 @@
         activeNoteFolderId = NOTE_FOLDER_ALL_ID;
         lastAutoDailyResetSyncSignature = "";
         lastTimerDayBoundaryResetSignature = "";
+        timerTaskState.selectedTaskLabel = "";
+        safeStorageRemove(TIMER_TRACK_KEY);
     }
 
     function bootstrapExtendedUserData(userData = {}) {
@@ -9708,79 +10458,9 @@
                 timerState.transitioning = true;
 
                 try {
-                    const activeSession = timerState.session ? { ...timerState.session } : null;
-                    const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
-                    const commitState = commitSourceSession
-                        ? commitTimerSessionLocally(commitSourceSession, {
-                            referenceMs: Date.now(),
-                            persistRecovery: true
-                        })
-                        : {
-                            committedElapsedSeconds: 0,
-                            referenceMs: Date.now()
-                        };
-                    const committedElapsedSeconds = commitState.committedElapsedSeconds;
-
-                    if (activeSession) {
-                        activeSession.baseElapsedSeconds = committedElapsedSeconds;
-                        activeSession.lastPersistedElapsedSeconds = committedElapsedSeconds;
-                        activeSession.isRunning = false;
-                        activeSession.startedAtMs = 0;
-                        activeSession.modalOpen = false;
-                        activeSession.lastSeenAtMs = commitState.referenceMs;
-                        activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
-                        timerState.session = activeSession;
-                        timerDrafts[activeSession.mode] = { ...activeSession };
-                        isRunning = false;
-                        stopTimerLoops();
-                        persistTimerSessionLocally(activeSession);
-                    }
-
-                    const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
-                        activeSession: null,
-                        currentSessionTime: 0,
-                        clearActive: true,
-                        commitElapsed: !!commitSourceSession,
-                        commitSourceSession,
-                        committedElapsedSeconds,
-                        userTriggeredWrite: true,
-                        authorized: true
-                    }));
-
-                    releaseTimerOwnership();
-                    const nextMode = activeSession?.mode || timerState.mode;
-                    timerState.mode = nextMode;
-                    logTimerReset("manual-save-close", {
-                        mode: nextMode,
-                        committedElapsedSeconds
-                    });
-                    timerState.session = null;
-                    timerDrafts[nextMode] = null;
-                    persistTimerSessionLocally(null);
-                    clearTimerFinalizedSnapshot(currentUser?.uid || "");
-                    updateLocalActiveTimerSnapshot(null);
-                    refreshLeaderboardOptimistically(null);
-                    hidePomodoroModal();
-
-                    resetTimerDurationInputs(0);
-
-                    Object.keys(timerDrafts).forEach(modeKey => {
-                        timerDrafts[modeKey] = null;
-                    });
-
-                    timerState.session = createEmptyTimerSession(nextMode);
-                    if (isCountdownTimerMode(nextMode)) {
-                        timerState.session.targetDurationSeconds = 0;
-                    }
-                    timerDrafts[nextMode] = { ...timerState.session };
-                    renderTimerUi();
-                    renderSchedule();
-                    maybeRenderAnalyticsIfOpen();
-                    safeShowAlert("Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı.", "success");
-                    monitorTimerSyncPromise(syncPromise, {
-                        label: "timer-save",
-                        timeoutMessage: "Kayit alindi. Bulut senkronu arkada suruyor.",
-                        failureMessage: "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene."
+                    await saveCurrentTimerSession({
+                        closeModal: true,
+                        successMessage: "Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı."
                     });
                 } finally {
                     timerState.transitioning = false;
@@ -9821,6 +10501,7 @@
                     document.getElementById("pomodoro-modal").style.display = "flex";
                 }
                 ensureTimerModeUi();
+                ensurePomodoroTaskSelectorUi();
                 setTimerMode(timerState.mode, { persist: false, keepSession: true });
                 if (timerState.session?.isRunning) {
                     syncRealtimeTimer("modal-show", {
@@ -9833,6 +10514,7 @@
                     });
                 }
                 renderTimerUi();
+                renderPomodoroTaskSelector();
                 if (typeof syncBodyModalLock === "function") syncBodyModalLock();
             };
         })(typeof showPomodoroModal === "function" ? showPomodoroModal : null);
@@ -10415,6 +11097,113 @@
         updateWorkingStatus = wrappedUpdateWorkingStatus;
     }
 
+    async function saveCurrentTimerSession(options = {}) {
+        const activeSession = timerState.session ? { ...timerState.session } : null;
+        const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
+        const commitState = commitSourceSession
+            ? commitTimerSessionLocally(commitSourceSession, {
+                referenceMs: Date.now(),
+                persistRecovery: true
+            })
+            : {
+                committedElapsedSeconds: 0,
+                referenceMs: Date.now()
+            };
+        const committedElapsedSeconds = Math.max(0, parseInteger(commitState.committedElapsedSeconds, 0));
+        const resolvedTaskLabel = !isBreakTimerMode(activeSession?.mode || timerState.mode)
+            ? getCurrentTimerTaskLabel(new Date(commitState.referenceMs))
+            : "";
+
+        if (activeSession) {
+            activeSession.baseElapsedSeconds = committedElapsedSeconds;
+            activeSession.lastPersistedElapsedSeconds = committedElapsedSeconds;
+            activeSession.isRunning = false;
+            activeSession.startedAtMs = 0;
+            activeSession.modalOpen = false;
+            activeSession.lastSeenAtMs = commitState.referenceMs;
+            activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+            timerState.session = activeSession;
+            timerDrafts[activeSession.mode] = { ...activeSession };
+            isRunning = false;
+            stopTimerLoops();
+            persistTimerSessionLocally(activeSession);
+        }
+
+        if (resolvedTaskLabel && committedElapsedSeconds > 0) {
+            const { weekKey, dayIdx } = getCurrentDayMeta(new Date(commitState.referenceMs));
+            const dayData = ensureWeekDay(weekKey, dayIdx);
+            const updatedDayData = addWorkedSecondsToTask(dayData, resolvedTaskLabel, committedElapsedSeconds);
+            scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(updatedDayData));
+        }
+
+        const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer(String(options.syncReason || "manual-save"), {
+            activeSession: null,
+            currentSessionTime: 0,
+            clearActive: true,
+            commitElapsed: !!commitSourceSession,
+            commitSourceSession,
+            committedElapsedSeconds,
+            userTriggeredWrite: true,
+            authorized: true
+        }));
+
+        releaseTimerOwnership();
+        const nextMode = activeSession?.mode || timerState.mode;
+        timerState.mode = nextMode;
+        logTimerReset("manual-save-close", {
+            mode: nextMode,
+            committedElapsedSeconds
+        });
+        timerState.session = null;
+        timerDrafts[nextMode] = null;
+        persistTimerSessionLocally(null);
+        clearTimerFinalizedSnapshot(currentUser?.uid || "");
+        updateLocalActiveTimerSnapshot(null);
+        refreshLeaderboardOptimistically(null);
+
+        if (options.closeModal !== false) {
+            hidePomodoroModal();
+        }
+
+        resetTimerDurationInputs(0);
+
+        Object.keys(timerDrafts).forEach(modeKey => {
+            timerDrafts[modeKey] = null;
+        });
+
+        timerState.session = createEmptyTimerSession(nextMode);
+        if (isCountdownTimerMode(nextMode)) {
+            timerState.session.targetDurationSeconds = 0;
+        }
+        timerDrafts[nextMode] = { ...timerState.session };
+
+        if (options.nextTaskLabel !== undefined) {
+            persistTimerTaskSelection(options.nextTaskLabel);
+        } else if (resolvedTaskLabel) {
+            persistTimerTaskSelection(resolvedTaskLabel);
+        }
+
+        renderTimerUi();
+        renderSchedule();
+        maybeRenderAnalyticsIfOpen();
+
+        if (!options.silentSuccessMessage) {
+            safeShowAlert(options.successMessage || "Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı.", "success");
+        }
+
+        monitorTimerSyncPromise(syncPromise, {
+            label: String(options.monitorLabel || "timer-save"),
+            timeoutMessage: options.timeoutMessage || "Kayit alindi. Bulut senkronu arkada suruyor.",
+            failureMessage: options.failureMessage || "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene."
+        });
+
+        return {
+            committedElapsedSeconds,
+            taskLabel: resolvedTaskLabel,
+            nextMode
+        };
+    }
+
     function patchSignOutPreservation() {
         const originalSignOutUser = typeof signOutUser === "function" ? signOutUser : null;
         if (!originalSignOutUser || originalSignOutUser.__codexTimerPatched) return;
@@ -10454,6 +11243,8 @@
             refreshQuestionSummaryCounters();
             renderQuestionTrackingEnhancements();
             updateLiveStudyPreview();
+            renderPomodoroTaskSelector();
+            refreshVisibleTaskWorkedBadges();
             refreshVisibleProfileModalFromLiveData();
             syncCurrentUserTitleAwardsIfNeeded();
             maybeRenderAnalyticsIfOpen();
@@ -10498,11 +11289,8 @@
                 currentUser = user;
                 currentUserProfileHydrated = false;
                 currentUserHasRemoteProfile = false;
-                const cachedProfile = typeof getCodexCachedUserProfile === "function"
-                    ? getCodexCachedUserProfile(user.uid)
-                    : null;
-                if (cachedProfile && typeof cachedProfile === "object") {
-                    currentUserHasRemoteProfile = true;
+                const cachedProfile = getHydrationSafeCachedProfile(user.uid);
+                if (cachedProfile) {
                     bootstrapExtendedUserData(cachedProfile);
                 }
                 currentUserPublicProfileBootstrapPromise = db.collection(PUBLIC_PROFILE_COLLECTION).doc(user.uid).get()
@@ -10646,6 +11434,8 @@
         installStrictFirestoreSafetyLayer();
         ensureVerificationCard();
         ensureTimerModeUi();
+        ensurePomodoroTaskSelectorUi();
+        ensureAnalyticsGraphUi();
         ensureSubjectQuestionModal();
         ensureNavyThemeButton();
         ensureNotesFolderUi();

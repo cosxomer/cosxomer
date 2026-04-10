@@ -7075,6 +7075,7 @@
                 ]).then(([userDoc, profileDoc]) => {
                     const cachedProfile = getCodexCachedUserProfile(user.uid);
                     const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
+                    const hasProfileSeed = hasRemoteData || !!cachedProfile;
 
                     const data = mergeInlineUserProfileSources(
                         userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
@@ -7085,14 +7086,16 @@
                         ...(currentUserLiveDoc || {}),
                         ...data
                     };
-                    scheduleData = data.schedule || {};
-                    currentUsername = data.username || currentUsername || "Ömer";
-                    currentProfileAbout = data.about || "";
-                    currentProfileImage = data.profileImage || "";
-                    currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
-                    userNotes = normalizeUserNotes(data.notes || []);
-                    totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    if (hasProfileSeed) {
+                        scheduleData = data.schedule || {};
+                        currentUsername = data.username || currentUsername || "";
+                        currentProfileAbout = data.about || "";
+                        currentProfileImage = data.profileImage || "";
+                        currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
+                        userNotes = normalizeUserNotes(data.notes || []);
+                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                        totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    }
                     if (hasRemoteData) {
                         saveCodexCachedUserProfile(user.uid, data, user);
                     }
@@ -8366,16 +8369,19 @@
                 ]).then(([userDoc, profileDoc]) => {
                     const cachedProfile = getCodexCachedUserProfile(user.uid);
                     const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
+                    const hasProfileSeed = hasRemoteData || !!cachedProfile;
                     const data = mergeInlineUserProfileSources(
                         userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
                         profileDoc?.exists ? (profileDoc.data() || {}) : (cachedProfile || {}),
                         user
                     );
-                    studyTrack = data.studyTrack || "";
-                    selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
-                    currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
-                    totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    if (hasProfileSeed) {
+                        studyTrack = data.studyTrack || "";
+                        selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
+                        currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
+                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                        totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
+                    }
                     if (hasRemoteData) {
                         saveCodexCachedUserProfile(user.uid, data, user);
                     }
@@ -8384,7 +8390,7 @@
                     resetStudyInsightRotation();
                     renderTitlesModal();
 
-                    const needsOnboarding = !studyTrack || (studyTrack !== 'free' && !selectedSubjects.length);
+                    const needsOnboarding = hasProfileSeed && (!studyTrack || (studyTrack !== 'free' && !selectedSubjects.length));
                     setTimeout(() => {
                         if (!currentUser || currentUser.uid !== user.uid) return;
                         if (needsOnboarding) {
