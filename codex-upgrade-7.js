@@ -51,6 +51,11 @@
     let inferredWorkingPresenceByUserId = new Map();
     let observedWorkingBadgeByUserId = new Map();
     let leaderboardLiveInterval = null;
+    let lastLeaderboardLiveRenderAt = 0;
+    let lastLivePreviewAt = 0;
+    let lastTimerVisibilityTouchAt = 0;
+    let lastTimerRecoveryCheckAt = 0;
+    let lastLeaderboardSignature = "";
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
     let timerSyncInterval = null;
@@ -2677,6 +2682,9 @@
         }
 
         const safeSeconds = Math.max(0, parseInteger(secondsValue, 0));
+        const lastRendered = parseInteger(timerDisplay.dataset.lastSeconds, -1);
+        if (lastRendered === safeSeconds) return;
+        timerDisplay.dataset.lastSeconds = String(safeSeconds);
         const hours = Math.floor(safeSeconds / 3600);
         const minutes = Math.floor((safeSeconds % 3600) / 60);
         const seconds = safeSeconds % 60;
@@ -2687,9 +2695,17 @@
             seconds: String(seconds).padStart(2, "0")
         };
 
+        if (!timerDisplay._timerPartNodes) {
+            timerDisplay._timerPartNodes = {
+                hours: timerDisplay.querySelector('[data-part="hours"]'),
+                minutes: timerDisplay.querySelector('[data-part="minutes"]'),
+                seconds: timerDisplay.querySelector('[data-part="seconds"]')
+            };
+        }
+
         Object.entries(parts).forEach(([part, value]) => {
-            const node = timerDisplay.querySelector(`[data-part="${part}"]`);
-            if (node) node.textContent = value;
+            const node = timerDisplay._timerPartNodes?.[part];
+            if (node && node.textContent !== value) node.textContent = value;
         });
     }
 
@@ -2755,40 +2771,53 @@
         pill.innerHTML = `<i class="fas fa-wave-square"></i> ${modeLabel} - Otomatik kayit acik${unsynced > 0 ? ` - ${unsynced}s bekleyen senkron` : ""}`;
     }
 
-    function renderTimerUi() {
+    function renderTimerUi(options = {}) {
         const content = document.querySelector("#pomodoro-modal .pomodoro-content");
         if (!content) return;
 
+        const reduceEffects = !!timerState.session?.isRunning && isTimerModalOpen();
+        document.body.classList.toggle("timer-live-low", reduceEffects);
+
         if (timerState.session?.isRunning) {
-            touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen() });
+            const now = Date.now();
+            if (!options.light || now - lastTimerVisibilityTouchAt > 5000) {
+                lastTimerVisibilityTouchAt = now;
+                touchTimerVisibility(now, { modalOpen: isTimerModalOpen() });
+            }
         }
 
-        content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
-        updateTimerButtons();
-        updateTimerSessionPill();
+        if (!options.light) {
+            content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
+            updateTimerButtons();
+            updateTimerSessionPill();
+        }
 
-        const titleNode = content.querySelector("h2");
-        if (titleNode) {
-            titleNode.textContent = getTimerContextTitle(timerState.mode);
+        if (!options.light) {
+            const titleNode = content.querySelector("h2");
+            if (titleNode) {
+                titleNode.textContent = getTimerContextTitle(timerState.mode);
+            }
         }
 
         const displaySeconds = getTimerDisplaySeconds();
         timeRemaining = displaySeconds;
         renderSegmentedTimer(displaySeconds);
 
-        if (timerState.session?.isRunning) {
-            updateTimerStatus(isBreakTimerMode(timerState.mode)
-                ? (isStopwatchTimerMode(timerState.mode)
-                    ? "Mola kronometresi calisiyor."
-                    : "Mola geri sayimi calisiyor.")
-                : (isStopwatchTimerMode(timerState.mode)
-                    ? "Kronometre calisiyor."
-                    : "Pomodoro calisiyor."));
-        } else {
-            updateTimerStatus("");
-        }
+        if (!options.light) {
+            if (timerState.session?.isRunning) {
+                updateTimerStatus(isBreakTimerMode(timerState.mode)
+                    ? (isStopwatchTimerMode(timerState.mode)
+                        ? "Mola kronometresi calisiyor."
+                        : "Mola geri sayimi calisiyor.")
+                    : (isStopwatchTimerMode(timerState.mode)
+                        ? "Kronometre calisiyor."
+                        : "Pomodoro calisiyor."));
+            } else {
+                updateTimerStatus("");
+            }
 
-        updateLiveStudyPreview();
+            updateLiveStudyPreview({ skipPill: true });
+        }
     }
 
     async function maybeAutoStopHiddenTimer() {
@@ -3105,20 +3134,26 @@
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
-            const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
-                syncReason: "interval-recovery",
-                showAlert: false,
-                modalOpen: isTimerModalOpen()
-            });
-            if (recoveryState.action === "auto-finalized") return;
+            const now = Date.now();
+            if (now - lastTimerRecoveryCheckAt > 5000) {
+                lastTimerRecoveryCheckAt = now;
+                const recoveryState = maybeRecoverInactiveTimerSession(now, {
+                    syncReason: "interval-recovery",
+                    showAlert: false,
+                    modalOpen: isTimerModalOpen()
+                });
+                if (recoveryState.action === "auto-finalized") return;
+                maybeTriggerForcedHourlyCheckpoint(now);
+            }
             if (timerState.session?.isRunning && normalizeTimerMode(timerState.mode) === "break-pomodoro" && getTimerDisplaySeconds(timerState.session) <= 0) {
                 completePomodoroSession().catch(error => {
                     console.error("Mola geri sayimi tamamlanamadi:", error);
                 });
                 return;
             }
-            maybeTriggerForcedHourlyCheckpoint(Date.now());
-            renderTimerUi();
+            if (isTimerModalOpen()) {
+                renderTimerUi({ light: true });
+            }
         }, 1000);
 
         timerOwnerInterval = setInterval(() => {
@@ -5803,9 +5838,17 @@
         renderSchedule();
     }
 
-    function updateLiveStudyPreview() {
+    function updateLiveStudyPreview(options = {}) {
         const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
-        const unsavedDelta = isTimerVisibleForLeaderboard(visibleSession) ? getPendingTimerDelta(visibleSession) : 0;
+        const isRunning = isTimerVisibleForLeaderboard(visibleSession);
+        const now = Date.now();
+        const refreshEveryMs = isRunning ? 2000 : 0;
+        if (!options.force && refreshEveryMs && now - lastLivePreviewAt < refreshEveryMs) {
+            return;
+        }
+        lastLivePreviewAt = now;
+
+        const unsavedDelta = isRunning ? getPendingTimerDelta(visibleSession) : 0;
         const currentDayWorked = getCurrentDayWorkedSeconds() + unsavedDelta;
         const baseWeeklySeconds = getResolvedCurrentWeekWorkedSeconds(
             currentUserLiveDoc || {},
@@ -5814,29 +5857,45 @@
         );
         const currentWeekTotals = baseWeeklySeconds + unsavedDelta;
 
+        const formatValue = value => (
+            typeof formatSeconds === "function" ? formatSeconds(value) : String(value)
+        );
+
+        const todayText = `Gunluk Sure: ${formatValue(currentDayWorked)}`;
+        const weekText = `Haftalik Sure: ${formatValue(currentWeekTotals)}`;
+        const profileText = formatValue((totalWorkedSecondsAllTime || 0) + unsavedDelta);
+        const todayCellText = formatValue(currentDayWorked);
+
         const todayNode = document.getElementById("today-worked-time");
         const weekNode = document.getElementById("all-time-score");
         const profileNode = document.getElementById("profile-total-work");
 
-        if (todayNode) {
-            todayNode.textContent = `Gunluk Sure: ${typeof formatSeconds === "function" ? formatSeconds(currentDayWorked) : currentDayWorked}`;
+        if (todayNode && todayNode.textContent !== todayText) {
+            todayNode.textContent = todayText;
         }
 
-        if (weekNode) {
-            weekNode.textContent = `Haftalik Sure: ${typeof formatSeconds === "function" ? formatSeconds(currentWeekTotals) : currentWeekTotals}`;
+        if (weekNode && weekNode.textContent !== weekText) {
+            weekNode.textContent = weekText;
         }
 
         if (profileNode && document.getElementById("profile-modal")?.style.display === "flex" && currentProfileModalEditable) {
-            profileNode.textContent = typeof formatSeconds === "function" ? formatSeconds((totalWorkedSecondsAllTime || 0) + unsavedDelta) : String((totalWorkedSecondsAllTime || 0) + unsavedDelta);
+            if (profileNode.textContent !== profileText) {
+                profileNode.textContent = profileText;
+            }
         }
 
         const todayCell = document.querySelector(".day-cell.active-today .day-score-display");
-        if (todayCell) {
-            todayCell.textContent = `${typeof formatSeconds === "function" ? formatSeconds(currentDayWorked) : currentDayWorked}`;
+        if (todayCell && todayCell.textContent !== todayCellText) {
+            todayCell.textContent = todayCellText;
         }
 
-        updateTimerSessionPill();
-        refreshLeaderboardOptimistically();
+        if (!options.skipPill) {
+            updateTimerSessionPill();
+        }
+
+        if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+            refreshLeaderboardOptimistically();
+        }
     }
 
     function getTodayQuestionState() {
@@ -7782,6 +7841,26 @@
         const listContainer = document.getElementById("leaderboard-list");
         if (!listContainer) return;
 
+        const signature = [
+            currentLeaderboardTab,
+            String(leaderboardRealtimeDocs.length),
+            leaderboardRealtimeDocs.map(doc => {
+                const data = doc?.data || {};
+                return [
+                    doc.id,
+                    parseInteger(data.updatedAtMs, 0),
+                    parseInteger(data.activeTimer?.updatedAtMs, 0),
+                    parseInteger(data.weeklyStudyTime, 0),
+                    parseInteger(data.dailyStudyTime, 0)
+                ].join(":");
+            }).join("|")
+        ].join("|");
+
+        if (listContainer.dataset.signature === signature) {
+            return;
+        }
+        listContainer.dataset.signature = signature;
+
         const leaderboardData = buildLeaderboardViewModelFromDocs();
         leaderboardUserProfiles = {};
         listContainer.innerHTML = "";
@@ -7907,9 +7986,13 @@
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
-                if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
-                    renderLiveLeaderboardFromDocs();
-                }
+                if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
+                const now = Date.now();
+                const hasLiveWork = inferredWorkingPresenceByUserId.size > 0 || legacyWorkingPresenceByUserId.size > 0;
+                const refreshEveryMs = hasLiveWork ? 4000 : 10000;
+                if (now - lastLeaderboardLiveRenderAt < refreshEveryMs) return;
+                lastLeaderboardLiveRenderAt = now;
+                renderLiveLeaderboardFromDocs();
             }, 1000);
         }
     }
@@ -10629,10 +10712,12 @@
             const isOpen = panel.classList.contains("open");
             if (isOpen) {
                 panel.classList.remove("open");
+                document.body.classList.remove("leaderboard-live-low");
                 return;
             }
 
             panel.classList.add("open");
+            document.body.classList.add("leaderboard-live-low");
             subscribeRealtimeLeaderboard();
             renderLiveLeaderboardFromDocs();
         };

@@ -3414,6 +3414,34 @@
             text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
             line-height: 1;
             word-break: keep-all;
+            contain: paint;
+            will-change: contents;
+        }
+
+        .pomodoro-content {
+            contain: layout paint;
+        }
+
+        body.timer-live-low .timer-display {
+            text-shadow: 0 0 6px rgba(248, 113, 113, 0.55);
+        }
+
+        body.leaderboard-live-low .leaderboard-item {
+            transition: none;
+        }
+
+        body.leaderboard-live-low .leaderboard-item:hover {
+            transform: none;
+            box-shadow: none;
+        }
+
+        body.leaderboard-live-low .leaderboard-item.rank-1::before,
+        body.leaderboard-live-low .leaderboard-item.rank-2::before,
+        body.leaderboard-live-low .leaderboard-item.rank-3::before,
+        body.leaderboard-live-low .leaderboard-item.rank-1::after,
+        body.leaderboard-live-low .leaderboard-item.rank-2::after,
+        body.leaderboard-live-low .leaderboard-item.rank-3::after {
+            opacity: 0.55;
         }
         
         .timer-controls {
