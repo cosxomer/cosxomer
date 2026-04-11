@@ -3406,6 +3406,44 @@
         };
     }
 
+    function deriveRecentTitleAwardsFromSchedule(schedule, referenceDate = new Date()) {
+        const safeSchedule = sanitizeScheduleData(schedule || {});
+        const titleLevels = ensureRollingTwoDayTitleConfig();
+        const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : Date.now();
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        const dayMs = 24 * 60 * 60 * 1000;
+        const recentAwards = {};
+
+        for (let offset = 0; offset < 7; offset += 1) {
+            const targetDate = new Date(dayStart);
+            targetDate.setDate(targetDate.getDate() - offset);
+            const rollingTotals = getRollingDayTotalsFromSchedule(safeSchedule, 2, targetDate);
+            const avgHours = rollingTotals.seconds / 3600 / rollingTotals.dayCount;
+            const qualifiedTitles = titleLevels.filter(level => avgHours >= level.minAvgHours);
+
+            if (!qualifiedTitles.length) continue;
+
+            const dayEndMs = targetDate.getTime() + dayMs - 1;
+            const awardedAtMs = Math.min(dayEndMs, referenceMs);
+
+            qualifiedTitles.forEach(level => {
+                const existing = recentAwards[level.id];
+                const expiresAtMs = awardedAtMs + TITLE_VALIDITY_MS;
+                if (!existing) {
+                    recentAwards[level.id] = { awardedAtMs, expiresAtMs };
+                    return;
+                }
+                recentAwards[level.id] = {
+                    awardedAtMs: Math.min(existing.awardedAtMs || awardedAtMs, awardedAtMs),
+                    expiresAtMs: Math.max(existing.expiresAtMs || 0, expiresAtMs)
+                };
+            });
+        }
+
+        return orderTitleAwardMap(recentAwards);
+    }
+
     function getStoredSelectedTitleId(...sources) {
         for (const source of sources) {
             const nextId = String(
@@ -3578,7 +3616,10 @@
         const timerRecord = resolveTitleTimerRecord(profileData);
         const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : Date.now();
         const storedSelectedTitleId = getStoredSelectedTitleId(profileData, profileData?.titleInfo || {});
-        const storedAwards = getStoredTitleAwards(profileData, profileData?.titleInfo || {});
+        const storedAwards = mergeTitleAwardMaps(
+            getStoredTitleAwards(profileData, profileData?.titleInfo || {}),
+            deriveRecentTitleAwardsFromSchedule(safeSchedule, referenceDate)
+        );
 
         if (isTimerRecordRunning(timerRecord)) {
             const interval = getPendingTimerInterval(timerRecord, referenceMs);
