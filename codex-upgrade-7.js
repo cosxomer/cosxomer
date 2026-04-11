@@ -6164,7 +6164,12 @@
             startedAtLabel: formatStudySessionClock(session.startTime),
             endedAtLabel: formatStudySessionClock(session.endTime)
         }));
-        const totalDurationMs = Math.max(0, parseInteger(dayData.workedSeconds, 0)) * 1000;
+        const rawWorkedSeconds = Math.max(0, parseInteger(dayData.workedSeconds, 0));
+        const dedupedWorkedSeconds = getDedupedStudySeconds(dayData);
+        const resolvedWorkedSeconds = dedupedWorkedSeconds > 0 && dedupedWorkedSeconds < rawWorkedSeconds
+            ? dedupedWorkedSeconds
+            : rawWorkedSeconds;
+        const totalDurationMs = resolvedWorkedSeconds * 1000;
         const totalBreakMs = Math.max(0, parseInteger(dayData.breakSeconds, 0)) * 1000;
 
         return {
