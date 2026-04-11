@@ -3418,13 +3418,18 @@
         for (let offset = 0; offset < 7; offset += 1) {
             const targetDate = new Date(dayStart);
             targetDate.setDate(targetDate.getDate() - offset);
-            const rollingTotals = getRollingDayTotalsFromSchedule(safeSchedule, 2, targetDate);
+            const dayEndMs = targetDate.getTime() + dayMs - 1;
+            const windowNowMs = Math.min(referenceMs, dayEndMs);
+            const rollingTotals = getRollingDayTotalsFromSchedule(
+                safeSchedule,
+                2,
+                new Date(windowNowMs)
+            );
             const avgHours = rollingTotals.seconds / 3600 / rollingTotals.dayCount;
             const qualifiedTitles = titleLevels.filter(level => avgHours >= level.minAvgHours);
 
             if (!qualifiedTitles.length) continue;
 
-            const dayEndMs = targetDate.getTime() + dayMs - 1;
             const awardedAtMs = Math.min(dayEndMs, referenceMs);
 
             qualifiedTitles.forEach(level => {
