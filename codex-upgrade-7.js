@@ -56,6 +56,7 @@
     let lastTimerVisibilityTouchAt = 0;
     let lastTimerRecoveryCheckAt = 0;
     let lastLeaderboardSignature = "";
+    let lastAutoDedupAt = 0;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
     let timerSyncInterval = null;
@@ -869,6 +870,15 @@
         const activeTimer = userData?.activeTimer;
         if (!isTimerRecordRunning(activeTimer, now)) return null;
 
+        const lastSeenAt = Math.max(
+            parseInteger(activeTimer?.updatedAtMs, 0),
+            parseInteger(activeTimer?.lastSeenAtMs, 0),
+            parseInteger(activeTimer?.startedAtMs, 0)
+        );
+        if (lastSeenAt > 0 && now - lastSeenAt > REMOTE_TIMER_STALE_MS) {
+            return null;
+        }
+
         const ownerId = String(activeTimer.ownerId || "").trim();
         if (!ownerId || ownerId === timerInstanceId) return null;
 
@@ -1067,13 +1077,14 @@
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
         }
+        maybeAutoRepairOvercountedSchedule(new Date());
         if (currentUser?.uid && typeof saveCodexCachedUserProfile === "function") {
             saveCodexCachedUserProfile(currentUser.uid, currentUserLiveDoc, currentUser);
         }
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
-        if (hasTimerControl && getTimerOwnerId() === timerInstanceId) return false;
+        hasTimerControl = false;
 
         stopTimerLoops();
         isRunning = false;
@@ -1259,6 +1270,41 @@
         return normalizeStudySessions(lists.flatMap(list => Array.isArray(list) ? list : []));
     }
 
+    function getDedupedStudySeconds(dayData = {}) {
+        const sessions = normalizeStudySessions(dayData.studySessions || []).filter(session => {
+            return (session.type || "study") === "study";
+        });
+        if (!sessions.length) return 0;
+
+        const intervals = sessions
+            .map(session => ({
+                start: Math.max(0, parseInteger(session.startTime, 0)),
+                end: Math.max(0, parseInteger(session.endTime, 0))
+            }))
+            .filter(interval => interval.end > interval.start)
+            .sort((a, b) => a.start - b.start || a.end - b.end);
+
+        if (!intervals.length) return 0;
+
+        let totalMs = 0;
+        let currentStart = intervals[0].start;
+        let currentEnd = intervals[0].end;
+
+        for (let index = 1; index < intervals.length; index += 1) {
+            const interval = intervals[index];
+            if (interval.start <= currentEnd + 1000) {
+                currentEnd = Math.max(currentEnd, interval.end);
+                continue;
+            }
+            totalMs += Math.max(0, currentEnd - currentStart);
+            currentStart = interval.start;
+            currentEnd = interval.end;
+        }
+
+        totalMs += Math.max(0, currentEnd - currentStart);
+        return Math.max(0, Math.floor(totalMs / 1000));
+    }
+
     function hasValidatedStudyActivityForDate(dayData = {}, expectedDateKey = "") {
         const normalizedExpectedDateKey = String(expectedDateKey || "").trim();
         return normalizeStudySessions(dayData?.studySessions || []).some(session => {
@@ -1297,6 +1343,43 @@
         dayData.studySessions = mergedSessions;
         scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
         return true;
+    }
+
+    function maybeAutoRepairOvercountedSchedule(referenceDate = new Date()) {
+        if (!currentUser?.uid) return false;
+        const now = Date.now();
+        if (now - lastAutoDedupAt < 60000) return false;
+        lastAutoDedupAt = now;
+
+        const thresholdSeconds = 900;
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        const dayStart = new Date(referenceDate);
+        dayStart.setHours(0, 0, 0, 0);
+        let didChange = false;
+
+        for (let offset = 0; offset < 7; offset += 1) {
+            const dayDate = new Date(dayStart);
+            dayDate.setDate(dayDate.getDate() - offset);
+            const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
+            const dayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
+            const rawSeconds = Math.max(0, parseInteger(dayData.workedSeconds, 0));
+            if (rawSeconds <= 0) continue;
+
+            const dedupedSeconds = getDedupedStudySeconds(dayData);
+            if (dedupedSeconds > 0 && rawSeconds - dedupedSeconds >= thresholdSeconds) {
+                dayData.workedSeconds = dedupedSeconds;
+                scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+                didChange = true;
+            }
+        }
+
+        if (didChange) {
+            saveData({ authorized: true, immediate: true, label: "auto-dedup" });
+            if (typeof renderSchedule === "function") renderSchedule();
+            if (typeof updateLiveStudyPreview === "function") updateLiveStudyPreview({ force: true });
+        }
+
+        return didChange;
     }
 
     function appendBreakSessionSegment(startTime, endTime, mode = timerState.mode) {
@@ -1867,6 +1950,11 @@
         const ownerHeartbeat = getTimerOwnerHeartbeat();
         const now = Date.now();
         const stale = now - ownerHeartbeat > TIMER_OWNER_TTL_MS;
+        const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc, now);
+        if (foreignTimer && String(foreignTimer.ownerId || "").trim() !== timerInstanceId) {
+            hasTimerControl = false;
+            return false;
+        }
 
         if (force || !ownerId || ownerId === timerInstanceId || stale) {
             localStorage.setItem(TIMER_OWNER_KEY, timerInstanceId);
