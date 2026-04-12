@@ -403,28 +403,6 @@
             flex-wrap: wrap; 
             justify-content: flex-end;
         }
-
-        .android-download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background-color: #18b875;
-            color: #ffffff;
-            font-weight: 800;
-            letter-spacing: 0.01em;
-            text-decoration: none;
-            box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-            transition: transform 0.26s ease, box-shadow 0.28s ease, filter 0.28s ease;
-        }
-
-        .android-download-btn:hover {
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 18px 30px rgba(0, 0, 0, 0.26), 0 0 18px rgba(24, 184, 117, 0.45);
-            filter: saturate(1.04);
-        }
         
         .auth-section {
             flex-shrink: 0;
@@ -3436,34 +3414,6 @@
             text-shadow: 0 0 10px rgba(248, 113, 113, 0.7);
             line-height: 1;
             word-break: keep-all;
-            contain: paint;
-            will-change: contents;
-        }
-
-        .pomodoro-content {
-            contain: layout paint;
-        }
-
-        body.timer-live-low .timer-display {
-            text-shadow: 0 0 6px rgba(248, 113, 113, 0.55);
-        }
-
-        body.leaderboard-live-low .leaderboard-item {
-            transition: none;
-        }
-
-        body.leaderboard-live-low .leaderboard-item:hover {
-            transform: none;
-            box-shadow: none;
-        }
-
-        body.leaderboard-live-low .leaderboard-item.rank-1::before,
-        body.leaderboard-live-low .leaderboard-item.rank-2::before,
-        body.leaderboard-live-low .leaderboard-item.rank-3::before,
-        body.leaderboard-live-low .leaderboard-item.rank-1::after,
-        body.leaderboard-live-low .leaderboard-item.rank-2::after,
-        body.leaderboard-live-low .leaderboard-item.rank-3::after {
-            opacity: 0.55;
         }
         
         .timer-controls {
@@ -4549,9 +4499,6 @@
                 <button id="titles-info-btn" onclick="openTitlesModal()" style="background-color: var(--accent-color); color: var(--header-text);">
                     <i class="fas fa-award"></i> Ünvanlar
                 </button>
-                <a id="android-download-btn" class="android-download-btn" href="cosxomer-latest.apk" download>
-                    <i class="fab fa-android"></i> Android için APK İndir
-                </a>
                 <a href="https://instagram.com/cosxomer" id="instagram-link" target="_blank">
                     <i class="fab fa-instagram"></i> COSXOMER
                 </a>
@@ -7128,7 +7075,6 @@
                 ]).then(([userDoc, profileDoc]) => {
                     const cachedProfile = getCodexCachedUserProfile(user.uid);
                     const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
-                    const hasProfileSeed = hasRemoteData || !!cachedProfile;
 
                     const data = mergeInlineUserProfileSources(
                         userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
@@ -7139,16 +7085,14 @@
                         ...(currentUserLiveDoc || {}),
                         ...data
                     };
-                    if (hasProfileSeed) {
-                        scheduleData = data.schedule || {};
-                        currentUsername = data.username || currentUsername || "";
-                        currentProfileAbout = data.about || "";
-                        currentProfileImage = data.profileImage || "";
-                        currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
-                        userNotes = normalizeUserNotes(data.notes || []);
-                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                        totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
-                    }
+                    scheduleData = data.schedule || {};
+                    currentUsername = data.username || currentUsername || "Ömer";
+                    currentProfileAbout = data.about || "";
+                    currentProfileImage = data.profileImage || "";
+                    currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
+                    userNotes = normalizeUserNotes(data.notes || []);
+                    totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
                     if (hasRemoteData) {
                         saveCodexCachedUserProfile(user.uid, data, user);
                     }
@@ -7769,24 +7713,43 @@
             return { seconds, questions };
         }
 
-        function getAdminWeeklyAdjustmentTarget(userData = {}, referenceDate = new Date()) {
-            if (typeof normalizeAdminTimeAdjustment !== 'function') return null;
-            const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
-            if (!adjustment || adjustment.scope !== 'week') return null;
+        function getAdminWeeklyAdjustmentTarget(userData = {}, schedule = {}, referenceDate = new Date()) {
+            const rawAdjustment = userData?.adminTimeAdjustment;
+            if (!rawAdjustment || typeof rawAdjustment !== 'object') return null;
+
+            const normalizedAdjustment = typeof normalizeAdminTimeAdjustment === 'function'
+                ? normalizeAdminTimeAdjustment(rawAdjustment)
+                : null;
+            const scope = String(normalizedAdjustment?.scope || rawAdjustment.scope || '').trim().toLowerCase();
+            if (scope !== 'week') return null;
 
             const currentWeekKey = getWeekKey(referenceDate);
-            if (adjustment.weekKey && adjustment.weekKey !== currentWeekKey) return null;
+            const adjustmentWeekKey = String(normalizedAdjustment?.weekKey || rawAdjustment.weekKey || '').trim();
+            if (adjustmentWeekKey && adjustmentWeekKey !== currentWeekKey) return null;
 
-            return Math.max(
+            const baseWeekSeconds = getCurrentWeekTotalsFromSchedule(schedule || userData?.schedule || {}).seconds || 0;
+            const appliedWeekSeconds = Math.max(
                 0,
-                parseInt(adjustment.appliedWeekSeconds, 10) || 0,
-                parseInt(adjustment.targetSeconds, 10) || 0
+                parseInteger(normalizedAdjustment?.appliedWeekSeconds, 0),
+                parseInteger(rawAdjustment.appliedWeekSeconds, 0)
             );
+            if (appliedWeekSeconds > 0) {
+                return Math.max(baseWeekSeconds, appliedWeekSeconds);
+            }
+
+            const deltaSeconds = Math.max(
+                0,
+                parseInteger(normalizedAdjustment?.targetSeconds, 0),
+                parseInteger(rawAdjustment.targetSeconds, 0)
+            );
+            if (!deltaSeconds) return null;
+
+            return baseWeekSeconds + deltaSeconds;
         }
 
         function getResolvedCurrentWeekSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
             const scheduleWeeklySeconds = getCurrentWeekTotalsFromSchedule(schedule || {}).seconds || 0;
-            const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
+            const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, schedule, referenceDate);
             if (adminWeeklyTarget !== null) return adminWeeklyTarget;
 
             return Math.max(
@@ -8422,19 +8385,16 @@
                 ]).then(([userDoc, profileDoc]) => {
                     const cachedProfile = getCodexCachedUserProfile(user.uid);
                     const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
-                    const hasProfileSeed = hasRemoteData || !!cachedProfile;
                     const data = mergeInlineUserProfileSources(
                         userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
                         profileDoc?.exists ? (profileDoc.data() || {}) : (cachedProfile || {}),
                         user
                     );
-                    if (hasProfileSeed) {
-                        studyTrack = data.studyTrack || "";
-                        selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
-                        currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
-                        totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
-                        totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
-                    }
+                    studyTrack = data.studyTrack || "";
+                    selectedSubjects = normalizeSelectedSubjects(studyTrack, data.selectedSubjects || []);
+                    currentAccountCreatedAt = data.accountCreatedAt || currentAccountCreatedAt || new Date().toISOString();
+                    totalWorkedSecondsAllTime = Math.max(data.totalWorkedSeconds || 0, calculateTotalWorkedSecondsFromSchedule(scheduleData));
+                    totalQuestionsAllTime = Math.max(data.totalQuestionsAllTime || 0, calculateTotalQuestionsFromSchedule(scheduleData));
                     if (hasRemoteData) {
                         saveCodexCachedUserProfile(user.uid, data, user);
                     }
@@ -8443,7 +8403,7 @@
                     resetStudyInsightRotation();
                     renderTitlesModal();
 
-                    const needsOnboarding = hasProfileSeed && (!studyTrack || (studyTrack !== 'free' && !selectedSubjects.length));
+                    const needsOnboarding = !studyTrack || (studyTrack !== 'free' && !selectedSubjects.length);
                     setTimeout(() => {
                         if (!currentUser || currentUser.uid !== user.uid) return;
                         if (needsOnboarding) {
@@ -12562,7 +12522,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260408-1547"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260411-1812"></script>
+<script src="codex-upgrade-7.js?v=20260411-1734"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
