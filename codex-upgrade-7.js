@@ -4220,10 +4220,24 @@
         const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
         if (adminWeeklyTarget !== null) return adminWeeklyTarget;
 
+        const currentWeekKey = getCurrentDayMeta(referenceDate).weekKey;
+        const storedWeekKey = String(
+            userData?.weeklyStudyWeekKey
+            || userData?.currentWeekKey
+            || userData?.weekKey
+            || ""
+        ).trim();
+        const canUseStoredWeek = !storedWeekKey || storedWeekKey === currentWeekKey;
+        const storedWeekSeconds = canUseStoredWeek
+            ? Math.max(
+                parseInteger(userData?.weeklyStudyTime, 0),
+                parseInteger(userData?.currentWeekSeconds, 0)
+            )
+            : 0;
+
         return Math.max(
             scheduleWeeklySeconds,
-            parseInteger(userData?.weeklyStudyTime, 0),
-            parseInteger(userData?.currentWeekSeconds, 0)
+            storedWeekSeconds
         );
     }
 
@@ -4291,8 +4305,17 @@
             || safeData?.todayDateKey
             || ""
         ).trim();
+        const storedWeekKey = String(
+            safeData?.weeklyStudyWeekKey
+            || safeData?.currentWeekKey
+            || safeData?.weekKey
+            || ""
+        ).trim();
         const safeSchedule = sanitizeScheduleData(safeData.schedule || {});
         const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(safeSchedule, referenceDate, displayReferenceMs);
+        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+        const currentWeekQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
+        const weekKeyChanged = !!storedWeekKey && storedWeekKey !== currentMeta.weekKey;
         const explicitDailySeconds = Math.max(
             parseInteger(safeData?.dailyStudyTime, 0),
             parseInteger(safeData?.todayStudyTime, 0),
@@ -4311,6 +4334,28 @@
         );
 
         if (!shouldReset) {
+            if (weekKeyChanged || !storedWeekKey) {
+                const normalizedData = {
+                    ...safeData,
+                    weeklyStudyTime: currentWeekSeconds,
+                    currentWeekSeconds,
+                    weeklyQuestions: currentWeekQuestions,
+                    weeklyQuestionCount: currentWeekQuestions,
+                    weekly: currentWeekQuestions,
+                    weeklyStudyWeekKey: currentMeta.weekKey
+                };
+                const needsSync = (
+                    weekKeyChanged
+                    || !storedWeekKey
+                    || parseInteger(safeData?.weeklyStudyTime, 0) !== currentWeekSeconds
+                    || parseInteger(safeData?.currentWeekSeconds, 0) !== currentWeekSeconds
+                    || parseInteger(safeData?.weeklyQuestions, 0) !== currentWeekQuestions
+                    || parseInteger(safeData?.weeklyQuestionCount, 0) !== currentWeekQuestions
+                    || parseInteger(safeData?.weekly, 0) !== currentWeekQuestions
+                );
+                return { normalizedData, needsSync };
+            }
+
             return {
                 normalizedData: safeData,
                 needsSync: false
@@ -4333,6 +4378,11 @@
             dailyStudyTime: normalizedDailySeconds,
             todayStudyTime: normalizedDailySeconds,
             todayWorkedSeconds: normalizedDailySeconds,
+            weeklyStudyTime: currentWeekSeconds,
+            currentWeekSeconds,
+            weeklyQuestions: currentWeekQuestions,
+            weeklyQuestionCount: currentWeekQuestions,
+            weekly: currentWeekQuestions,
             currentSessionTime: 0,
             currentBreakSessionTime: 0,
             activeTimer: null,
@@ -4342,12 +4392,18 @@
             isRunning: false,
             isOnBreak: false,
             dailyStudyDateKey: currentMeta.dateKey,
-            todayDateKey: currentMeta.dateKey
+            todayDateKey: currentMeta.dateKey,
+            weeklyStudyWeekKey: currentMeta.weekKey
         };
         const needsSync = (
             parseInteger(safeData?.dailyStudyTime, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.todayStudyTime, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.todayWorkedSeconds, 0) !== normalizedDailySeconds
+            || parseInteger(safeData?.weeklyStudyTime, 0) !== currentWeekSeconds
+            || parseInteger(safeData?.currentWeekSeconds, 0) !== currentWeekSeconds
+            || parseInteger(safeData?.weeklyQuestions, 0) !== currentWeekQuestions
+            || parseInteger(safeData?.weeklyQuestionCount, 0) !== currentWeekQuestions
+            || parseInteger(safeData?.weekly, 0) !== currentWeekQuestions
             || parseInteger(safeData?.currentSessionTime, 0) !== 0
             || parseInteger(safeData?.currentBreakSessionTime, 0) !== 0
             || !!safeData?.activeTimer
@@ -4358,6 +4414,7 @@
             || !!safeData?.isOnBreak
             || parseInteger(safeSchedule?.[currentMeta.weekKey]?.[currentMeta.dayIdx]?.workedSeconds, 0) !== normalizedDailySeconds
             || explicitDateKey !== currentMeta.dateKey
+            || storedWeekKey !== currentMeta.weekKey
         );
 
         return {
