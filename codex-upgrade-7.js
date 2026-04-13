@@ -34,7 +34,7 @@
     const TIMER_TASK_SELECTION_KEY = "codexTimerSelectedTaskIdV1";
     const TIMER_TASK_FREE_ID = "__timer_free__";
     const PROFILE_CACHE_KEY = "codexProfileCacheV1";
-    const ADMIN_WEEK_OFFSET_CACHE_KEY = "codexAdminWeekOffsetCacheV1";
+    const ADMIN_WEEK_OFFSET_CACHE_KEY = "codexAdminWeekOffsetCacheV2";
     const QUESTION_LIMIT = 500;
     const timerDeviceId = (() => {
         try {
@@ -1380,7 +1380,44 @@
                     return Math.max(0, baseWeekSeconds + cachedOffset);
                 }
 
-                const derivedOffsetSeconds = appliedWeekSeconds - baseWeekSeconds;
+                let derivedOffsetSeconds = appliedWeekSeconds - baseWeekSeconds;
+                const requestedAtMs = Math.max(0, parseInteger(normalizedAdjustment?.requestedAtMs, 0));
+                if (requestedAtMs > 0) {
+                    const weekData = (schedule && typeof schedule === "object" ? schedule[currentWeekKey] : null)
+                        || (userData?.schedule && typeof userData.schedule === "object" ? userData.schedule[currentWeekKey] : null)
+                        || {};
+                    const weekStart = getMondayWeekStart(referenceDate);
+                    const weekStartMs = weekStart.getTime();
+                    const dayMs = 86400000;
+                    let baseAtAdjustmentMs = 0;
+
+                    for (let dayIdx = 0; dayIdx < 7; dayIdx += 1) {
+                        const dayStartMs = weekStartMs + (dayIdx * dayMs);
+                        const dayEndMs = dayStartMs + dayMs;
+                        if (requestedAtMs <= dayStartMs) continue;
+
+                        const dayData = ensureDayObject(weekData?.[dayIdx] || {});
+                        const sessions = normalizeStudySessions(dayData.studySessions || []);
+                        if (sessions.length) {
+                            sessions.forEach(session => {
+                                const start = Math.max(dayStartMs, parseInteger(session.startTime, 0));
+                                const end = Math.min(dayEndMs, Math.max(start, parseInteger(session.endTime, start)));
+                                if (!start || !end || end <= start) return;
+                                if (start >= requestedAtMs) return;
+                                const clippedEnd = Math.min(end, requestedAtMs);
+                                if (clippedEnd > start) {
+                                    baseAtAdjustmentMs += (clippedEnd - start);
+                                }
+                            });
+                        } else if (requestedAtMs >= dayEndMs) {
+                            baseAtAdjustmentMs += Math.max(0, parseInteger(dayData.workedSeconds, 0)) * 1000;
+                        }
+                    }
+
+                    const baseAtAdjustmentSeconds = Math.max(0, Math.floor(baseAtAdjustmentMs / 1000));
+                    derivedOffsetSeconds = appliedWeekSeconds - baseAtAdjustmentSeconds;
+                }
+
                 safeStorageSet(cacheKey, String(derivedOffsetSeconds));
                 return Math.max(0, baseWeekSeconds + derivedOffsetSeconds);
             }
