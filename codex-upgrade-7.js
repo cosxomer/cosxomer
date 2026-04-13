@@ -12,9 +12,10 @@
     const TIMER_ACTION_TIMEOUT_MS = 3500;
     const TIMER_OWNER_KEY = "codexTimerOwnerV1";
     const TIMER_OWNER_AT_KEY = "codexTimerOwnerAtV1";
+    const TIMER_DEVICE_KEY = "codexTimerDeviceIdV1";
+    const TIMER_INSTANCE_KEY = "codexTimerInstanceIdV1";
     const TIMER_STORAGE_KEY = "codexRealtimeTimerStateV1";
     const TIMER_RECOVERY_KEY = "codexRealtimeTimerRecoveryV1";
-    const TIMER_FINALIZED_STORAGE_KEY = "codexRealtimeTimerFinalizedV1";
     const TIMER_MODE_KEY = "codexRealtimeTimerModeV1";
     const TIMER_TRACK_KEY = "codexRealtimeTimerTrackV1";
     const ADMIN_TIMER_RESET_KEY = "codexAdminTimerResetAckV1";
@@ -31,7 +32,31 @@
     const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
-    const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
+    const timerDeviceId = (() => {
+        try {
+            let stored = localStorage.getItem(TIMER_DEVICE_KEY);
+            if (!stored) {
+                stored = `device_${Math.random().toString(36).slice(2, 10)}`;
+                localStorage.setItem(TIMER_DEVICE_KEY, stored);
+            }
+            return stored;
+        } catch (error) {
+            return `device_${Math.random().toString(36).slice(2, 10)}`;
+        }
+    })();
+
+    const timerInstanceId = (() => {
+        try {
+            let stored = sessionStorage.getItem(TIMER_INSTANCE_KEY);
+            if (!stored) {
+                stored = `timer_${Math.random().toString(36).slice(2, 10)}`;
+                sessionStorage.setItem(TIMER_INSTANCE_KEY, stored);
+            }
+            return stored;
+        } catch (error) {
+            return `timer_${Math.random().toString(36).slice(2, 10)}`;
+        }
+    })();
 
     let noteFolders = [];
     let activeNoteFolderId = NOTE_FOLDER_ALL_ID;
@@ -40,10 +65,6 @@
     let leaderboardRealtimeUnsubscribe = null;
     let currentUserResetUnsubscribe = null;
     let currentUserLiveDoc = null;
-    let currentUserPublicProfileDoc = null;
-    let currentUserPublicProfileBootstrapPromise = null;
-    let currentUserProfileHydrated = false;
-    let currentUserHasRemoteProfile = false;
     let leaderboardRealtimeDocs = [];
     let leaderboardProfileSourceDocs = [];
     let leaderboardLiveSourceDocs = [];
@@ -51,12 +72,6 @@
     let inferredWorkingPresenceByUserId = new Map();
     let observedWorkingBadgeByUserId = new Map();
     let leaderboardLiveInterval = null;
-    let lastLeaderboardLiveRenderAt = 0;
-    let lastLivePreviewAt = 0;
-    let lastTimerVisibilityTouchAt = 0;
-    let lastTimerRecoveryCheckAt = 0;
-    let lastLeaderboardSignature = "";
-    let lastAutoDedupAt = 0;
     let leaderboardCloudPollInterval = null;
     let leaderboardCloudRefreshPromise = null;
     let timerSyncInterval = null;
@@ -100,12 +115,6 @@
         tab: "daily",
         selectedDateKey: "",
         selectedWeekKey: ""
-    };
-
-    const timerTaskState = {
-        selectedTaskLabel: "",
-        isSwitchingTask: false,
-        isPickerOpen: false
     };
 
     function normalizeTimerMode(mode = "") {
@@ -177,17 +186,6 @@
             return false;
         }
     }
-
-    function safeStorageRemove(key) {
-        try {
-            localStorage.removeItem(key);
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-
-    timerTaskState.selectedTaskLabel = safeStorageGet(TIMER_TRACK_KEY, "");
 
     function buildPerUserDailyNoticeKey(baseKey, user = currentUser, referenceDate = new Date()) {
         const dateKey = getCurrentDayMeta(referenceDate).dateKey;
@@ -684,32 +682,21 @@
         const resetState = finalizeTimerSessionForNewDay(timerState.session, referenceDate, options);
         if (!resetState.didReset) return resetState;
 
-        logTimerReset("day-boundary-reset", {
-            from: resetState.sessionDateKey,
-            to: resetState.todayDateKey,
-            committedSeconds: resetState.committedSeconds
-        });
         stopTimerLoops();
         releaseTimerOwnership();
         isRunning = false;
         timerState.session = resetState.nextSession;
         timerDrafts[resetState.nextSession.mode] = { ...resetState.nextSession };
         persistTimerSessionLocally(null);
-        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         updateLocalActiveTimerSnapshot(null);
 
         currentUserLiveDoc = {
             ...(currentUserLiveDoc || {}),
             activeTimer: null,
-            activeBreakTimer: null,
             isWorking: false,
             isRunning: false,
-            isOnBreak: false,
             currentSessionTime: 0,
-            currentBreakSessionTime: 0,
-            legacyWorkingStartedAt: 0,
-            dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey,
-            todayDateKey: getCurrentDayMeta(referenceDate).dateKey
+            dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
         };
 
         if (options.syncRemote !== false) {
@@ -870,17 +857,21 @@
         const activeTimer = userData?.activeTimer;
         if (!isTimerRecordRunning(activeTimer, now)) return null;
 
-        const lastSeenAt = Math.max(
-            parseInteger(activeTimer?.updatedAtMs, 0),
-            parseInteger(activeTimer?.lastSeenAtMs, 0),
-            parseInteger(activeTimer?.startedAtMs, 0)
-        );
-        if (lastSeenAt > 0 && now - lastSeenAt > REMOTE_TIMER_STALE_MS) {
-            return null;
-        }
-
         const ownerId = String(activeTimer.ownerId || "").trim();
         if (!ownerId || ownerId === timerInstanceId) return null;
+
+        const ownerDeviceId = String(activeTimer.ownerDeviceId || "").trim();
+        const ownerHeartbeat = getTimerOwnerHeartbeat();
+        const ownerStale = ownerHeartbeat > 0 && (now - ownerHeartbeat) > TIMER_OWNER_TTL_MS;
+        const lastSeenAtMs = Math.max(
+            parseInteger(activeTimer.lastSeenAtMs, 0),
+            parseInteger(activeTimer.updatedAtMs, 0),
+            parseInteger(activeTimer.startedAtMs, 0)
+        );
+        const remoteStale = lastSeenAtMs > 0 && (now - lastSeenAtMs) > REMOTE_TIMER_STALE_MS;
+
+        if (remoteStale) return null;
+        if (ownerDeviceId && ownerDeviceId === timerDeviceId && ownerStale) return null;
 
         return activeTimer;
     }
@@ -1020,71 +1011,16 @@
     }
 
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
-        const mergedUserData = mergeCurrentUserProfileSources(
-            userData || {},
-            currentUserPublicProfileDoc || {},
-            currentUserLiveDoc || {},
-            getCurrentRuntimeProfileSeed()
-        );
-        const dailyResetState = getDailySnapshotResetState(mergedUserData || {});
+        const dailyResetState = getDailySnapshotResetState(userData || {});
         currentUserLiveDoc = dailyResetState.normalizedData;
-        const resolvedEmail = String(currentUser?.email || currentUserLiveDoc?.email || "").trim();
-        const resolvedUsername = pickPreferredProfileText(
-            [currentUsername, currentUserLiveDoc?.username, currentUserLiveDoc?.name],
-            { email: resolvedEmail }
-        );
-        if (resolvedUsername) {
-            currentUsername = resolvedUsername;
-        }
-        const resolvedProfileImage = pickPreferredProfileText(
-            [currentProfileImage, currentUserLiveDoc?.profileImage],
-            { allowWeak: true }
-        );
-        if (resolvedProfileImage) {
-            currentProfileImage = resolvedProfileImage;
-        }
-        const resolvedAbout = pickPreferredProfileText(
-            [currentProfileAbout, currentUserLiveDoc?.about],
-            { allowWeak: true }
-        );
-        if (resolvedAbout) {
-            currentProfileAbout = resolvedAbout;
-        }
-        const resolvedAccountCreatedAt = pickPreferredProfileText(
-            [currentAccountCreatedAt, currentUserLiveDoc?.accountCreatedAt],
-            { allowWeak: true }
-        );
-        if (resolvedAccountCreatedAt) {
-            currentAccountCreatedAt = resolvedAccountCreatedAt;
-        }
-        const resolvedStudyTrack = pickPreferredProfileText(
-            [studyTrack, currentUserLiveDoc?.studyTrack],
-            { allowWeak: true }
-        );
-        if (resolvedStudyTrack) {
-            studyTrack = resolvedStudyTrack;
-        }
-        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
-            ? normalizeSelectedSubjects(
-                studyTrack || currentUserLiveDoc?.studyTrack || "",
-                getFirstNonEmptyArray(selectedSubjects, currentUserLiveDoc?.selectedSubjects)
-            )
-            : getFirstNonEmptyArray(selectedSubjects, currentUserLiveDoc?.selectedSubjects);
-        if (Array.isArray(resolvedSelectedSubjects) && resolvedSelectedSubjects.length) {
-            selectedSubjects = [...resolvedSelectedSubjects];
-        }
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
         }
-        maybeAutoRepairOvercountedSchedule(new Date());
-        if (currentUser?.uid && typeof saveCodexCachedUserProfile === "function") {
-            saveCodexCachedUserProfile(currentUser.uid, currentUserLiveDoc, currentUser);
-        }
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
-        hasTimerControl = false;
+        if (hasTimerControl && getTimerOwnerId() === timerInstanceId) return false;
 
         stopTimerLoops();
         isRunning = false;
@@ -1130,7 +1066,7 @@
         const token = String(adjustment.token || adjustment.requestedAt || "").trim();
         const dateKey = String(adjustment.dateKey || "").trim();
         const weekKey = String(adjustment.weekKey || "").trim();
-        const scope = ["today", "yesterday", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
+        const scope = ["today", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
         const requestedAtMs = Math.max(
             parseInteger(adjustment.requestedAtMs, 0),
             parseInteger(adjustment.timestamp, 0),
@@ -1140,11 +1076,6 @@
         const appliedDaySeconds = Math.max(
             0,
             parseInteger(adjustment.appliedDaySeconds, 0),
-            targetSeconds
-        );
-        const appliedWeekSeconds = Math.max(
-            0,
-            parseInteger(adjustment.appliedWeekSeconds, 0),
             targetSeconds
         );
 
@@ -1157,8 +1088,7 @@
             scope,
             requestedAtMs,
             targetSeconds,
-            appliedDaySeconds,
-            appliedWeekSeconds
+            appliedDaySeconds
         };
     }
 
@@ -1229,9 +1159,9 @@
             safeEndTime - safeStartTime
         );
         const safeDateKey = String(
-            getDateKeyFromTimestamp(safeStartTime)
-            || entry.date
+            entry.date
             || entry.dateKey
+            || getDateKeyFromTimestamp(safeStartTime)
             || ""
         ).trim();
         const mode = normalizeTimerMode(String(entry.mode || "pomodoro").trim() || "pomodoro");
@@ -1270,57 +1200,6 @@
         return normalizeStudySessions(lists.flatMap(list => Array.isArray(list) ? list : []));
     }
 
-    function getDedupedStudySeconds(dayData = {}) {
-        const sessions = normalizeStudySessions(dayData.studySessions || []).filter(session => {
-            return (session.type || "study") === "study";
-        });
-        if (!sessions.length) return 0;
-
-        const intervals = sessions
-            .map(session => ({
-                start: Math.max(0, parseInteger(session.startTime, 0)),
-                end: Math.max(0, parseInteger(session.endTime, 0))
-            }))
-            .filter(interval => interval.end > interval.start)
-            .sort((a, b) => a.start - b.start || a.end - b.end);
-
-        if (!intervals.length) return 0;
-
-        let totalMs = 0;
-        let currentStart = intervals[0].start;
-        let currentEnd = intervals[0].end;
-
-        for (let index = 1; index < intervals.length; index += 1) {
-            const interval = intervals[index];
-            if (interval.start <= currentEnd + 1000) {
-                currentEnd = Math.max(currentEnd, interval.end);
-                continue;
-            }
-            totalMs += Math.max(0, currentEnd - currentStart);
-            currentStart = interval.start;
-            currentEnd = interval.end;
-        }
-
-        totalMs += Math.max(0, currentEnd - currentStart);
-        return Math.max(0, Math.floor(totalMs / 1000));
-    }
-
-    function hasValidatedStudyActivityForDate(dayData = {}, expectedDateKey = "") {
-        const normalizedExpectedDateKey = String(expectedDateKey || "").trim();
-        return normalizeStudySessions(dayData?.studySessions || []).some(session => {
-            const sessionDateKey = String(
-                session?.dateKey
-                || session?.date
-                || getDateKeyFromTimestamp(session?.startTime)
-                || ""
-            ).trim();
-            if (normalizedExpectedDateKey && sessionDateKey !== normalizedExpectedDateKey) {
-                return false;
-            }
-            return parseInteger(session?.startTime, 0) > 0 && parseInteger(session?.endTime, 0) > parseInteger(session?.startTime, 0);
-        });
-    }
-
     function appendStudySessionSegment(startTime, endTime, mode = timerState.mode) {
         const safeStartTime = Math.max(0, parseInteger(startTime, 0));
         const safeEndTime = Math.max(safeStartTime, parseInteger(endTime, safeStartTime));
@@ -1343,43 +1222,6 @@
         dayData.studySessions = mergedSessions;
         scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
         return true;
-    }
-
-    function maybeAutoRepairOvercountedSchedule(referenceDate = new Date()) {
-        if (!currentUser?.uid) return false;
-        const now = Date.now();
-        if (now - lastAutoDedupAt < 60000) return false;
-        lastAutoDedupAt = now;
-
-        const thresholdSeconds = 900;
-        scheduleData = sanitizeScheduleData(scheduleData || {});
-        const dayStart = new Date(referenceDate);
-        dayStart.setHours(0, 0, 0, 0);
-        let didChange = false;
-
-        for (let offset = 0; offset < 7; offset += 1) {
-            const dayDate = new Date(dayStart);
-            dayDate.setDate(dayDate.getDate() - offset);
-            const { weekKey, dayIdx } = getCurrentDayMeta(dayDate);
-            const dayData = ensureDayObject(scheduleData?.[weekKey]?.[dayIdx] || {});
-            const rawSeconds = Math.max(0, parseInteger(dayData.workedSeconds, 0));
-            if (rawSeconds <= 0) continue;
-
-            const dedupedSeconds = getDedupedStudySeconds(dayData);
-            if (dedupedSeconds > 0 && rawSeconds - dedupedSeconds >= thresholdSeconds) {
-                dayData.workedSeconds = dedupedSeconds;
-                scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
-                didChange = true;
-            }
-        }
-
-        if (didChange) {
-            saveData({ authorized: true, immediate: true, label: "auto-dedup" });
-            if (typeof renderSchedule === "function") renderSchedule();
-            if (typeof updateLiveStudyPreview === "function") updateLiveStudyPreview({ force: true });
-        }
-
-        return didChange;
     }
 
     function appendBreakSessionSegment(startTime, endTime, mode = timerState.mode) {
@@ -1406,96 +1248,6 @@
         return true;
     }
 
-    function normalizeTaskWorkedSecondsMap(taskWorkedSeconds = {}, tasks = []) {
-        const allowedTaskLabels = new Set(
-            (Array.isArray(tasks) ? tasks : [])
-                .map(task => String(task?.text || "").trim())
-                .filter(Boolean)
-        );
-
-        const nextMap = {};
-        Object.entries(taskWorkedSeconds || {}).forEach(([taskLabel, rawSeconds]) => {
-            const normalizedLabel = String(taskLabel || "").trim();
-            const normalizedSeconds = Math.max(0, parseInteger(rawSeconds, 0));
-            if (!normalizedLabel || normalizedSeconds <= 0) return;
-            if (allowedTaskLabels.size && !allowedTaskLabels.has(normalizedLabel)) return;
-            nextMap[normalizedLabel] = normalizedSeconds;
-        });
-
-        return nextMap;
-    }
-
-    function getDayTaskWorkedSeconds(dayData, taskLabel = "") {
-        const normalizedLabel = String(taskLabel || "").trim();
-        if (!normalizedLabel) return 0;
-        const normalizedDay = ensureDayObject(dayData || {});
-        return Math.max(0, parseInteger(normalizedDay.taskWorkedSeconds?.[normalizedLabel], 0));
-    }
-
-    function addWorkedSecondsToTask(dayData, taskLabel = "", deltaSeconds = 0) {
-        const normalizedLabel = String(taskLabel || "").trim();
-        const normalizedDelta = Math.max(0, parseInteger(deltaSeconds, 0));
-        if (!normalizedLabel || normalizedDelta <= 0) return ensureDayObject(dayData || {});
-
-        const normalizedDay = ensureDayObject(dayData || {});
-        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
-            normalizedDay.taskWorkedSeconds || {},
-            normalizedDay.tasks || []
-        );
-        normalizedDay.taskWorkedSeconds[normalizedLabel] = Math.max(
-            0,
-            parseInteger(normalizedDay.taskWorkedSeconds[normalizedLabel], 0) + normalizedDelta
-        );
-        return normalizedDay;
-    }
-
-    function moveTaskWorkedSeconds(dayData, previousLabel = "", nextLabel = "") {
-        const normalizedPreviousLabel = String(previousLabel || "").trim();
-        const normalizedNextLabel = String(nextLabel || "").trim();
-        if (!normalizedPreviousLabel || !normalizedNextLabel || normalizedPreviousLabel === normalizedNextLabel) {
-            return dayData;
-        }
-
-        const normalizedDay = ensureDayObject(dayData || {});
-        const carriedSeconds = parseInteger(normalizedDay.taskWorkedSeconds?.[normalizedPreviousLabel], 0);
-        if (carriedSeconds <= 0) return normalizedDay;
-
-        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
-            normalizedDay.taskWorkedSeconds || {},
-            normalizedDay.tasks || []
-        );
-        delete normalizedDay.taskWorkedSeconds[normalizedPreviousLabel];
-        normalizedDay.taskWorkedSeconds[normalizedNextLabel] = Math.max(
-            0,
-            parseInteger(normalizedDay.taskWorkedSeconds[normalizedNextLabel], 0) + carriedSeconds
-        );
-        return normalizedDay;
-    }
-
-    function removeTaskWorkedSeconds(dayData, taskLabel = "") {
-        const normalizedLabel = String(taskLabel || "").trim();
-        if (!normalizedLabel) return ensureDayObject(dayData || {});
-
-        const normalizedDay = ensureDayObject(dayData || {});
-        normalizedDay.taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
-            normalizedDay.taskWorkedSeconds || {},
-            normalizedDay.tasks || []
-        );
-        delete normalizedDay.taskWorkedSeconds[normalizedLabel];
-        return normalizedDay;
-    }
-
-    function formatTaskWorkedDuration(seconds = 0) {
-        const normalizedSeconds = Math.max(0, parseInteger(seconds, 0));
-        if (normalizedSeconds <= 0) return "";
-        if (typeof formatSeconds === "function") return formatSeconds(normalizedSeconds);
-        const hours = Math.floor(normalizedSeconds / 3600);
-        const minutes = Math.floor((normalizedSeconds % 3600) / 60);
-        if (hours > 0) return `${hours}s ${minutes}dk`;
-        if (minutes > 0) return `${minutes}dk`;
-        return `${normalizedSeconds}s`;
-    }
-
     function ensureDayObject(day = {}) {
         const workedSeconds = Math.max(0, parseInteger(day.workedSeconds, 0));
         const breakSeconds = Math.max(0, parseInteger(day.breakSeconds, 0));
@@ -1503,25 +1255,19 @@
         const subjectQuestions = normalizeSubjectQuestionMap(day.subjectQuestions || {});
         const subjectQuestionTotal = Object.values(subjectQuestions).reduce((sum, amount) => sum + amount, 0);
         const normalizedQuestions = Math.min(QUESTION_LIMIT, subjectQuestionTotal || rawQuestions);
-        const normalizedTasks = Array.isArray(day.tasks)
-            ? day.tasks.map(task => ({
-                text: String(task && task.text ? task.text : "").trim(),
-                completed: !!(task && task.completed)
-            })).filter(task => task.text)
-            : [];
-        const taskWorkedSeconds = normalizeTaskWorkedSecondsMap(
-            day.taskWorkedSeconds || day.taskStudySeconds || {},
-            normalizedTasks
-        );
 
         return {
             ...day,
-            tasks: normalizedTasks,
+            tasks: Array.isArray(day.tasks)
+                ? day.tasks.map(task => ({
+                    text: String(task && task.text ? task.text : "").trim(),
+                    completed: !!(task && task.completed)
+                })).filter(task => task.text)
+                : [],
             workedSeconds,
             breakSeconds,
             questions: normalizedQuestions,
             subjectQuestions: subjectQuestionTotal ? subjectQuestions : (normalizedQuestions ? createFallbackSubjectQuestionMap(day, normalizedQuestions) : {}),
-            taskWorkedSeconds,
             studySessions: normalizeStudySessions(day.studySessions || day.sessions || []),
             breakSessions: normalizeStudySessions(day.breakSessions || day.breaks || [])
         };
@@ -1950,11 +1696,6 @@
         const ownerHeartbeat = getTimerOwnerHeartbeat();
         const now = Date.now();
         const stale = now - ownerHeartbeat > TIMER_OWNER_TTL_MS;
-        const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc, now);
-        if (foreignTimer && String(foreignTimer.ownerId || "").trim() !== timerInstanceId) {
-            hasTimerControl = false;
-            return false;
-        }
 
         if (force || !ownerId || ownerId === timerInstanceId || stale) {
             localStorage.setItem(TIMER_OWNER_KEY, timerInstanceId);
@@ -2056,9 +1797,9 @@
             sessionDateKey: getTimerSessionDateKey(session),
             updatedAtMs: Date.now(),
             ownerId: timerInstanceId,
+            ownerDeviceId: timerDeviceId,
             modalOpen,
-            lastSeenAtMs,
-            resumeLocked: !!session.resumeLocked
+            lastSeenAtMs
         };
     }
 
@@ -2068,14 +1809,6 @@
             ...serializeTimerSession(session),
             ownerId: session.ownerId || timerInstanceId
         };
-    }
-
-    function logTimerReset(reason = "", details = {}) {
-        try {
-            console.log("RESET TRIGGERED:", String(reason || "unknown"), details || {});
-        } catch (error) {
-            console.log("RESET TRIGGERED:", String(reason || "unknown"));
-        }
     }
 
     function persistTimerSessionLocally(session) {
@@ -2094,136 +1827,11 @@
         try {
             const raw = localStorage.getItem(TIMER_STORAGE_KEY);
             if (!raw) return null;
-            const parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed !== "object") {
-                console.log("RESET TRIGGERED:", "invalid-stored-timer-session", { rawType: typeof parsed });
-                return null;
-            }
-            return parsed;
+            return JSON.parse(raw);
         } catch (error) {
             console.error("Timer local verisi okunamadi:", error);
             return null;
         }
-    }
-
-    function readTimerFinalizedSnapshot() {
-        try {
-            const raw = localStorage.getItem(TIMER_FINALIZED_STORAGE_KEY);
-            if (!raw) return null;
-
-            const parsed = JSON.parse(raw);
-            if (!parsed || typeof parsed !== "object") return null;
-
-            const uid = String(parsed.uid || "").trim();
-            const dateKey = String(parsed.dateKey || "").trim();
-            const elapsedSeconds = Math.max(0, parseInteger(parsed.elapsedSeconds, 0));
-            if (!uid || !dateKey || elapsedSeconds <= 0) {
-                return null;
-            }
-
-            return {
-                uid,
-                mode: normalizeTimerMode(parsed.mode),
-                elapsedSeconds,
-                targetDurationSeconds: Math.max(0, parseInteger(parsed.targetDurationSeconds, 0)),
-                dateKey,
-                savedAtMs: Math.max(0, parseInteger(parsed.savedAtMs, 0)),
-                reason: String(parsed.reason || "").trim()
-            };
-        } catch (error) {
-            console.error("Finalize timer verisi okunamadi:", error);
-            return null;
-        }
-    }
-
-    function clearTimerFinalizedSnapshot(expectedUid = currentUser?.uid || "") {
-        const snapshot = readTimerFinalizedSnapshot();
-        if (!snapshot) return false;
-        if (expectedUid && snapshot.uid && snapshot.uid !== expectedUid) {
-            return false;
-        }
-        try {
-            localStorage.removeItem(TIMER_FINALIZED_STORAGE_KEY);
-            return true;
-        } catch (error) {
-            console.error("Finalize timer verisi silinemedi:", error);
-            return false;
-        }
-    }
-
-    function persistTimerFinalizedSnapshot(session = timerState.session, referenceMs = Date.now(), options = {}) {
-        if (!session) return false;
-        const normalizedMode = normalizeTimerMode(options.mode || session.mode);
-        if (isBreakTimerMode(normalizedMode) && options.allowBreak !== true) {
-            return false;
-        }
-
-        const uid = String(
-            options.uid
-            || session.uid
-            || currentUser?.uid
-            || currentUserLiveDoc?.uid
-            || ""
-        ).trim();
-        if (!uid) return false;
-
-        const safeReferenceMs = Math.max(0, parseInteger(referenceMs, Date.now()));
-        const elapsedSeconds = Math.max(
-            0,
-            parseInteger(options.elapsedSeconds, getTimerElapsedSeconds(session, safeReferenceMs))
-        );
-        if (elapsedSeconds <= 0) return false;
-
-        const snapshot = {
-            uid,
-            mode: normalizedMode,
-            elapsedSeconds,
-            targetDurationSeconds: Math.max(
-                0,
-                parseInteger(options.targetDurationSeconds, parseInteger(session.targetDurationSeconds, 0))
-            ),
-            dateKey: String(
-                options.dateKey
-                || getTimerSessionDateKey(session, new Date(safeReferenceMs))
-                || getCurrentDayMeta(new Date(safeReferenceMs)).dateKey
-            ).trim(),
-            savedAtMs: safeReferenceMs,
-            reason: String(options.reason || "finalized").trim()
-        };
-
-        if (!snapshot.dateKey) return false;
-
-        try {
-            localStorage.setItem(TIMER_FINALIZED_STORAGE_KEY, JSON.stringify(snapshot));
-            return true;
-        } catch (error) {
-            console.error("Finalize timer verisi saklanamadi:", error);
-            return false;
-        }
-    }
-
-    function buildStoppedTimerSessionFromFinalizedSnapshot(snapshot = null, referenceDate = new Date()) {
-        if (!snapshot) return null;
-        const todayDateKey = getCurrentDayMeta(referenceDate).dateKey;
-        if (String(snapshot.dateKey || "").trim() !== todayDateKey) {
-            return null;
-        }
-
-        return {
-            mode: normalizeTimerMode(snapshot.mode),
-            isRunning: false,
-            baseElapsedSeconds: Math.max(0, parseInteger(snapshot.elapsedSeconds, 0)),
-            lastPersistedElapsedSeconds: Math.max(0, parseInteger(snapshot.elapsedSeconds, 0)),
-            targetDurationSeconds: Math.max(0, parseInteger(snapshot.targetDurationSeconds, 0)),
-            startedAtMs: 0,
-            lastForcedCheckpointAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, 0)),
-            sessionDateKey: todayDateKey,
-            updatedAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, Date.now())),
-            lastSeenAtMs: Math.max(0, parseInteger(snapshot.savedAtMs, 0)),
-            modalOpen: false,
-            ownerId: timerInstanceId,
-            resumeLocked: ["auto-finalize-inactive", "restore-frozen", "complete", "study-complete"].includes(String(snapshot.reason || "").trim())
-        };
     }
 
     function preserveTimerStateForRecovery(session = timerState.session, options = {}) {
@@ -2480,8 +2088,7 @@
             lastForcedCheckpointAtMs: 0,
             sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
             modalOpen: false,
-            lastSeenAtMs: 0,
-            resumeLocked: false
+            lastSeenAtMs: 0
         };
     }
 
@@ -2574,10 +2181,6 @@
         isRunning = false;
         stopTimerLoops();
         persistTimerSessionLocally(session);
-        persistTimerFinalizedSnapshot(session, safeReferenceMs, {
-            elapsedSeconds: elapsed,
-            reason: String(options.syncReason || "auto-finalize-inactive")
-        });
         updateLocalActiveTimerSnapshot(null);
         refreshLeaderboardOptimistically(null);
         renderTimerUi();
@@ -2770,9 +2373,6 @@
         }
 
         const safeSeconds = Math.max(0, parseInteger(secondsValue, 0));
-        const lastRendered = parseInteger(timerDisplay.dataset.lastSeconds, -1);
-        if (lastRendered === safeSeconds) return;
-        timerDisplay.dataset.lastSeconds = String(safeSeconds);
         const hours = Math.floor(safeSeconds / 3600);
         const minutes = Math.floor((safeSeconds % 3600) / 60);
         const seconds = safeSeconds % 60;
@@ -2783,17 +2383,9 @@
             seconds: String(seconds).padStart(2, "0")
         };
 
-        if (!timerDisplay._timerPartNodes) {
-            timerDisplay._timerPartNodes = {
-                hours: timerDisplay.querySelector('[data-part="hours"]'),
-                minutes: timerDisplay.querySelector('[data-part="minutes"]'),
-                seconds: timerDisplay.querySelector('[data-part="seconds"]')
-            };
-        }
-
         Object.entries(parts).forEach(([part, value]) => {
-            const node = timerDisplay._timerPartNodes?.[part];
-            if (node && node.textContent !== value) node.textContent = value;
+            const node = timerDisplay.querySelector(`[data-part="${part}"]`);
+            if (node) node.textContent = value;
         });
     }
 
@@ -2821,7 +2413,6 @@
         }
 
         const hasProgress = !!timerState.session && getTimerElapsedSeconds(timerState.session) > 0;
-        const lockedResume = !!timerState.session?.resumeLocked;
         const running = !!timerState.session?.isRunning;
         const isStopwatch = isStopwatchTimerMode(timerState.mode);
         const isBreak = isBreakTimerMode(timerState.mode);
@@ -2829,9 +2420,7 @@
         if (running) {
             startPauseButton.innerHTML = '<i class="fas fa-pause"></i> Duraklat';
         } else if (hasProgress) {
-            startPauseButton.innerHTML = lockedResume
-                ? `<i class="fas fa-play"></i> ${isStopwatch ? (isBreak ? "Yeni Mola Baslat" : "Yeni Kronometre Baslat") : (isBreak ? "Yeni Mola Baslat" : "Yeni Pomodoro Baslat")}`
-                : '<i class="fas fa-play"></i> Devam Et';
+            startPauseButton.innerHTML = '<i class="fas fa-play"></i> Devam Et';
         } else {
             startPauseButton.innerHTML = `<i class="fas fa-play"></i> ${isStopwatch ? (isBreak ? "Mola Kronometresini Baslat" : "Kronometre Baslat") : (isBreak ? "Mola Zamanlayicisini Baslat" : "Pomodoro Baslat")}`;
         }
@@ -2859,53 +2448,40 @@
         pill.innerHTML = `<i class="fas fa-wave-square"></i> ${modeLabel} - Otomatik kayit acik${unsynced > 0 ? ` - ${unsynced}s bekleyen senkron` : ""}`;
     }
 
-    function renderTimerUi(options = {}) {
+    function renderTimerUi() {
         const content = document.querySelector("#pomodoro-modal .pomodoro-content");
         if (!content) return;
 
-        const reduceEffects = !!timerState.session?.isRunning && isTimerModalOpen();
-        document.body.classList.toggle("timer-live-low", reduceEffects);
-
         if (timerState.session?.isRunning) {
-            const now = Date.now();
-            if (!options.light || now - lastTimerVisibilityTouchAt > 5000) {
-                lastTimerVisibilityTouchAt = now;
-                touchTimerVisibility(now, { modalOpen: isTimerModalOpen() });
-            }
+            touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen() });
         }
 
-        if (!options.light) {
-            content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
-            updateTimerButtons();
-            updateTimerSessionPill();
-        }
+        content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
+        updateTimerButtons();
+        updateTimerSessionPill();
 
-        if (!options.light) {
-            const titleNode = content.querySelector("h2");
-            if (titleNode) {
-                titleNode.textContent = getTimerContextTitle(timerState.mode);
-            }
+        const titleNode = content.querySelector("h2");
+        if (titleNode) {
+            titleNode.textContent = getTimerContextTitle(timerState.mode);
         }
 
         const displaySeconds = getTimerDisplaySeconds();
         timeRemaining = displaySeconds;
         renderSegmentedTimer(displaySeconds);
 
-        if (!options.light) {
-            if (timerState.session?.isRunning) {
-                updateTimerStatus(isBreakTimerMode(timerState.mode)
-                    ? (isStopwatchTimerMode(timerState.mode)
-                        ? "Mola kronometresi calisiyor."
-                        : "Mola geri sayimi calisiyor.")
-                    : (isStopwatchTimerMode(timerState.mode)
-                        ? "Kronometre calisiyor."
-                        : "Pomodoro calisiyor."));
-            } else {
-                updateTimerStatus("");
-            }
-
-            updateLiveStudyPreview({ skipPill: true });
+        if (timerState.session?.isRunning) {
+            updateTimerStatus(isBreakTimerMode(timerState.mode)
+                ? (isStopwatchTimerMode(timerState.mode)
+                    ? "Mola kronometresi calisiyor."
+                    : "Mola geri sayimi calisiyor.")
+                : (isStopwatchTimerMode(timerState.mode)
+                    ? "Kronometre calisiyor."
+                    : "Pomodoro calisiyor."));
+        } else {
+            updateTimerStatus("");
         }
+
+        updateLiveStudyPreview();
     }
 
     async function maybeAutoStopHiddenTimer() {
@@ -3020,112 +2596,6 @@
         }
     }
 
-    function ensurePomodoroTaskSelectorUi() {
-        ensurePomodoroTaskFeatureStyles();
-        const modal = document.getElementById("pomodoro-modal");
-        const timerDisplay = modal?.querySelector("#timer-display");
-        if (!modal || !timerDisplay) return;
-
-        let field = document.getElementById("pomodoro-task-field");
-        if (!field) {
-            field = document.createElement("div");
-            field.id = "pomodoro-task-field";
-            field.className = "pomodoro-task-field";
-            field.innerHTML = `
-                <button id="pomodoro-task-toggle" class="pomodoro-task-field__toggle" type="button" aria-expanded="false" aria-controls="pomodoro-task-panel">
-                    <span class="pomodoro-task-field__toggle-main">
-                        <span class="pomodoro-task-field__toggle-label">Ders Seç</span>
-                        <span id="pomodoro-task-toggle-value" class="pomodoro-task-field__toggle-value">Bir görev seç</span>
-                    </span>
-                    <span id="pomodoro-task-summary" class="pomodoro-task-field__summary">Henüz süre yok</span>
-                </button>
-                <div id="pomodoro-task-panel" class="pomodoro-task-field__panel" hidden>
-                    <label for="pomodoro-task-select">Bugünkü Görevler</label>
-                    <div class="pomodoro-task-field__row">
-                        <select id="pomodoro-task-select" aria-label="Bugün hangi görev için çalıştığını seç"></select>
-                    </div>
-                    <p id="pomodoro-task-hint" class="pomodoro-task-field__hint">Bugün görev eklediğinde bu listede görünecek.</p>
-                </div>
-            `;
-            timerDisplay.insertAdjacentElement("beforebegin", field);
-
-            const toggle = field.querySelector("#pomodoro-task-toggle");
-            if (toggle) {
-                toggle.addEventListener("click", () => {
-                    if (toggle.disabled) return;
-                    timerTaskState.isPickerOpen = !timerTaskState.isPickerOpen;
-                    renderPomodoroTaskSelector();
-                });
-            }
-
-            const select = field.querySelector("#pomodoro-task-select");
-            if (select) {
-                select.addEventListener("change", async event => {
-                    if (timerTaskState.isSwitchingTask) return;
-                    timerTaskState.isSwitchingTask = true;
-
-                    const nextTaskLabel = String(event.currentTarget?.value || "").trim();
-                    const currentTaskLabel = getCurrentTimerTaskLabel(new Date());
-
-                    try {
-                        const switched = await maybePersistCurrentTaskBeforeSwitch(nextTaskLabel);
-                        if (!switched) {
-                            event.currentTarget.value = currentTaskLabel;
-                            return;
-                        }
-                        persistTimerTaskSelection(nextTaskLabel);
-                        timerTaskState.isPickerOpen = false;
-                        renderPomodoroTaskSelector();
-                        refreshVisibleTaskWorkedBadges();
-                    } catch (error) {
-                        console.error("Pomodoro görev değişimi kaydedilemedi:", error);
-                        event.currentTarget.value = currentTaskLabel;
-                        safeShowAlert("Ders değiştirilemedi. Lütfen tekrar dene.");
-                    } finally {
-                        timerTaskState.isSwitchingTask = false;
-                    }
-                });
-            }
-        }
-
-        renderPomodoroTaskSelector();
-    }
-
-    function ensureAnalyticsGraphUi() {
-        ensurePomodoroTaskFeatureStyles();
-        const tabsRoot = document.querySelector("#analytics-modal .analytics-insights-tabs");
-        const weeklyPane = document.getElementById("analytics-weekly-pane");
-        if (!tabsRoot || !weeklyPane) return;
-
-        if (!document.getElementById("analytics-tab-graph")) {
-            const graphTab = document.createElement("button");
-            graphTab.id = "analytics-tab-graph";
-            graphTab.className = "analytics-insights-tab";
-            graphTab.type = "button";
-            graphTab.textContent = "Grafik";
-            graphTab.addEventListener("click", () => setAnalyticsTab("graph"));
-            tabsRoot.appendChild(graphTab);
-        }
-
-        if (!document.getElementById("analytics-graph-pane")) {
-            const graphPane = document.createElement("div");
-            graphPane.id = "analytics-graph-pane";
-            graphPane.className = "analytics-pane";
-            graphPane.style.display = "none";
-            graphPane.innerHTML = `
-                <div class="analytics-toolbar">
-                    <label>
-                        Gün Seç
-                        <input id="analytics-graph-date-input" type="date" onchange="handleAnalyticsDateChange(this.value)">
-                    </label>
-                </div>
-                <div id="analytics-graph-total" class="analytics-graph-total-card"></div>
-                <div id="analytics-graph-list" class="analytics-graph-list"></div>
-            `;
-            weeklyPane.insertAdjacentElement("afterend", graphPane);
-        }
-    }
-
     function setTimerMode(mode, options = {}) {
         const normalizedMode = normalizeTimerMode(mode);
 
@@ -3222,26 +2692,20 @@
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
-            const now = Date.now();
-            if (now - lastTimerRecoveryCheckAt > 5000) {
-                lastTimerRecoveryCheckAt = now;
-                const recoveryState = maybeRecoverInactiveTimerSession(now, {
-                    syncReason: "interval-recovery",
-                    showAlert: false,
-                    modalOpen: isTimerModalOpen()
-                });
-                if (recoveryState.action === "auto-finalized") return;
-                maybeTriggerForcedHourlyCheckpoint(now);
-            }
+            const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
+                syncReason: "interval-recovery",
+                showAlert: false,
+                modalOpen: isTimerModalOpen()
+            });
+            if (recoveryState.action === "auto-finalized") return;
             if (timerState.session?.isRunning && normalizeTimerMode(timerState.mode) === "break-pomodoro" && getTimerDisplaySeconds(timerState.session) <= 0) {
                 completePomodoroSession().catch(error => {
                     console.error("Mola geri sayimi tamamlanamadi:", error);
                 });
                 return;
             }
-            if (isTimerModalOpen()) {
-                renderTimerUi({ light: true });
-            }
+            maybeTriggerForcedHourlyCheckpoint(Date.now());
+            renderTimerUi();
         }, 1000);
 
         timerOwnerInterval = setInterval(() => {
@@ -3529,49 +2993,6 @@
         };
     }
 
-    function deriveRecentTitleAwardsFromSchedule(schedule, referenceDate = new Date()) {
-        const safeSchedule = sanitizeScheduleData(schedule || {});
-        const titleLevels = ensureRollingTwoDayTitleConfig();
-        const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : Date.now();
-        const dayStart = new Date(referenceDate);
-        dayStart.setHours(0, 0, 0, 0);
-        const dayMs = 24 * 60 * 60 * 1000;
-        const recentAwards = {};
-
-        for (let offset = 0; offset < 7; offset += 1) {
-            const targetDate = new Date(dayStart);
-            targetDate.setDate(targetDate.getDate() - offset);
-            const dayEndMs = targetDate.getTime() + dayMs - 1;
-            const windowNowMs = Math.min(referenceMs, dayEndMs);
-            const rollingTotals = getRollingDayTotalsFromSchedule(
-                safeSchedule,
-                2,
-                new Date(windowNowMs)
-            );
-            const avgHours = rollingTotals.seconds / 3600 / rollingTotals.dayCount;
-            const qualifiedTitles = titleLevels.filter(level => avgHours >= level.minAvgHours);
-
-            if (!qualifiedTitles.length) continue;
-
-            const awardedAtMs = Math.min(dayEndMs, referenceMs);
-
-            qualifiedTitles.forEach(level => {
-                const existing = recentAwards[level.id];
-                const expiresAtMs = awardedAtMs + TITLE_VALIDITY_MS;
-                if (!existing) {
-                    recentAwards[level.id] = { awardedAtMs, expiresAtMs };
-                    return;
-                }
-                recentAwards[level.id] = {
-                    awardedAtMs: Math.min(existing.awardedAtMs || awardedAtMs, awardedAtMs),
-                    expiresAtMs: Math.max(existing.expiresAtMs || 0, expiresAtMs)
-                };
-            });
-        }
-
-        return orderTitleAwardMap(recentAwards);
-    }
-
     function getStoredSelectedTitleId(...sources) {
         for (const source of sources) {
             const nextId = String(
@@ -3744,10 +3165,7 @@
         const timerRecord = resolveTitleTimerRecord(profileData);
         const referenceMs = referenceDate instanceof Date ? referenceDate.getTime() : Date.now();
         const storedSelectedTitleId = getStoredSelectedTitleId(profileData, profileData?.titleInfo || {});
-        const storedAwards = mergeTitleAwardMaps(
-            getStoredTitleAwards(profileData, profileData?.titleInfo || {}),
-            deriveRecentTitleAwardsFromSchedule(safeSchedule, referenceDate)
-        );
+        const storedAwards = getStoredTitleAwards(profileData, profileData?.titleInfo || {});
 
         if (isTimerRecordRunning(timerRecord)) {
             const interval = getPendingTimerInterval(timerRecord, referenceMs);
@@ -4201,46 +3619,6 @@
         return seconds;
     }
 
-    function getAdminWeeklyAdjustmentTarget(userData = {}, referenceDate = new Date()) {
-        const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
-        if (!adjustment || adjustment.scope !== "week") return null;
-
-        const { weekKey } = getCurrentDayMeta(referenceDate);
-        if (adjustment.weekKey && adjustment.weekKey !== weekKey) return null;
-
-        return Math.max(
-            0,
-            parseInteger(adjustment.appliedWeekSeconds, 0),
-            parseInteger(adjustment.targetSeconds, 0)
-        );
-    }
-
-    function getResolvedCurrentWeekWorkedSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
-        const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(schedule, referenceDate);
-        const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
-        if (adminWeeklyTarget !== null) return adminWeeklyTarget;
-
-        const currentWeekKey = getCurrentDayMeta(referenceDate).weekKey;
-        const storedWeekKey = String(
-            userData?.weeklyStudyWeekKey
-            || userData?.currentWeekKey
-            || userData?.weekKey
-            || ""
-        ).trim();
-        const canUseStoredWeek = !storedWeekKey || storedWeekKey === currentWeekKey;
-        const storedWeekSeconds = canUseStoredWeek
-            ? Math.max(
-                parseInteger(userData?.weeklyStudyTime, 0),
-                parseInteger(userData?.currentWeekSeconds, 0)
-            )
-            : 0;
-
-        return Math.max(
-            scheduleWeeklySeconds,
-            storedWeekSeconds
-        );
-    }
-
     function getCurrentWeekBreakSecondsFromSchedule(schedule, referenceDate = new Date()) {
         const { weekKey } = getCurrentDayMeta(referenceDate);
         const weekData = schedule?.[weekKey] || {};
@@ -4305,17 +3683,8 @@
             || safeData?.todayDateKey
             || ""
         ).trim();
-        const storedWeekKey = String(
-            safeData?.weeklyStudyWeekKey
-            || safeData?.currentWeekKey
-            || safeData?.weekKey
-            || ""
-        ).trim();
         const safeSchedule = sanitizeScheduleData(safeData.schedule || {});
         const scheduleSeconds = getCurrentDayWorkedSecondsFromSchedule(safeSchedule, referenceDate, displayReferenceMs);
-        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
-        const currentWeekQuestions = getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate);
-        const weekKeyChanged = !!storedWeekKey && storedWeekKey !== currentMeta.weekKey;
         const explicitDailySeconds = Math.max(
             parseInteger(safeData?.dailyStudyTime, 0),
             parseInteger(safeData?.todayStudyTime, 0),
@@ -4334,28 +3703,6 @@
         );
 
         if (!shouldReset) {
-            if (weekKeyChanged || !storedWeekKey) {
-                const normalizedData = {
-                    ...safeData,
-                    weeklyStudyTime: currentWeekSeconds,
-                    currentWeekSeconds,
-                    weeklyQuestions: currentWeekQuestions,
-                    weeklyQuestionCount: currentWeekQuestions,
-                    weekly: currentWeekQuestions,
-                    weeklyStudyWeekKey: currentMeta.weekKey
-                };
-                const needsSync = (
-                    weekKeyChanged
-                    || !storedWeekKey
-                    || parseInteger(safeData?.weeklyStudyTime, 0) !== currentWeekSeconds
-                    || parseInteger(safeData?.currentWeekSeconds, 0) !== currentWeekSeconds
-                    || parseInteger(safeData?.weeklyQuestions, 0) !== currentWeekQuestions
-                    || parseInteger(safeData?.weeklyQuestionCount, 0) !== currentWeekQuestions
-                    || parseInteger(safeData?.weekly, 0) !== currentWeekQuestions
-                );
-                return { normalizedData, needsSync };
-            }
-
             return {
                 normalizedData: safeData,
                 needsSync: false
@@ -4378,43 +3725,21 @@
             dailyStudyTime: normalizedDailySeconds,
             todayStudyTime: normalizedDailySeconds,
             todayWorkedSeconds: normalizedDailySeconds,
-            weeklyStudyTime: currentWeekSeconds,
-            currentWeekSeconds,
-            weeklyQuestions: currentWeekQuestions,
-            weeklyQuestionCount: currentWeekQuestions,
-            weekly: currentWeekQuestions,
             currentSessionTime: 0,
-            currentBreakSessionTime: 0,
             activeTimer: null,
-            activeBreakTimer: null,
-            legacyWorkingStartedAt: 0,
             isWorking: false,
-            isRunning: false,
-            isOnBreak: false,
             dailyStudyDateKey: currentMeta.dateKey,
-            todayDateKey: currentMeta.dateKey,
-            weeklyStudyWeekKey: currentMeta.weekKey
+            todayDateKey: currentMeta.dateKey
         };
         const needsSync = (
             parseInteger(safeData?.dailyStudyTime, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.todayStudyTime, 0) !== normalizedDailySeconds
             || parseInteger(safeData?.todayWorkedSeconds, 0) !== normalizedDailySeconds
-            || parseInteger(safeData?.weeklyStudyTime, 0) !== currentWeekSeconds
-            || parseInteger(safeData?.currentWeekSeconds, 0) !== currentWeekSeconds
-            || parseInteger(safeData?.weeklyQuestions, 0) !== currentWeekQuestions
-            || parseInteger(safeData?.weeklyQuestionCount, 0) !== currentWeekQuestions
-            || parseInteger(safeData?.weekly, 0) !== currentWeekQuestions
             || parseInteger(safeData?.currentSessionTime, 0) !== 0
-            || parseInteger(safeData?.currentBreakSessionTime, 0) !== 0
             || !!safeData?.activeTimer
-            || !!safeData?.activeBreakTimer
-            || parseInteger(safeData?.legacyWorkingStartedAt, 0) > 0
             || !!safeData?.isWorking
-            || !!safeData?.isRunning
-            || !!safeData?.isOnBreak
             || parseInteger(safeSchedule?.[currentMeta.weekKey]?.[currentMeta.dayIdx]?.workedSeconds, 0) !== normalizedDailySeconds
             || explicitDateKey !== currentMeta.dateKey
-            || storedWeekKey !== currentMeta.weekKey
         );
 
         return {
@@ -4462,239 +3787,6 @@
         return [];
     }
 
-    function isWeakProfileIdentityValue(value = "", email = "") {
-        const resolvedValue = String(value || "").trim();
-        if (!resolvedValue) return true;
-
-        const normalizedValue = resolvedValue.toLocaleLowerCase("tr-TR");
-        if (normalizedValue === "kullanici" || normalizedValue === "kullanıcı") {
-            return true;
-        }
-
-        const emailLocalPart = String(email || "")
-            .split("@")[0]
-            .trim()
-            .toLocaleLowerCase("tr-TR");
-
-        return !!emailLocalPart && normalizedValue === emailLocalPart;
-    }
-
-    function pickPreferredProfileText(candidates = [], options = {}) {
-        const safeCandidates = Array.isArray(candidates) ? candidates : [candidates];
-        const email = String(options?.email || "").trim();
-        const allowWeak = options?.allowWeak === true;
-        let fallback = "";
-
-        for (const candidate of safeCandidates) {
-            const resolvedValue = String(candidate || "").trim();
-            if (!resolvedValue) continue;
-            if (!fallback) fallback = resolvedValue;
-            if (allowWeak || !isWeakProfileIdentityValue(resolvedValue, email)) {
-                return resolvedValue;
-            }
-        }
-
-        return fallback;
-    }
-
-    function getCurrentRuntimeProfileSeed() {
-        return {
-            uid: currentUser?.uid || "",
-            username: currentUsername || "",
-            email: currentUser?.email || "",
-            about: currentProfileAbout || "",
-            profileImage: currentProfileImage || "",
-            accountCreatedAt: currentAccountCreatedAt || "",
-            studyTrack: studyTrack || "",
-            selectedSubjects: Array.isArray(selectedSubjects) ? [...selectedSubjects] : [],
-            schedule: sanitizeScheduleData(scheduleData || {}),
-            totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
-            totalStudyTime: totalWorkedSecondsAllTime || 0,
-            totalQuestionsAllTime: totalQuestionsAllTime || 0,
-            notes: normalizeUserNotes(userNotes || []),
-            noteFolders: normalizeNoteFolders(noteFolders || [])
-        };
-    }
-
-    function canWriteCurrentUserProfileSafely() {
-        if (!currentUser?.uid) return false;
-        if (!hasBootstrappedUsersRealtime) return false;
-        if (!currentUserProfileHydrated) return false;
-        return currentUserHasRemoteProfile;
-    }
-
-    function getHydrationSafeCachedProfile(uid = currentUser?.uid) {
-        if (!uid || typeof getCodexCachedUserProfile !== "function") return null;
-        const cachedProfile = getCodexCachedUserProfile(uid);
-        if (!cachedProfile || typeof cachedProfile !== "object") return null;
-
-        const safeSchedule = sanitizeScheduleData(cachedProfile.schedule || {});
-        const safeNotes = normalizeUserNotes(cachedProfile.notes || []);
-        const safeUsername = pickPreferredProfileText(
-            [cachedProfile.username, cachedProfile.name],
-            { email: cachedProfile.email || currentUser?.email || "" }
-        );
-        const hasMeaningfulProfile = !!(
-            safeUsername
-            || String(cachedProfile.profileImage || "").trim()
-            || String(cachedProfile.studyTrack || "").trim()
-            || Object.keys(safeSchedule).length
-            || safeNotes.length
-        );
-
-        if (!hasMeaningfulProfile) return null;
-        return {
-            ...cachedProfile,
-            schedule: safeSchedule,
-            notes: safeNotes
-        };
-    }
-
-    function resolveWritableCurrentUserProfile(basePayload = {}, options = {}) {
-        const mergedProfile = mergeCurrentUserProfileSources(
-            currentUserLiveDoc || {},
-            currentUserPublicProfileDoc || {},
-            getCurrentRuntimeProfileSeed(),
-            basePayload || {}
-        );
-        const resolvedEmail = pickPreferredProfileText(
-            [currentUser?.email, mergedProfile.email, basePayload.email],
-            { allowWeak: true }
-        );
-        const allowWeakFallback = options.allowWeakFallback === true || !currentUserHasRemoteProfile;
-        const resolvedUsername = pickPreferredProfileText(
-            [
-                mergedProfile.username,
-                mergedProfile.name,
-                basePayload.username,
-                basePayload.name,
-                currentUsername,
-                currentUser?.displayName
-            ],
-            { email: resolvedEmail }
-        ) || (allowWeakFallback ? (resolvedEmail?.split?.("@")?.[0] || "") : "");
-        const resolvedStudyTrack = pickPreferredProfileText(
-            [mergedProfile.studyTrack, basePayload.studyTrack, studyTrack],
-            { allowWeak: true }
-        );
-        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
-            ? normalizeSelectedSubjects(
-                resolvedStudyTrack || "",
-                getFirstNonEmptyArray(
-                    mergedProfile.selectedSubjects,
-                    basePayload.selectedSubjects,
-                    selectedSubjects
-                )
-            )
-            : getFirstNonEmptyArray(
-                mergedProfile.selectedSubjects,
-                basePayload.selectedSubjects,
-                selectedSubjects
-            );
-        return {
-            mergedProfile,
-            email: String(resolvedEmail || "").trim(),
-            username: String(resolvedUsername || "").trim(),
-            about: pickPreferredProfileText(
-                [currentProfileAbout, mergedProfile.about, basePayload.about],
-                { allowWeak: true }
-            ),
-            profileImage: pickPreferredProfileText(
-                [currentProfileImage, mergedProfile.profileImage, basePayload.profileImage],
-                { allowWeak: true }
-            ),
-            accountCreatedAt: pickPreferredProfileText(
-                [currentAccountCreatedAt, mergedProfile.accountCreatedAt, basePayload.accountCreatedAt],
-                { allowWeak: true }
-            ),
-            studyTrack: String(resolvedStudyTrack || "").trim(),
-            selectedSubjects: resolvedSelectedSubjects
-        };
-    }
-
-    function mergeCurrentUserProfileSources(...sources) {
-        const safeSources = sources
-            .filter(source => source && typeof source === "object")
-            .map(source => ({ ...source }));
-
-        const resolvedEmail = pickPreferredProfileText(
-            safeSources.map(source => source.email),
-            { allowWeak: true }
-        );
-        const resolvedUsername = pickPreferredProfileText(
-            safeSources.flatMap(source => [source.username, source.name]),
-            { email: resolvedEmail }
-        );
-        const resolvedStudyTrack = pickPreferredProfileText(
-            safeSources.map(source => source.studyTrack),
-            { allowWeak: true }
-        );
-        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
-            ? normalizeSelectedSubjects(
-                resolvedStudyTrack,
-                getFirstNonEmptyArray(...safeSources.map(source => source.selectedSubjects))
-            )
-            : getFirstNonEmptyArray(...safeSources.map(source => source.selectedSubjects));
-        const resolvedSchedule = getMostInformativeProfileSchedule(
-            ...safeSources.map(source => source.schedule)
-        );
-        const resolvedProfileImage = pickPreferredProfileText(
-            safeSources.map(source => source.profileImage),
-            { allowWeak: true }
-        );
-        const resolvedAbout = pickPreferredProfileText(
-            safeSources.map(source => source.about),
-            { allowWeak: true }
-        );
-        const resolvedAccountCreatedAt = pickPreferredProfileText(
-            safeSources.map(source => source.accountCreatedAt),
-            { allowWeak: true }
-        );
-        const resolvedNotes = typeof normalizeUserNotes === "function"
-            ? normalizeUserNotes(getFirstNonEmptyArray(...safeSources.map(source => source.notes)))
-            : getFirstNonEmptyArray(...safeSources.map(source => source.notes));
-        const resolvedNoteFolders = typeof normalizeNoteFolders === "function"
-            ? normalizeNoteFolders(getFirstNonEmptyArray(...safeSources.map(source => source.noteFolders)))
-            : getFirstNonEmptyArray(...safeSources.map(source => source.noteFolders));
-        const resolvedTotalWorkedSeconds = Math.max(
-            ...safeSources.map(source => Math.max(
-                parseInteger(source.totalWorkedSeconds, 0),
-                parseInteger(source.totalStudyTime, 0)
-            )),
-            typeof calculateTotalWorkedSecondsFromSchedule === "function"
-                ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
-                : 0
-        );
-        const resolvedTotalQuestionsAllTime = Math.max(
-            ...safeSources.map(source => parseInteger(source.totalQuestionsAllTime, 0)),
-            typeof calculateTotalQuestionsFromSchedule === "function"
-                ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
-                : 0
-        );
-
-        return {
-            ...safeSources.reduce((accumulator, source) => ({ ...accumulator, ...source }), {}),
-            uid: pickPreferredProfileText(safeSources.map(source => source.uid), { allowWeak: true }) || currentUser?.uid || "",
-            email: resolvedEmail,
-            username: resolvedUsername || "",
-            name: pickPreferredProfileText(
-                safeSources.flatMap(source => [source.name, source.username, resolvedUsername]),
-                { email: resolvedEmail, allowWeak: true }
-            ) || resolvedUsername || "",
-            about: resolvedAbout,
-            profileImage: resolvedProfileImage,
-            accountCreatedAt: resolvedAccountCreatedAt,
-            studyTrack: resolvedStudyTrack,
-            selectedSubjects: resolvedSelectedSubjects,
-            schedule: resolvedSchedule,
-            totalWorkedSeconds: resolvedTotalWorkedSeconds,
-            totalStudyTime: resolvedTotalWorkedSeconds,
-            totalQuestionsAllTime: resolvedTotalQuestionsAllTime,
-            notes: resolvedNotes,
-            noteFolders: resolvedNoteFolders
-        };
-    }
-
     function getMostInformativeProfileSchedule(...scheduleCandidates) {
         let fallbackSchedule = {};
 
@@ -4717,12 +3809,9 @@
             getCurrentDayQuestionsFromSchedule(safeSchedule, referenceDate),
             getExplicitQuestionCounterValue(profileData || {}, ["leaderboardDailyQuestions", "dailyQuestionCount", "dailyQuestions", "daily"])
         );
-        // Weekly profile questions must come from the current Monday-Sunday schedule window.
-        // Legacy mirrored weekly fields can leak last week's total into Monday, so do not trust
-        // them here; only fall back to today's solved count if the current week schedule has not
-        // been hydrated yet.
         const weeklyQuestions = Math.max(
             getCurrentWeekQuestionsFromSchedule(safeSchedule, referenceDate),
+            getExplicitQuestionCounterValue(profileData || {}, ["leaderboardWeeklyQuestions", "weeklyQuestionCount", "weeklyQuestions", "weekly"]),
             dailyQuestions
         );
         const totalQuestionsAllTime = Math.max(
@@ -5234,16 +4323,7 @@
     }
 
     function buildPublicProfilePayload(basePayload = {}) {
-        const safeProfile = resolveWritableCurrentUserProfile(basePayload);
-        const safeSchedule = sanitizeScheduleData(
-            getMostInformativeProfileSchedule(
-                scheduleData || {},
-                basePayload.schedule || {},
-                safeProfile.mergedProfile?.schedule || {},
-                currentUserLiveDoc?.schedule || {},
-                currentUserPublicProfileDoc?.schedule || {}
-            )
-        );
+        const safeSchedule = sanitizeScheduleData(basePayload.schedule || scheduleData || {});
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, currentUserLiveDoc || {});
@@ -5266,6 +4346,14 @@
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
+        const resolvedUsername = String(
+            currentUsername
+            || basePayload.username
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || basePayload.email?.split?.("@")?.[0]
+            || ""
+        ).trim();
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || basePayload.uid || "",
             schedule: safeSchedule,
@@ -5276,14 +4364,14 @@
 
         return {
             uid: currentUser?.uid || basePayload.uid || "",
-            username: safeProfile.username || "Kullanici",
-            about: safeProfile.about || "",
-            profileImage: safeProfile.profileImage || "",
-            accountCreatedAt: safeProfile.accountCreatedAt || "",
-            studyTrack: safeProfile.studyTrack || "",
+            username: resolvedUsername || "Kullanici",
+            about: currentProfileAbout || basePayload.about || "",
+            profileImage: currentProfileImage || basePayload.profileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || basePayload.accountCreatedAt || "",
+            studyTrack: studyTrack || basePayload.studyTrack || "",
             selectedSubjects: typeof normalizeSelectedSubjects === "function"
-                ? normalizeSelectedSubjects(safeProfile.studyTrack || "", safeProfile.selectedSubjects || [])
-                : (safeProfile.selectedSubjects || []),
+                ? normalizeSelectedSubjects(studyTrack || basePayload.studyTrack || "", selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || []))
+                : (selectedSubjects?.length ? selectedSubjects : (basePayload.selectedSubjects || [])),
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!basePayload.isAdmin,
@@ -5327,37 +4415,31 @@
 
     function buildLeaderboardDocumentPayload(basePayload = {}) {
         const isCurrentUserTarget = isCurrentUserPayloadTarget(basePayload);
-        const safeProfile = isCurrentUserTarget
-            ? resolveWritableCurrentUserProfile(basePayload)
-            : {
-                mergedProfile: basePayload || {},
-                email: String(basePayload.email || "").trim(),
-                username: String(basePayload.username || basePayload.name || "").trim(),
-                about: String(basePayload.about || "").trim(),
-                profileImage: String(basePayload.profileImage || "").trim(),
-                accountCreatedAt: String(basePayload.accountCreatedAt || "").trim(),
-                studyTrack: String(basePayload.studyTrack || "").trim(),
-                selectedSubjects: Array.isArray(basePayload.selectedSubjects) ? [...basePayload.selectedSubjects] : []
-            };
-        const safeSchedule = sanitizeScheduleData(
-            getMostInformativeProfileSchedule(
-                isCurrentUserTarget ? (scheduleData || {}) : {},
-                basePayload.schedule || {},
-                safeProfile.mergedProfile?.schedule || {},
-                currentUserLiveDoc?.schedule || {},
-                currentUserPublicProfileDoc?.schedule || {}
-            )
-        );
+        const safeSchedule = sanitizeScheduleData(basePayload.schedule || (isCurrentUserTarget ? (scheduleData || {}) : {}));
         const currentDayMeta = getCurrentDayMeta(new Date());
         const questionCounters = buildQuestionCounterPayload(safeSchedule);
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
         const resolvedTitleAwards = getStoredTitleAwards(basePayload, isCurrentUserTarget ? (currentUserLiveDoc || {}) : {});
-        const resolvedEmail = safeProfile.email || "";
-        const resolvedUsername = safeProfile.username || "";
-        const resolvedStudyTrack = safeProfile.studyTrack || "";
+        const resolvedEmail = String(
+            (isCurrentUserTarget ? (currentUser?.email || "") : "")
+            || basePayload.email
+            || ""
+        ).trim();
+        const resolvedUsername = String(
+            (isCurrentUserTarget ? (currentUsername || "") : "")
+            || basePayload.username
+            || (isCurrentUserTarget ? (currentUser?.displayName || "") : "")
+            || resolvedEmail.split("@")[0]
+            || ""
+        ).trim();
+        const resolvedStudyTrack = String(
+            (isCurrentUserTarget ? (studyTrack || "") : "")
+            || basePayload.studyTrack
+            || ""
+        ).trim();
         const resolvedSelectedSubjectsSource = isCurrentUserTarget && Array.isArray(selectedSubjects) && selectedSubjects.length
-            ? safeProfile.selectedSubjects
-            : ((safeProfile.selectedSubjects && safeProfile.selectedSubjects.length) ? safeProfile.selectedSubjects : (basePayload.selectedSubjects || []));
+            ? selectedSubjects
+            : (basePayload.selectedSubjects || []);
         const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
             ? normalizeSelectedSubjects(resolvedStudyTrack, resolvedSelectedSubjectsSource)
             : resolvedSelectedSubjectsSource;
@@ -5423,9 +4505,9 @@
             role: resolvedRole,
             isAdmin: resolvedIsAdmin,
             adminTitle: resolvedAdminTitle,
-            about: safeProfile.about || "",
-            profileImage: safeProfile.profileImage || "",
-            accountCreatedAt: safeProfile.accountCreatedAt || "",
+            about: String((isCurrentUserTarget ? (currentProfileAbout || "") : "") || basePayload.about || "").trim(),
+            profileImage: (isCurrentUserTarget ? (currentProfileImage || "") : "") || basePayload.profileImage || "",
+            accountCreatedAt: (isCurrentUserTarget ? (currentAccountCreatedAt || "") : "") || basePayload.accountCreatedAt || "",
             studyTrack: resolvedStudyTrack,
             selectedSubjects: resolvedSelectedSubjects,
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
@@ -5515,11 +4597,15 @@
         if (!currentUser?.uid) return Promise.resolve();
         scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
-        const safeProfile = resolveWritableCurrentUserProfile();
 
         const dailyQuestions = getCurrentDayQuestionsFromSchedule(scheduleData);
         const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(scheduleData);
-        const resolvedUsername = String(safeProfile.username || "").trim();
+        const resolvedUsername = String(
+            currentUsername
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || ""
+        ).trim();
 
         const questionPatch = {
             uid: currentUser.uid,
@@ -5646,16 +4732,13 @@
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
         );
-        const localHasValidatedStudyActivity = hasValidatedStudyActivityForDate(localDayData, dateKey);
-        const remoteHasValidatedStudyActivity = hasValidatedStudyActivityForDate(remoteDayData, dateKey);
         const localRunningToday = !!timerState.session?.isRunning
             && !hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate);
-        const remoteExplicitlyEmptyToday = parseInteger(remoteDayData.workedSeconds, 0) <= 0
-            && explicitDailySeconds <= 0;
         const shouldTrustRemoteReset = !shouldForceReplaceFromAdmin
             && !localRunningToday
-            && remoteExplicitlyEmptyToday
-            && (remoteResetState.needsSync || !localHasValidatedStudyActivity || !remoteHasValidatedStudyActivity);
+            && remoteResetState.needsSync
+            && parseInteger(remoteDayData.workedSeconds, 0) <= 0
+            && explicitDailySeconds <= 0;
         const nextWorkedSeconds = shouldForceReplaceFromAdmin
             ? Math.max(
                 0,
@@ -5677,23 +4760,11 @@
         }
         if (!scheduleData[weekKey]) scheduleData[weekKey] = {};
 
-        const nextStudySessions = shouldTrustRemoteReset
-            ? normalizeStudySessions(remoteDayData.studySessions || [])
-            : mergeStudySessions(localDayData.studySessions || [], remoteDayData.studySessions || []);
-        const nextBreakSessions = shouldTrustRemoteReset
-            ? normalizeStudySessions(remoteDayData.breakSessions || [])
-            : mergeStudySessions(localDayData.breakSessions || [], remoteDayData.breakSessions || []);
-        const nextBreakSeconds = shouldTrustRemoteReset
-            ? Math.max(0, parseInteger(remoteDayData.breakSeconds, 0))
-            : Math.max(parseInteger(localDayData.breakSeconds, 0), parseInteger(remoteDayData.breakSeconds, 0));
-
         scheduleData[weekKey][dayIdx] = ensureDayObject({
             ...remoteDayData,
             ...localDayData,
             workedSeconds: nextWorkedSeconds,
-            breakSeconds: nextBreakSeconds,
-            studySessions: nextStudySessions,
-            breakSessions: nextBreakSessions
+            studySessions: mergeStudySessions(localDayData.studySessions || [], remoteDayData.studySessions || [])
         });
 
         if (typeof refreshCurrentTotals === "function") {
@@ -5703,14 +4774,7 @@
     }
 
     function buildRealtimeStudyPayload(options = {}) {
-        const safeProfile = resolveWritableCurrentUserProfile();
-        scheduleData = sanitizeScheduleData(
-            getMostInformativeProfileSchedule(
-                scheduleData || {},
-                currentUserLiveDoc?.schedule || {},
-                currentUserPublicProfileDoc?.schedule || {}
-            )
-        );
+        scheduleData = sanitizeScheduleData(scheduleData || {});
         refreshCurrentTotals();
 
         const syncTimestamp = Date.now();
@@ -5740,7 +4804,14 @@
         const resolvedBreakSessionTime = activeBreakTimerRecord
             ? sessionPendingSeconds
             : 0;
-        const resolvedName = safeProfile.username || "Kullanici";
+        const resolvedName = String(
+            currentUsername
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || currentUserLiveDoc?.username
+            || currentUserLiveDoc?.name
+            || ""
+        ).trim() || "Kullanici";
         const legacyWorkingStartedAt = activeStudyTimerRecord
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
@@ -5760,7 +4831,6 @@
         return {
             schedule: scheduleData,
             name: resolvedName,
-            username: resolvedName,
             totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
             totalStudyTime: totalWorkedSecondsAllTime || 0,
             totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
@@ -5772,7 +4842,6 @@
             todayStudyTime: currentDayWorkedSeconds,
             todayWorkedSeconds: currentDayWorkedSeconds,
             dailyStudyDateKey: currentDayMeta.dateKey,
-            dailyDateKey: currentDayMeta.dateKey,
             todayDateKey: currentDayMeta.dateKey,
             weeklyStudyTime: currentWeekWorkedSeconds,
             currentWeekSeconds: currentWeekWorkedSeconds,
@@ -5787,14 +4856,7 @@
             lastSyncTime: syncTimestamp,
             lastTimerSyncAt: syncTimestamp,
             lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
-            lastSavedTimestamp: syncTimestamp,
-            sessionFinalized: !(activeStudyTimerRecord || activeBreakTimerRecord),
-            emailVerified: !!currentUser?.emailVerified,
-            profileImage: safeProfile.profileImage || "",
-            about: safeProfile.about || "",
-            accountCreatedAt: safeProfile.accountCreatedAt || "",
-            studyTrack: safeProfile.studyTrack || "",
-            selectedSubjects: safeProfile.selectedSubjects || []
+            emailVerified: !!currentUser?.emailVerified
         };
     }
 
@@ -5803,14 +4865,7 @@
     }
 
     function buildOptimisticCurrentUserData(baseData = {}, activeSessionOverride) {
-        const safeProfile = resolveWritableCurrentUserProfile(baseData);
-        const normalizedLocalSchedule = sanitizeScheduleData(
-            getMostInformativeProfileSchedule(
-                scheduleData || {},
-                currentUserLiveDoc?.schedule || {},
-                currentUserPublicProfileDoc?.schedule || {}
-            )
-        );
+        const normalizedLocalSchedule = sanitizeScheduleData(scheduleData || {});
         const normalizedBaseSchedule = sanitizeScheduleData(baseData.schedule || {});
         const resolvedSchedule = hasAnyScheduleEntries(normalizedLocalSchedule) ? normalizedLocalSchedule : normalizedBaseSchedule;
         const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
@@ -5858,14 +4913,14 @@
 
         return {
             ...baseData,
-            username: safeProfile.username || baseData.username || "Kullanıcı",
-            name: safeProfile.username || baseData.name || baseData.username || "Kullanici",
-            email: safeProfile.email || currentUser?.email || baseData.email || "",
+            username: currentUsername || baseData.username || "Kullanıcı",
+            name: currentUsername || baseData.name || baseData.username || "Kullanici",
+            email: currentUser?.email || baseData.email || "",
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
-            about: safeProfile.about || baseData.about || "",
-            profileImage: safeProfile.profileImage || baseData.profileImage || "",
-            accountCreatedAt: safeProfile.accountCreatedAt || baseData.accountCreatedAt || "",
-            studyTrack: safeProfile.studyTrack || baseData.studyTrack || "",
+            about: currentProfileAbout || baseData.about || "",
+            profileImage: currentProfileImage || baseData.profileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || baseData.accountCreatedAt || "",
+            studyTrack: studyTrack || baseData.studyTrack || "",
             selectedSubjects: resolvedSelectedSubjects,
             selectedTitleId: resolvedTitleInfo.selectedTitleId,
             titleAwards: resolvedTitleInfo.titleAwards,
@@ -5939,8 +4994,12 @@
     function refreshLeaderboardOptimistically(activeSessionOverride) {
         if (currentUser?.uid) {
             const docIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
-            if (docIndex < 0) {
-                const docData = buildOptimisticCurrentUserData(currentUserLiveDoc || {}, activeSessionOverride);
+            const baseData = docIndex >= 0 ? (leaderboardRealtimeDocs[docIndex]?.data || {}) : (currentUserLiveDoc || {});
+            const docData = buildOptimisticCurrentUserData(baseData, activeSessionOverride);
+
+            if (docIndex >= 0) {
+                leaderboardRealtimeDocs[docIndex] = { id: currentUser.uid, data: docData };
+            } else {
                 leaderboardRealtimeDocs.push({ id: currentUser.uid, data: docData });
             }
         }
@@ -5983,64 +5042,37 @@
         renderSchedule();
     }
 
-    function updateLiveStudyPreview(options = {}) {
+    function updateLiveStudyPreview() {
         const visibleSession = hasTimerSessionCrossedDayBoundary(timerState.session) ? null : timerState.session;
-        const isRunning = isTimerVisibleForLeaderboard(visibleSession);
-        const now = Date.now();
-        const refreshEveryMs = isRunning ? 2000 : 0;
-        if (!options.force && refreshEveryMs && now - lastLivePreviewAt < refreshEveryMs) {
-            return;
-        }
-        lastLivePreviewAt = now;
-
-        const unsavedDelta = isRunning ? getPendingTimerDelta(visibleSession) : 0;
+        const unsavedDelta = isTimerVisibleForLeaderboard(visibleSession) ? getPendingTimerDelta(visibleSession) : 0;
         const currentDayWorked = getCurrentDayWorkedSeconds() + unsavedDelta;
-        const baseWeeklySeconds = getResolvedCurrentWeekWorkedSeconds(
-            currentUserLiveDoc || {},
-            scheduleData || {},
-            new Date()
-        );
-        const currentWeekTotals = baseWeeklySeconds + unsavedDelta;
-
-        const formatValue = value => (
-            typeof formatSeconds === "function" ? formatSeconds(value) : String(value)
-        );
-
-        const todayText = `Gunluk Sure: ${formatValue(currentDayWorked)}`;
-        const weekText = `Haftalik Sure: ${formatValue(currentWeekTotals)}`;
-        const profileText = formatValue((totalWorkedSecondsAllTime || 0) + unsavedDelta);
-        const todayCellText = formatValue(currentDayWorked);
+        const currentWeekTotals = typeof getCurrentWeekTotalsFromSchedule === "function"
+            ? getCurrentWeekTotalsFromSchedule(scheduleData || {}).seconds + unsavedDelta
+            : totalWorkedSecondsAllTime + unsavedDelta;
 
         const todayNode = document.getElementById("today-worked-time");
         const weekNode = document.getElementById("all-time-score");
         const profileNode = document.getElementById("profile-total-work");
 
-        if (todayNode && todayNode.textContent !== todayText) {
-            todayNode.textContent = todayText;
+        if (todayNode) {
+            todayNode.textContent = `Gunluk Sure: ${typeof formatSeconds === "function" ? formatSeconds(currentDayWorked) : currentDayWorked}`;
         }
 
-        if (weekNode && weekNode.textContent !== weekText) {
-            weekNode.textContent = weekText;
+        if (weekNode) {
+            weekNode.textContent = `Haftalik Sure: ${typeof formatSeconds === "function" ? formatSeconds(currentWeekTotals) : currentWeekTotals}`;
         }
 
         if (profileNode && document.getElementById("profile-modal")?.style.display === "flex" && currentProfileModalEditable) {
-            if (profileNode.textContent !== profileText) {
-                profileNode.textContent = profileText;
-            }
+            profileNode.textContent = typeof formatSeconds === "function" ? formatSeconds((totalWorkedSecondsAllTime || 0) + unsavedDelta) : String((totalWorkedSecondsAllTime || 0) + unsavedDelta);
         }
 
         const todayCell = document.querySelector(".day-cell.active-today .day-score-display");
-        if (todayCell && todayCell.textContent !== todayCellText) {
-            todayCell.textContent = todayCellText;
+        if (todayCell) {
+            todayCell.textContent = `${typeof formatSeconds === "function" ? formatSeconds(currentDayWorked) : currentDayWorked}`;
         }
 
-        if (!options.skipPill) {
-            updateTimerSessionPill();
-        }
-
-        if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
-            refreshLeaderboardOptimistically();
-        }
+        updateTimerSessionPill();
+        refreshLeaderboardOptimistically();
     }
 
     function getTodayQuestionState() {
@@ -6221,12 +5253,7 @@
             startedAtLabel: formatStudySessionClock(session.startTime),
             endedAtLabel: formatStudySessionClock(session.endTime)
         }));
-        const rawWorkedSeconds = Math.max(0, parseInteger(dayData.workedSeconds, 0));
-        const dedupedWorkedSeconds = getDedupedStudySeconds(dayData);
-        const resolvedWorkedSeconds = dedupedWorkedSeconds > 0 && dedupedWorkedSeconds < rawWorkedSeconds
-            ? dedupedWorkedSeconds
-            : rawWorkedSeconds;
-        const totalDurationMs = resolvedWorkedSeconds * 1000;
+        const totalDurationMs = Math.max(0, parseInteger(dayData.workedSeconds, 0)) * 1000;
         const totalBreakMs = Math.max(0, parseInteger(dayData.breakSeconds, 0)) * 1000;
 
         return {
@@ -6290,63 +5317,6 @@
             mostProductiveDay: mostProductiveDay?.totalDurationMs > 0 ? mostProductiveDay : null
             ,
             mostBreakDay: mostBreakDay?.totalBreakMs > 0 ? mostBreakDay : null
-        };
-    }
-
-    function buildDailyHourlyAnalytics(referenceDate = new Date()) {
-        const safeDate = referenceDate instanceof Date ? new Date(referenceDate) : parseAnalyticsDateKey(referenceDate);
-        const { dateKey, dayData } = getScheduleDayDataByDate(safeDate);
-        const sessions = normalizeStudySessions(dayData.studySessions || []);
-        const dayStart = parseAnalyticsDateKey(dateKey);
-        dayStart.setHours(0, 0, 0, 0);
-        const buckets = Array.from({ length: 24 }, (_, hourIndex) => {
-            const bucketStart = new Date(dayStart);
-            bucketStart.setHours(hourIndex, 0, 0, 0);
-            const bucketEnd = new Date(bucketStart);
-            bucketEnd.setHours(hourIndex + 1, 0, 0, 0);
-            return {
-                hourIndex,
-                label: `${String(hourIndex).padStart(2, "0")}:00`,
-                startMs: bucketStart.getTime(),
-                endMs: bucketEnd.getTime(),
-                durationMs: 0
-            };
-        });
-
-        sessions.forEach(session => {
-            const sessionStartMs = Math.max(dayStart.getTime(), parseInteger(session.startTime, 0));
-            const sessionEndMs = Math.min(dayStart.getTime() + (24 * 60 * 60 * 1000), parseInteger(session.endTime, 0));
-            if (sessionEndMs <= sessionStartMs) return;
-
-            buckets.forEach(bucket => {
-                const overlapStart = Math.max(sessionStartMs, bucket.startMs);
-                const overlapEnd = Math.min(sessionEndMs, bucket.endMs);
-                if (overlapEnd > overlapStart) {
-                    bucket.durationMs += overlapEnd - overlapStart;
-                }
-            });
-        });
-
-        const pendingInterval = !isBreakTimerMode(timerState.session?.mode)
-            ? getPendingTimerInterval(timerState.session, Date.now())
-            : null;
-        if (pendingInterval && getDateKeyFromTimestamp(pendingInterval.startMs) === dateKey) {
-            buckets.forEach(bucket => {
-                const overlapStart = Math.max(pendingInterval.startMs, bucket.startMs);
-                const overlapEnd = Math.min(pendingInterval.endMs, bucket.endMs);
-                if (overlapEnd > overlapStart) {
-                    bucket.durationMs += overlapEnd - overlapStart;
-                }
-            });
-        }
-
-        const totalDurationMs = buckets.reduce((sum, bucket) => sum + bucket.durationMs, 0);
-        return {
-            dateKey,
-            dateLabel: formatAnalyticsDateLabel(safeDate),
-            totalDurationMs,
-            totalDurationLabel: formatAnalyticsDuration(totalDurationMs),
-            buckets
         };
     }
 
@@ -6578,72 +5548,22 @@
         `).join("");
     }
 
-    function renderGraphAnalytics() {
-        const totalNode = document.getElementById("analytics-graph-total");
-        const listNode = document.getElementById("analytics-graph-list");
-        const dateInput = document.getElementById("analytics-graph-date-input");
-        if (!totalNode || !listNode || !dateInput) return;
-
-        const selectedDate = parseAnalyticsDateKey(
-            analyticsState.selectedDateKey
-            || getCurrentDayMeta(new Date()).dateKey
-        );
-        const graphData = buildDailyHourlyAnalytics(selectedDate);
-        analyticsState.selectedDateKey = graphData.dateKey;
-        dateInput.value = graphData.dateKey;
-
-        renderAnalyticsHero({
-            label: "Saat Aralığına Göre Çalışma",
-            value: graphData.totalDurationLabel,
-            subtitle: graphData.dateLabel,
-            meta: "Günün hangi saatlerinde ne kadar çalıştığın burada görünür."
-        });
-
-        totalNode.innerHTML = `
-            <span>Toplam Çalışma</span>
-            <strong>${escapeHtml(graphData.totalDurationLabel)}</strong>
-            <div class="analytics-hero-meta">${escapeHtml(graphData.dateLabel)}</div>
-        `;
-
-        const maxDurationMs = Math.max(1, ...graphData.buckets.map(bucket => bucket.durationMs));
-        listNode.innerHTML = graphData.buckets.map(bucket => {
-            const width = bucket.durationMs > 0
-                ? Math.max(6, Math.round((bucket.durationMs / maxDurationMs) * 100))
-                : 0;
-            return `
-                <div class="analytics-graph-row">
-                    <span class="analytics-graph-hour">${escapeHtml(bucket.label)}</span>
-                    <div class="analytics-graph-track">
-                        <div class="analytics-graph-fill" style="width:${width}%"></div>
-                    </div>
-                    <span class="analytics-graph-duration">${bucket.durationMs > 0 ? escapeHtml(formatAnalyticsDuration(bucket.durationMs)) : "0s"}</span>
-                </div>
-            `;
-        }).join("");
-    }
-
     function renderAnalyticsPanel() {
         const modal = document.getElementById("analytics-modal");
         if (!modal) return;
 
         const dailyTabButton = document.getElementById("analytics-tab-daily");
         const weeklyTabButton = document.getElementById("analytics-tab-weekly");
-        const graphTabButton = document.getElementById("analytics-tab-graph");
         const dailyPane = document.getElementById("analytics-daily-pane");
         const weeklyPane = document.getElementById("analytics-weekly-pane");
-        const graphPane = document.getElementById("analytics-graph-pane");
 
         if (dailyTabButton) dailyTabButton.classList.toggle("is-active", analyticsState.tab === "daily");
         if (weeklyTabButton) weeklyTabButton.classList.toggle("is-active", analyticsState.tab === "weekly");
-        if (graphTabButton) graphTabButton.classList.toggle("is-active", analyticsState.tab === "graph");
         if (dailyPane) dailyPane.style.display = analyticsState.tab === "daily" ? "" : "none";
         if (weeklyPane) weeklyPane.style.display = analyticsState.tab === "weekly" ? "" : "none";
-        if (graphPane) graphPane.style.display = analyticsState.tab === "graph" ? "" : "none";
 
         if (analyticsState.tab === "weekly") {
             renderWeeklyAnalytics();
-        } else if (analyticsState.tab === "graph") {
-            renderGraphAnalytics();
         } else {
             renderDailyAnalytics();
         }
@@ -6679,9 +5599,7 @@
     };
 
     window.setAnalyticsTab = function(tab = "daily") {
-        analyticsState.tab = tab === "weekly"
-            ? "weekly"
-            : (tab === "graph" ? "graph" : "daily");
+        analyticsState.tab = tab === "weekly" ? "weekly" : "daily";
         renderAnalyticsPanel();
     };
 
@@ -6720,11 +5638,6 @@
 
         const mode = timerState.mode;
         let session = timerState.session;
-
-        if (session?.resumeLocked) {
-            clearTimerFinalizedSnapshot(currentUser?.uid || "");
-            session = createEmptyTimerSession(mode);
-        }
 
         if (!session || session.mode !== mode) {
             session = createEmptyTimerSession(mode);
@@ -6806,10 +5719,6 @@
             clearActive: true
         });
 
-        persistTimerFinalizedSnapshot(session, Date.now(), {
-            elapsedSeconds: session.baseElapsedSeconds,
-            reason: "complete"
-        });
         timerState.session = createEmptyTimerSession("pomodoro");
         timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
         timerDrafts.pomodoro = { ...timerState.session };
@@ -6821,11 +5730,6 @@
     }
 
     async function resetRealtimeTimer(resetInputs = true, silent = false) {
-        logTimerReset("manual-reset", {
-            mode: timerState.mode,
-            resetInputs: resetInputs !== false
-        });
-        console.log("RESET CALLED");
         if (timerState.session) {
             const delta = applyPendingTimerDelta(timerState.session);
             if (delta > 0) {
@@ -6837,7 +5741,6 @@
         isRunning = false;
         timerState.session = null;
         persistTimerSessionLocally(null);
-        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         releaseTimerOwnership();
 
         if (resetInputs && isCountdownTimerMode(timerState.mode)) {
@@ -6875,9 +5778,6 @@
         const storedSession = readStoredTimerSession();
         const storedSessionMatchesUser = !!storedSession
             && (!storedSession.uid || !currentUser?.uid || storedSession.uid === currentUser.uid);
-        const finalizedSnapshot = readTimerFinalizedSnapshot();
-        const finalizedSnapshotMatchesUser = !!finalizedSnapshot
-            && (!finalizedSnapshot.uid || !currentUser?.uid || finalizedSnapshot.uid === currentUser.uid);
         const remoteTimerRecord = userData?.activeTimer || userData?.activeBreakTimer || null;
         const storedResetState = storedSessionMatchesUser
             ? finalizeTimerSessionForNewDay(storedSession, referenceDate, {
@@ -6898,12 +5798,9 @@
             && isTimerRecordRunning(remoteSessionCandidate, referenceDate.getTime());
         const shouldClearRemoteTimer = remoteResetState.didReset || (storedResetState.didReset && !hasFreshRemoteSession);
         const resetSignature = remoteResetState.resetSignature || storedResetState.resetSignature || "";
-        const finalizedSessionCandidate = finalizedSnapshotMatchesUser
-            ? buildStoppedTimerSessionFromFinalizedSnapshot(finalizedSnapshot, referenceDate)
-            : null;
         const seedSession = storedSessionMatchesUser && !storedResetState.didReset
             ? storedSession
-            : (remoteSessionCandidate || finalizedSessionCandidate);
+            : remoteSessionCandidate;
 
         if (seedSession?.mode) {
             timerState.mode = normalizeTimerMode(seedSession.mode);
@@ -6955,7 +5852,6 @@
         }
 
         if (storedResetState.didReset || remoteResetState.didReset) {
-            clearTimerFinalizedSnapshot(currentUser?.uid || "");
             currentUserLiveDoc = {
                 ...(currentUserLiveDoc || {}),
                 activeTimer: null,
@@ -6965,9 +5861,7 @@
                 isOnBreak: false,
                 currentSessionTime: 0,
                 currentBreakSessionTime: 0,
-                legacyWorkingStartedAt: 0,
-                dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey,
-                todayDateKey: getCurrentDayMeta(referenceDate).dateKey
+                dailyStudyDateKey: getCurrentDayMeta(referenceDate).dateKey
             };
         }
 
@@ -6976,20 +5870,6 @@
         }
 
         timerDrafts[timerState.mode] = { ...timerState.session };
-        if (recoveryState.action === "auto-finalized" && timerState.session) {
-            persistTimerFinalizedSnapshot(timerState.session, recoveryState.referenceMs || referenceDate.getTime(), {
-                elapsedSeconds: recoveryState.elapsed,
-                reason: recoveryState.action
-            });
-        } else if (timerState.session && !timerState.session.isRunning) {
-            const frozenElapsedSeconds = getTimerElapsedSeconds(timerState.session, referenceDate.getTime());
-            if (frozenElapsedSeconds > 0 && !hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate)) {
-                persistTimerFinalizedSnapshot(timerState.session, referenceDate.getTime(), {
-                    elapsedSeconds: frozenElapsedSeconds,
-                    reason: "restore-frozen"
-                });
-            }
-        }
         if (timerState.session?.isRunning) {
             isRunning = true;
             startTimerLoops();
@@ -7023,15 +5903,9 @@
         }
 
         writeHandledAdminTimerResetSignature(adminTimerReset);
-        logTimerReset("admin-reset", {
-            scope: adminTimerReset.scope,
-            dateKey: adminTimerReset.dateKey,
-            weekKey: adminTimerReset.weekKey
-        });
         stopTimerLoops();
         isRunning = false;
         persistTimerSessionLocally(null);
-        clearTimerFinalizedSnapshot(currentUser?.uid || "");
         releaseTimerOwnership();
 
         scheduleData = sanitizeScheduleData(userData.schedule || {});
@@ -7081,11 +5955,7 @@
         const scheduleDailySeconds = getFreshDailyStudySeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate, {
             displayReferenceMs: dayDisplayReferenceMs
         });
-        const scheduleWeeklySeconds = getResolvedCurrentWeekWorkedSeconds(
-            normalizedUserData,
-            normalizedUserData?.schedule || {},
-            currentDate
-        );
+        const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(normalizedUserData?.schedule || {}, currentDate);
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
@@ -7212,7 +6082,6 @@
         const activeTimer = rawData?.activeTimer || null;
         const activeTimerRunning = isTimerRecordRunning(activeTimer, now);
         const explicitWorkingFlag = !!rawData?.isWorking || !!rawData?.isRunning || activeTimerRunning;
-        const sessionFinalized = rawData?.sessionFinalized === true;
         const lastSyncAt = getLeaderboardSessionLastSyncAt(rawData);
         const syncLooksFresh = lastSyncAt > 0 && (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
         const inferredPresence = inferredWorkingPresenceByUserId.get(docId) || null;
@@ -7243,13 +6112,8 @@
         }
 
         const legacyLooksFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
-        const canUseLegacyPresence = !sessionFinalized && legacyLooksFresh;
-        const inferredWorking = !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh && canUseLegacyPresence;
-        const hasRemoteLiveEvidence = rawCurrentSessionTime > 0 || syncLooksFresh || explicitWorkingFlag || inferredStartedAtMs > 0;
-        const isWorking = activeTimerRunning
-            || (explicitWorkingFlag && canUseLegacyPresence && hasRemoteLiveEvidence)
-            || (canUseLegacyPresence && rawCurrentSessionTime > 0)
-            || inferredWorking;
+        const inferredWorking = !explicitWorkingFlag && inferredStartedAtMs > 0 && syncLooksFresh && legacyLooksFresh;
+        const isWorking = activeTimerRunning || (explicitWorkingFlag && legacyLooksFresh && (rawCurrentSessionTime > 0 || syncLooksFresh)) || inferredWorking;
 
         if (isWorking && legacyWorkingStartedAt > 0) {
             legacyWorkingPresenceByUserId.set(docId, { startedAtMs: legacyWorkingStartedAt });
@@ -7271,13 +6135,9 @@
         const activeTimer = userData?.activeTimer || null;
         const currentSessionTime = Math.max(0, parseInteger(userData?.currentSessionTime, 0));
         const legacyWorkingStartedAt = Math.max(0, parseInteger(userData?.legacyWorkingStartedAt, 0));
-        const sessionFinalized = userData?.sessionFinalized === true;
         const lastSyncAt = getLeaderboardSessionLastSyncAt(userData);
         const isRunning = !!userData?.isRunning || !!userData?.isWorking;
         const activeTimerVisible = isTimerVisibleForLeaderboard(activeTimer, now);
-        const legacyIsFresh = !sessionFinalized
-            && legacyWorkingStartedAt > 0
-            && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
 
         if (activeTimerVisible) {
             return {
@@ -7288,19 +6148,10 @@
         }
 
         if (currentSessionTime <= 0) {
-            if (legacyIsFresh && isRunning) {
-                const secondsSinceLastSync = lastSyncAt > 0
-                    ? Math.max(0, Math.floor((now - lastSyncAt) / 1000))
-                    : 0;
+            const legacyIsFresh = legacyWorkingStartedAt > 0 && (now - legacyWorkingStartedAt) < TIMER_AUTO_STOP_MS;
+            if (legacyIsFresh && !!userData?.isWorking) {
                 return {
-                    seconds: Math.max(
-                        0,
-                        secondsSinceLastSync,
-                        lastSyncAt > 0
-                            ? Math.floor((now - legacyWorkingStartedAt) / 1000)
-                                - Math.max(0, Math.floor((lastSyncAt - legacyWorkingStartedAt) / 1000))
-                            : Math.floor((now - legacyWorkingStartedAt) / 1000)
-                    ),
+                    seconds: Math.max(0, Math.floor((now - legacyWorkingStartedAt) / 1000)),
                     isLive: true,
                     lastSyncAt: Math.max(lastSyncAt, legacyWorkingStartedAt)
                 };
@@ -7322,12 +6173,11 @@
 
         const secondsSinceLastSync = Math.max(0, Math.floor((now - lastSyncAt) / 1000));
         const isFresh = (now - lastSyncAt) < REMOTE_TIMER_STALE_MS;
-        const fallbackSeconds = Math.max(currentSessionTime, currentSessionTime + secondsSinceLastSync, secondsSinceLastSync);
-        const canExtendWithLegacy = legacyIsFresh && isRunning;
+        const fallbackSeconds = Math.max(currentSessionTime, secondsSinceLastSync);
 
         return {
-            seconds: ((isFresh || canExtendWithLegacy) && isRunning) ? fallbackSeconds : 0,
-            isLive: (isFresh || canExtendWithLegacy) && isRunning,
+            seconds: (isFresh && isRunning) ? fallbackSeconds : 0,
+            isLive: isFresh && isRunning,
             lastSyncAt
         };
     }
@@ -7382,11 +6232,9 @@
         const dailyQuestions = Math.max(questionBreakdown.dailyQuestions, displayedQuestionCounts.dailyQuestions);
         const weeklyQuestions = Math.max(questionBreakdown.weeklyQuestions, displayedQuestionCounts.weeklyQuestions);
         const questions = currentLeaderboardTab === "daily" ? dailyQuestions : weeklyQuestions;
-        const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(
-            data,
-            data.schedule || {},
-            new Date()
-        );
+        const currentWeekSeconds = typeof getCurrentWeekTotalsFromSchedule === "function"
+            ? getCurrentWeekTotalsFromSchedule(data.schedule || {}).seconds
+            : seconds;
         const isWorking = currentLeaderboardTab === "daily"
             && resolveObservedWorkingBadge(currentUser?.uid || LOCAL_LEADERBOARD_PREVIEW_ID, seconds, liveSessionSnapshot.isLive);
         const hasVisibleStats = seconds > 0 || isWorking;
@@ -7480,13 +6328,6 @@
             return nextData.sort(compareLeaderboardEntries);
         }
 
-        if (currentUser?.uid) {
-            const hasRealCurrentUserRow = nextData.some(user => user && user.uid === currentUser.uid && !user.isLocalPreview);
-            if (hasRealCurrentUserRow) {
-                return nextData.sort(compareLeaderboardEntries);
-            }
-        }
-
         const localIndex = nextData.findIndex(user => {
             if (currentUser?.uid) return user.uid === currentUser.uid;
             return user.uid === LOCAL_LEADERBOARD_PREVIEW_ID || (!!user.isLocalPreview && user.username === localEntry.username);
@@ -7573,7 +6414,7 @@
             referenceDate,
             getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, Date.now())
         );
-        const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(rawData, safeSchedule, referenceDate);
+        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
         updateInferredWorkingPresence(rawData, docId);
         const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
@@ -7614,7 +6455,7 @@
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
             updateInferredWorkingPresence(rawData, doc.id);
             const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
-            const currentWeekSeconds = getResolvedCurrentWeekWorkedSeconds(rawData, safeSchedule, referenceDate);
+            const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
             const dailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
                 safeSchedule,
                 referenceDate,
@@ -7783,8 +6624,13 @@
 
         if (currentUser?.uid) {
             const currentUserIndex = leaderboardRealtimeDocs.findIndex(item => item.id === currentUser.uid);
-            if (currentUserIndex < 0) {
-                const optimisticData = buildOptimisticCurrentUserData(currentUserLiveDoc || {});
+            const baseData = currentUserIndex >= 0
+                ? (leaderboardRealtimeDocs[currentUserIndex]?.data || {})
+                : (currentUserLiveDoc || {});
+            const optimisticData = buildOptimisticCurrentUserData(baseData);
+            if (currentUserIndex >= 0) {
+                leaderboardRealtimeDocs[currentUserIndex] = { id: currentUser.uid, data: optimisticData };
+            } else {
                 leaderboardRealtimeDocs.push({ id: currentUser.uid, data: optimisticData });
             }
         }
@@ -7991,26 +6837,6 @@
         const listContainer = document.getElementById("leaderboard-list");
         if (!listContainer) return;
 
-        const signature = [
-            currentLeaderboardTab,
-            String(leaderboardRealtimeDocs.length),
-            leaderboardRealtimeDocs.map(doc => {
-                const data = doc?.data || {};
-                return [
-                    doc.id,
-                    parseInteger(data.updatedAtMs, 0),
-                    parseInteger(data.activeTimer?.updatedAtMs, 0),
-                    parseInteger(data.weeklyStudyTime, 0),
-                    parseInteger(data.dailyStudyTime, 0)
-                ].join(":");
-            }).join("|")
-        ].join("|");
-
-        if (listContainer.dataset.signature === signature) {
-            return;
-        }
-        listContainer.dataset.signature = signature;
-
         const leaderboardData = buildLeaderboardViewModelFromDocs();
         leaderboardUserProfiles = {};
         listContainer.innerHTML = "";
@@ -8064,35 +6890,19 @@
                 : '<p style="text-align:center; opacity:0.7;">Canli veriler yukleniyor...</p>';
         }
 
-        const handleUsersSnapshot = async snapshot => {
+        const handleUsersSnapshot = snapshot => {
             const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
             applyLeaderboardCloudDocs(docs);
 
             const currentUserDoc = (snapshot.docs || []).find(doc => doc.id === currentUser?.uid) || null;
-            const publicProfileData = currentUserPublicProfileBootstrapPromise
-                ? await currentUserPublicProfileBootstrapPromise.catch(() => null)
-                : currentUserPublicProfileDoc;
-            const cachedProfile = getHydrationSafeCachedProfile(currentUser?.uid);
-            const hasCachedProfile = !!cachedProfile;
-            currentUserHasRemoteProfile = !!(currentUserDoc || publicProfileData);
-            const currentData = mergeCurrentUserProfileSources(
-                currentUserDoc?.data?.() || {},
-                publicProfileData || {},
-                currentUserLiveDoc || {},
-                getCurrentRuntimeProfileSeed()
-            );
+            const currentData = currentUserDoc?.data?.() || {};
             const initialSync = !hasBootstrappedUsersRealtime;
 
-            if (currentUserDoc || publicProfileData) {
+            if (currentUserDoc) {
                 syncCurrentUserLiveDoc(currentData, { silent: initialSync });
                 applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
             } else {
-                currentUserHasRemoteProfile = false;
-                if (!currentUserProfileHydrated && hasCachedProfile) {
-                    bootstrapExtendedUserData(cachedProfile);
-                } else {
-                    console.warn("Remote profil verisi gelmedi; yerel profil korunuyor.");
-                }
+                currentUserLiveDoc = null;
             }
 
             if (initialSync) {
@@ -8106,19 +6916,9 @@
                     requiresEmailVerification = false;
                     hideVerificationGate();
                 }
-                if (currentUserDoc || publicProfileData) {
-                    bootstrapExtendedUserData(currentData);
-                    renderSchedule();
-                    renderMyNotesPanel();
-                } else if (hasCachedProfile) {
-                    if (!currentUserProfileHydrated) {
-                        bootstrapExtendedUserData(cachedProfile);
-                    }
-                    renderSchedule();
-                    renderMyNotesPanel();
-                } else {
-                    console.warn("Startup sadece offline/boş profil ile açıldı; write koruması aktif kaldı.");
-                }
+                bootstrapExtendedUserData(currentData);
+                renderSchedule();
+                renderMyNotesPanel();
                 hasBootstrappedUsersRealtime = true;
             }
 
@@ -8136,13 +6936,9 @@
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
-                if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
-                const now = Date.now();
-                const hasLiveWork = inferredWorkingPresenceByUserId.size > 0 || legacyWorkingPresenceByUserId.size > 0;
-                const refreshEveryMs = hasLiveWork ? 4000 : 10000;
-                if (now - lastLeaderboardLiveRenderAt < refreshEveryMs) return;
-                lastLeaderboardLiveRenderAt = now;
-                renderLiveLeaderboardFromDocs();
+                if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                    renderLiveLeaderboardFromDocs();
+                }
             }, 1000);
         }
     }
@@ -8606,7 +7402,6 @@
         if (!content) return;
 
         content.classList.toggle("is-stopwatch-mode", isStopwatchTimerMode(timerState.mode));
-        ensurePomodoroTaskSelectorUi();
         updateTimerButtons();
         updateTimerSessionPill();
 
@@ -8632,8 +7427,6 @@
         }
 
         updateLiveStudyPreview();
-        renderPomodoroTaskSelector();
-        refreshVisibleTaskWorkedBadges();
     }
 
     function getDayQuestionSubjectOptions(dayData) {
@@ -8648,361 +7441,6 @@
         });
 
         return ordered;
-    }
-
-    function getTodayTaskSelectionState(referenceDate = new Date()) {
-        const { weekKey, dayIdx, dateKey, dayData } = getScheduleDayDataByDate(referenceDate);
-        return {
-            weekKey,
-            dayIdx,
-            dateKey,
-            dayData,
-            taskOptions: getDayQuestionSubjectOptions(dayData)
-        };
-    }
-
-    function getSafePomodoroTaskLabel(currentValue = "", referenceDate = new Date()) {
-        const { taskOptions } = getTodayTaskSelectionState(referenceDate);
-        const normalizedValue = String(currentValue || "").trim();
-        if (!taskOptions.length) return "";
-        if (!normalizedValue) return "";
-        return taskOptions.includes(normalizedValue) ? normalizedValue : "";
-    }
-
-    function getCurrentTimerTaskLabel(referenceDate = new Date()) {
-        const preferredLabel = String(timerTaskState.selectedTaskLabel || safeStorageGet(TIMER_TRACK_KEY, "") || "").trim();
-        return getSafePomodoroTaskLabel(preferredLabel, referenceDate);
-    }
-
-    function persistTimerTaskSelection(taskLabel = "") {
-        const normalizedLabel = String(taskLabel || "").trim();
-        timerTaskState.selectedTaskLabel = normalizedLabel;
-        if (normalizedLabel) {
-            safeStorageSet(TIMER_TRACK_KEY, normalizedLabel);
-        } else {
-            safeStorageRemove(TIMER_TRACK_KEY);
-        }
-        return normalizedLabel;
-    }
-
-    function getCurrentTaskTimerDeltaSeconds(referenceDate = new Date()) {
-        if (!timerState.session || isBreakTimerMode(timerState.session.mode)) return 0;
-        if (hasTimerSessionCrossedDayBoundary(timerState.session, referenceDate)) return 0;
-        const selectedTaskLabel = getCurrentTimerTaskLabel(referenceDate);
-        if (!selectedTaskLabel) return 0;
-        return Math.max(0, getTimerElapsedSeconds(timerState.session) - parseInteger(timerState.session.lastPersistedElapsedSeconds, 0));
-    }
-
-    function getCurrentTaskWorkedSecondsPreview(taskLabel = "", dayIdx = null, referenceDate = new Date()) {
-        const normalizedTaskLabel = String(taskLabel || "").trim();
-        if (!normalizedTaskLabel) return 0;
-        const { dayIdx: todayDayIdx } = getTodayTaskSelectionState(referenceDate);
-        if (dayIdx !== null && parseInteger(dayIdx, -1) !== todayDayIdx) return 0;
-        if (normalizedTaskLabel !== getCurrentTimerTaskLabel(referenceDate)) return 0;
-        return getCurrentTaskTimerDeltaSeconds(referenceDate);
-    }
-
-    function ensurePomodoroTaskFeatureStyles() {
-        if (document.getElementById("codex-pomodoro-task-styles")) return;
-
-        const style = document.createElement("style");
-        style.id = "codex-pomodoro-task-styles";
-        style.textContent = `
-            .pomodoro-task-field {
-                margin: 6px 0 14px;
-            }
-            .pomodoro-task-field__toggle {
-                width: 100%;
-                display: flex;
-                align-items: center;
-                justify-content: space-between;
-                gap: 10px;
-                padding: 11px 14px;
-                border-radius: 16px;
-                border: 1px solid rgba(255,255,255,0.08);
-                background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.52));
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
-                color: #fff;
-                cursor: pointer;
-            }
-            .pomodoro-task-field__toggle:disabled {
-                opacity: 0.7;
-                cursor: not-allowed;
-            }
-            .pomodoro-task-field__toggle-main {
-                min-width: 0;
-                display: grid;
-                gap: 2px;
-                text-align: left;
-            }
-            .pomodoro-task-field__toggle-label {
-                font-size: 0.78em;
-                font-weight: 800;
-                letter-spacing: 0.04em;
-                text-transform: uppercase;
-                color: rgba(226, 232, 240, 0.74);
-            }
-            .pomodoro-task-field__toggle-value {
-                font-size: 0.94em;
-                font-weight: 700;
-                color: rgba(255,255,255,0.96);
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
-                max-width: min(54vw, 240px);
-            }
-            .pomodoro-task-field__panel {
-                margin-top: 10px;
-                padding: 14px 16px;
-                border-radius: 18px;
-                border: 1px solid rgba(255,255,255,0.08);
-                background: linear-gradient(160deg, rgba(15, 23, 42, 0.72), rgba(30, 41, 59, 0.52));
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
-            }
-            .pomodoro-task-field__panel label {
-                display: block;
-                margin-bottom: 10px;
-                font-size: 0.86em;
-                font-weight: 700;
-                color: rgba(226, 232, 240, 0.88);
-            }
-            .pomodoro-task-field__row {
-                display: flex;
-                gap: 10px;
-                align-items: center;
-                flex-wrap: wrap;
-            }
-            .pomodoro-task-field__row select {
-                flex: 1 1 240px;
-                min-width: 0;
-                border-radius: 14px;
-                border: 1px solid rgba(255,255,255,0.1);
-                background: rgba(15, 23, 42, 0.68);
-                color: #fff;
-                padding: 12px 14px;
-                font-size: 0.96em;
-                font-weight: 600;
-            }
-            .pomodoro-task-field__summary {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
-                min-height: 34px;
-                padding: 7px 11px;
-                border-radius: 999px;
-                border: 1px solid rgba(56, 189, 248, 0.32);
-                background: rgba(56, 189, 248, 0.14);
-                color: #bae6fd;
-                font-size: 0.78em;
-                font-weight: 700;
-                white-space: nowrap;
-                flex-shrink: 0;
-            }
-            .pomodoro-task-field__hint {
-                margin: 10px 0 0;
-                font-size: 0.78em;
-                line-height: 1.45;
-                color: rgba(226, 232, 240, 0.7);
-            }
-            .task-worked-badge {
-                display: inline-flex;
-                align-items: center;
-                gap: 6px;
-                margin-right: 8px;
-                padding: 4px 9px;
-                border-radius: 999px;
-                border: 1px solid rgba(34, 197, 94, 0.24);
-                background: rgba(34, 197, 94, 0.12);
-                color: #bbf7d0;
-                font-size: 0.72em;
-                font-weight: 700;
-                white-space: nowrap;
-            }
-            .task-worked-badge.is-live {
-                border-color: rgba(250, 204, 21, 0.34);
-                background: rgba(250, 204, 21, 0.16);
-                color: #fde68a;
-            }
-            .analytics-graph-total-card {
-                display: grid;
-                gap: 6px;
-                margin-bottom: 20px;
-                padding: 18px;
-                border-radius: 22px;
-                border: 1px solid rgba(255,255,255,0.08);
-                background: linear-gradient(160deg, rgba(8, 47, 73, 0.86), rgba(17, 24, 39, 0.76));
-                box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 34px rgba(2, 6, 23, 0.24);
-            }
-            .analytics-graph-total-card span {
-                font-size: 0.8em;
-                color: rgba(186, 230, 253, 0.8);
-                text-transform: uppercase;
-                letter-spacing: 0.08em;
-            }
-            .analytics-graph-total-card strong {
-                font-size: clamp(2rem, 4vw, 2.8rem);
-                color: #fff;
-            }
-            .analytics-graph-list {
-                display: grid;
-                gap: 12px;
-            }
-            .analytics-graph-row {
-                display: grid;
-                grid-template-columns: 74px minmax(0, 1fr) 72px;
-                gap: 10px;
-                align-items: center;
-            }
-            .analytics-graph-hour {
-                font-size: 0.78em;
-                font-weight: 700;
-                color: rgba(226, 232, 240, 0.72);
-            }
-            .analytics-graph-track {
-                position: relative;
-                height: 14px;
-                overflow: hidden;
-                border-radius: 999px;
-                background: rgba(148, 163, 184, 0.16);
-                border: 1px solid rgba(255,255,255,0.06);
-            }
-            .analytics-graph-fill {
-                position: absolute;
-                inset: 0 auto 0 0;
-                border-radius: inherit;
-                background: linear-gradient(90deg, rgba(56, 189, 248, 0.94), rgba(168, 85, 247, 0.94));
-                box-shadow: 0 0 18px rgba(56, 189, 248, 0.24);
-            }
-            .analytics-graph-duration {
-                font-size: 0.76em;
-                font-weight: 700;
-                color: rgba(226, 232, 240, 0.84);
-                text-align: right;
-            }
-        `;
-        document.head.appendChild(style);
-    }
-
-    function renderPomodoroTaskSelector() {
-        const select = document.getElementById("pomodoro-task-select");
-        const summaryNode = document.getElementById("pomodoro-task-summary");
-        const hintNode = document.getElementById("pomodoro-task-hint");
-        const toggleValueNode = document.getElementById("pomodoro-task-toggle-value");
-        const toggleNode = document.getElementById("pomodoro-task-toggle");
-        const panelNode = document.getElementById("pomodoro-task-panel");
-        const fieldNode = document.getElementById("pomodoro-task-field");
-        if (!select) return;
-
-        const { dayData, taskOptions } = getTodayTaskSelectionState(new Date());
-        const safeTaskLabel = getSafePomodoroTaskLabel(getCurrentTimerTaskLabel(new Date()), new Date());
-        persistTimerTaskSelection(safeTaskLabel);
-
-        if (fieldNode) fieldNode.classList.toggle("is-open", !!timerTaskState.isPickerOpen);
-        if (panelNode) panelNode.hidden = !timerTaskState.isPickerOpen;
-        if (toggleNode) toggleNode.setAttribute("aria-expanded", timerTaskState.isPickerOpen ? "true" : "false");
-        if (toggleValueNode) toggleValueNode.textContent = safeTaskLabel || "Sadece kronometre";
-
-        if (!taskOptions.length) {
-            select.innerHTML = '<option value="">Bugün görev eklemeden ders seçilemez</option>';
-            select.disabled = true;
-            timerTaskState.isPickerOpen = false;
-            if (fieldNode) fieldNode.classList.remove("is-open");
-            if (panelNode) panelNode.hidden = true;
-            if (toggleNode) {
-                toggleNode.disabled = true;
-                toggleNode.setAttribute("aria-expanded", "false");
-            }
-            if (toggleValueNode) toggleValueNode.textContent = "Sadece kronometre";
-            if (summaryNode) summaryNode.textContent = "Henüz görev yok";
-            if (hintNode) hintNode.textContent = "Bugün görev eklediğinde buradan seçip süreyi o görevin altına işleyebileceksin.";
-            return;
-        }
-
-        if (toggleNode) toggleNode.disabled = false;
-        select.disabled = isBreakTimerMode(timerState.mode);
-        select.innerHTML = ['<option value="">Sadece kronometre</option>', ...taskOptions.map(taskLabel => `
-            <option value="${escapeHtml(taskLabel)}">${escapeHtml(taskLabel)}</option>
-        `)].join("");
-        select.value = safeTaskLabel;
-
-        const storedSeconds = getDayTaskWorkedSeconds(dayData, safeTaskLabel);
-        const liveSeconds = getCurrentTaskWorkedSecondsPreview(safeTaskLabel, getTodayTaskSelectionState(new Date()).dayIdx, new Date());
-        const totalSeconds = storedSeconds + liveSeconds;
-
-        if (summaryNode) {
-            summaryNode.textContent = totalSeconds > 0
-                ? `Toplam: ${formatTaskWorkedDuration(totalSeconds)}`
-                : "Henüz süre yok";
-        }
-
-        if (hintNode) {
-            hintNode.textContent = isBreakTimerMode(timerState.mode)
-                ? "Mola modunda ders seçimi sabit kalır; çalışma süresi yalnızca çalışma modunda derse işlenir."
-                : (safeTaskLabel
-                    ? "Süreyi kaydettiğinde seçtiğin görev altına çalışma süresi yazılır."
-                    : "Sadece kronometre seçiliyken süre genel kronometre olarak çalışır, derse işlenmez.");
-        }
-    }
-
-    function refreshVisibleTaskWorkedBadges() {
-        const { dayIdx: todayDayIdx, dayData } = getTodayTaskSelectionState(new Date());
-        const taskList = document.getElementById(`task-list-${todayDayIdx}`);
-        if (!taskList) return;
-
-        const taskItems = [...taskList.querySelectorAll(".task-item")];
-        taskItems.forEach((item, taskIdx) => {
-            const contentWrapper = item.querySelector(".task-content-wrapper");
-            if (!contentWrapper) return;
-
-            let badge = contentWrapper.querySelector(".task-worked-badge");
-            if (!badge) {
-                badge = document.createElement("span");
-                badge.className = "task-worked-badge";
-                const deleteIcon = contentWrapper.querySelector(".fa-times");
-                if (deleteIcon) {
-                    contentWrapper.insertBefore(badge, deleteIcon);
-                } else {
-                    contentWrapper.appendChild(badge);
-                }
-            }
-
-            const taskLabel = String(dayData?.tasks?.[taskIdx]?.text || "").trim();
-            const storedSeconds = getDayTaskWorkedSeconds(dayData, taskLabel);
-            const liveSeconds = getCurrentTaskWorkedSecondsPreview(taskLabel, todayDayIdx, new Date());
-            const totalSeconds = storedSeconds + liveSeconds;
-
-            badge.textContent = totalSeconds > 0 ? `Süre ${formatTaskWorkedDuration(totalSeconds)}` : "";
-            badge.style.display = totalSeconds > 0 ? "inline-flex" : "none";
-            badge.classList.toggle("is-live", liveSeconds > 0);
-        });
-    }
-
-    async function maybePersistCurrentTaskBeforeSwitch(nextTaskLabel = "") {
-        const currentTaskLabel = getCurrentTimerTaskLabel(new Date());
-        const normalizedNextLabel = String(nextTaskLabel || "").trim();
-        if (!currentTaskLabel || currentTaskLabel === normalizedNextLabel) {
-            return true;
-        }
-
-        const pendingSeconds = getCurrentTaskTimerDeltaSeconds(new Date());
-        if (pendingSeconds <= 0) {
-            persistTimerTaskSelection(normalizedNextLabel);
-            return true;
-        }
-
-        const shouldSave = confirm(`"${currentTaskLabel}" için ${formatTaskWorkedDuration(pendingSeconds)} kaydedilsin mi?`);
-        if (!shouldSave) {
-            return false;
-        }
-
-        const result = await saveCurrentTimerSession({
-            closeModal: false,
-            successMessage: `${currentTaskLabel} için süre kaydedildi.`,
-            nextTaskLabel: normalizedNextLabel
-        });
-
-        return !!result;
     }
 
     function getQuestionTrackingOptions(dayData) {
@@ -9183,27 +7621,8 @@
 
             const taskLabel = String(dayData?.tasks?.[taskIdx]?.text || "").trim();
             const solvedCount = parseInteger(normalizeTaskQuestionMap(dayData)?.[taskLabel], 0);
-            const storedWorkedSeconds = getDayTaskWorkedSeconds(dayData, taskLabel);
-            const liveWorkedSeconds = getCurrentTaskWorkedSecondsPreview(taskLabel, dayIdx, new Date());
-            const totalWorkedSeconds = storedWorkedSeconds + liveWorkedSeconds;
             badge.textContent = `${solvedCount} soru`;
             badge.classList.toggle("is-hidden", solvedCount <= 0);
-
-            let timeBadge = contentWrapper.querySelector(".task-worked-badge");
-            if (!timeBadge) {
-                timeBadge = document.createElement("span");
-                timeBadge.className = "task-worked-badge";
-                const deleteIcon = contentWrapper.querySelector(".fa-times");
-                if (deleteIcon) {
-                    contentWrapper.insertBefore(timeBadge, deleteIcon);
-                } else {
-                    contentWrapper.appendChild(timeBadge);
-                }
-            }
-
-            timeBadge.textContent = totalWorkedSeconds > 0 ? `Süre ${formatTaskWorkedDuration(totalWorkedSeconds)}` : "";
-            timeBadge.style.display = totalWorkedSeconds > 0 ? "inline-flex" : "none";
-            timeBadge.classList.toggle("is-live", liveWorkedSeconds > 0);
             item.title = "Soldaki sayı ile ya da sürükleyerek sıralayabilirsin.";
         });
     }
@@ -9469,47 +7888,23 @@
             if (!currentTask) return;
 
             const previousLabel = String(currentTask.text || "").trim();
-            const previousSelectedTaskLabel = String(timerTaskState.selectedTaskLabel || safeStorageGet(TIMER_TRACK_KEY, "") || "").trim();
             const nextLabel = prompt("Görevi Düzenle:", previousLabel);
             if (nextLabel === null) return;
 
             const normalizedNextLabel = String(nextLabel).trim();
             if (!normalizedNextLabel) return;
-            if (normalizedNextLabel === previousLabel) return;
-
-            const previousQuestionMap = normalizeTaskQuestionMap(dayData);
-            const previousWorkedMap = normalizeTaskWorkedSecondsMap(
-                dayData.taskWorkedSeconds || dayData.taskStudySeconds || {},
-                dayData.tasks || []
-            );
-
-            const nextQuestionMap = { ...(previousQuestionMap || {}) };
-            const carriedQuestionAmount = parseInteger(nextQuestionMap?.[previousLabel], 0);
-            if (carriedQuestionAmount > 0) {
-                delete nextQuestionMap[previousLabel];
-                nextQuestionMap[normalizedNextLabel] = parseInteger(nextQuestionMap[normalizedNextLabel], 0) + carriedQuestionAmount;
-            }
-
-            const nextWorkedMap = { ...(previousWorkedMap || {}) };
-            const carriedWorkedSeconds = parseInteger(nextWorkedMap?.[previousLabel], 0);
-            if (carriedWorkedSeconds > 0) {
-                delete nextWorkedMap[previousLabel];
-                nextWorkedMap[normalizedNextLabel] = parseInteger(nextWorkedMap[normalizedNextLabel], 0) + carriedWorkedSeconds;
-            }
 
             dayData.tasks[taskIdx].text = normalizedNextLabel;
-            dayData.subjectQuestions = normalizeSubjectQuestionMap(nextQuestionMap);
-            dayData.taskWorkedSeconds = nextWorkedMap;
-            scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
+            dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
 
-            const isSelectedTaskRenamed = previousLabel && previousSelectedTaskLabel === previousLabel;
-            if (isSelectedTaskRenamed) {
-                persistTimerTaskSelection(normalizedNextLabel);
+            const carriedAmount = parseInteger(dayData.subjectQuestions?.[previousLabel], 0);
+            if (carriedAmount > 0 && previousLabel !== normalizedNextLabel) {
+                delete dayData.subjectQuestions[previousLabel];
+                dayData.subjectQuestions[normalizedNextLabel] = parseInteger(dayData.subjectQuestions[normalizedNextLabel], 0) + carriedAmount;
             }
 
+            scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
             saveData();
-            renderPomodoroTaskSelector();
-            refreshVisibleTaskWorkedBadges();
             renderSchedule();
         };
 
@@ -9525,7 +7920,6 @@
             dayData.tasks.splice(taskIdx, 1);
             dayData.subjectQuestions = normalizeTaskQuestionMap(dayData);
             delete dayData.subjectQuestions[removedLabel];
-            dayData = removeTaskWorkedSeconds(dayData, removedLabel);
             scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(dayData));
             saveData();
             renderSchedule();
@@ -9553,34 +7947,22 @@
         activeNoteFolderId = NOTE_FOLDER_ALL_ID;
         lastAutoDailyResetSyncSignature = "";
         lastTimerDayBoundaryResetSignature = "";
-        timerTaskState.selectedTaskLabel = "";
-        safeStorageRemove(TIMER_TRACK_KEY);
     }
 
     function bootstrapExtendedUserData(userData = {}) {
         const rawData = userData && typeof userData === "object" ? userData : {};
-        const mergedProfile = mergeCurrentUserProfileSources(
-            rawData,
-            currentUserPublicProfileDoc || {},
-            currentUserLiveDoc || {},
-            getCurrentRuntimeProfileSeed()
-        );
-        const dailyResetState = getDailySnapshotResetState(mergedProfile);
+        const dailyResetState = getDailySnapshotResetState(rawData);
         const safeData = dailyResetState.normalizedData;
         clearLoadedUserData();
 
         if (typeof currentUsername !== "undefined") {
-            currentUsername = pickPreferredProfileText(
-                [
-                    safeData.username,
-                    safeData.name,
-                    currentUser?.displayName,
-                    currentUsername
-                ],
-                {
-                    email: safeData.email || currentUser?.email || ""
-                }
-            ) || (!currentUserHasRemoteProfile ? (safeData.email?.split?.("@")?.[0] || "") : "");
+            currentUsername = String(
+                safeData.username
+                || currentUser?.displayName
+                || currentUser?.email?.split("@")[0]
+                || safeData.email?.split?.("@")?.[0]
+                || ""
+            ).trim();
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -9608,10 +7990,6 @@
                 ...safeData,
                 schedule: sanitizeScheduleData(scheduleData || {})
             };
-            currentUserProfileHydrated = true;
-            if (typeof saveCodexCachedUserProfile === "function") {
-                saveCodexCachedUserProfile(currentUser.uid, currentUserLiveDoc, currentUser);
-            }
         }
         if (restoredTimerRecovery && currentUser?.uid) {
             currentUserLiveDoc = {
@@ -10222,12 +8600,6 @@
                 return Promise.resolve();
             }
 
-            if (!canWriteCurrentUserProfileSafely()) {
-                console.warn(`${label} profil bootstrap tamamlanmadan atlandi.`);
-                resolvers.forEach(resolve => resolve());
-                return Promise.resolve();
-            }
-
             const writePromise = withManualFirestoreWrite(() => queueCurrentUserWrite(label, async () => {
                 const payload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
                 const userRef = db.collection("users").doc(currentUser.uid);
@@ -10392,11 +8764,6 @@
             const mode = normalizeTimerMode(timerState.mode);
             let session = timerState.session;
 
-            if (session?.resumeLocked) {
-                clearTimerFinalizedSnapshot(currentUser?.uid || "");
-                session = createEmptyTimerSession(mode);
-            }
-
             if (hasTimerSessionCrossedDayBoundary(session)) {
                 session = buildFreshTimerSession(mode);
             }
@@ -10474,10 +8841,6 @@
             isRunning = false;
             stopTimerLoops();
             persistTimerSessionLocally(session);
-            persistTimerFinalizedSnapshot(session, commitState.referenceMs, {
-                elapsedSeconds: elapsed,
-                reason: "pause"
-            });
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
             monitorTimerSyncPromise(syncRealtimeTimer("pause", {
@@ -10523,10 +8886,6 @@
             timerState.session = session;
             timerDrafts[normalizeTimerMode(session.mode)] = { ...session };
             persistTimerSessionLocally(session);
-            persistTimerFinalizedSnapshot(session, commitState.referenceMs, {
-                elapsedSeconds: elapsed,
-                reason: isBreakTimerMode(completedMode) ? "break-complete" : "study-complete"
-            });
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
             monitorTimerSyncPromise(syncRealtimeTimer("complete", {
@@ -10559,16 +8918,10 @@
         };
 
         resetRealtimeTimer = async function(resetInputs = true, silent = false) {
-            logTimerReset("manual-reset", {
-                mode: timerState.mode,
-                resetInputs: resetInputs !== false
-            });
-            console.log("RESET CALLED");
             stopTimerLoops();
             isRunning = false;
             timerState.session = null;
             persistTimerSessionLocally(null);
-            clearTimerFinalizedSnapshot(currentUser?.uid || "");
             releaseTimerOwnership();
 
             if (resetInputs && isCountdownTimerMode(timerState.mode)) {
@@ -10647,9 +9000,6 @@
                 if (!user) {
                     const hadSession = !!timerState.session;
                     if (hadSession) {
-                        logTimerReset("auth-session-cleared", {
-                            reason: "auth-state-null"
-                        });
                         preserveTimerStateForRecovery(timerState.session, {
                             modalOpen: false,
                             includeRecovery: true
@@ -10763,9 +9113,74 @@
                 timerState.transitioning = true;
 
                 try {
-                    await saveCurrentTimerSession({
-                        closeModal: true,
-                        successMessage: "Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı."
+                    const activeSession = timerState.session ? { ...timerState.session } : null;
+                    const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
+                    const commitState = commitSourceSession
+                        ? commitTimerSessionLocally(commitSourceSession, {
+                            referenceMs: Date.now(),
+                            persistRecovery: true
+                        })
+                        : {
+                            committedElapsedSeconds: 0,
+                            referenceMs: Date.now()
+                        };
+                    const committedElapsedSeconds = commitState.committedElapsedSeconds;
+
+                    if (activeSession) {
+                        activeSession.baseElapsedSeconds = committedElapsedSeconds;
+                        activeSession.lastPersistedElapsedSeconds = committedElapsedSeconds;
+                        activeSession.isRunning = false;
+                        activeSession.startedAtMs = 0;
+                        activeSession.modalOpen = false;
+                        activeSession.lastSeenAtMs = commitState.referenceMs;
+                        activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+                        timerState.session = activeSession;
+                        timerDrafts[activeSession.mode] = { ...activeSession };
+                        isRunning = false;
+                        stopTimerLoops();
+                        persistTimerSessionLocally(activeSession);
+                    }
+
+                    const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
+                        activeSession: null,
+                        currentSessionTime: 0,
+                        clearActive: true,
+                        commitElapsed: !!commitSourceSession,
+                        commitSourceSession,
+                        committedElapsedSeconds,
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }));
+
+                    releaseTimerOwnership();
+                    const nextMode = activeSession?.mode || timerState.mode;
+                    timerState.mode = nextMode;
+                    timerState.session = null;
+                    timerDrafts[nextMode] = null;
+                    persistTimerSessionLocally(null);
+                    updateLocalActiveTimerSnapshot(null);
+                    refreshLeaderboardOptimistically(null);
+                    hidePomodoroModal();
+
+                    resetTimerDurationInputs(0);
+
+                    Object.keys(timerDrafts).forEach(modeKey => {
+                        timerDrafts[modeKey] = null;
+                    });
+
+                    timerState.session = createEmptyTimerSession(nextMode);
+                    if (isCountdownTimerMode(nextMode)) {
+                        timerState.session.targetDurationSeconds = 0;
+                    }
+                    timerDrafts[nextMode] = { ...timerState.session };
+                    renderTimerUi();
+                    renderSchedule();
+                    maybeRenderAnalyticsIfOpen();
+                    safeShowAlert("Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı.", "success");
+                    monitorTimerSyncPromise(syncPromise, {
+                        label: "timer-save",
+                        timeoutMessage: "Kayit alindi. Bulut senkronu arkada suruyor.",
+                        failureMessage: "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene."
                     });
                 } finally {
                     timerState.transitioning = false;
@@ -10806,7 +9221,6 @@
                     document.getElementById("pomodoro-modal").style.display = "flex";
                 }
                 ensureTimerModeUi();
-                ensurePomodoroTaskSelectorUi();
                 setTimerMode(timerState.mode, { persist: false, keepSession: true });
                 if (timerState.session?.isRunning) {
                     syncRealtimeTimer("modal-show", {
@@ -10819,7 +9233,6 @@
                     });
                 }
                 renderTimerUi();
-                renderPomodoroTaskSelector();
                 if (typeof syncBodyModalLock === "function") syncBodyModalLock();
             };
         })(typeof showPomodoroModal === "function" ? showPomodoroModal : null);
@@ -10862,12 +9275,10 @@
             const isOpen = panel.classList.contains("open");
             if (isOpen) {
                 panel.classList.remove("open");
-                document.body.classList.remove("leaderboard-live-low");
                 return;
             }
 
             panel.classList.add("open");
-            document.body.classList.add("leaderboard-live-low");
             subscribeRealtimeLeaderboard();
             renderLiveLeaderboardFromDocs();
         };
@@ -11041,65 +9452,8 @@
 
             const basePayload = originalBuildUserPayload ? originalBuildUserPayload() : {};
             const syncTimestamp = Date.now();
-            const mergedProfile = mergeCurrentUserProfileSources(
-                getCurrentRuntimeProfileSeed(),
-                currentUserLiveDoc || {},
-                currentUserPublicProfileDoc || {},
-                basePayload
-            );
-            const resolvedEmail = currentUser?.email || mergedProfile.email || basePayload.email || "";
-            const resolvedUsername = pickPreferredProfileText(
-                [
-                    currentUsername,
-                    mergedProfile.username,
-                    mergedProfile.name,
-                    basePayload.username,
-                    basePayload.name
-                ],
-                { email: resolvedEmail }
-            ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
-            const resolvedStudyTrack = pickPreferredProfileText(
-                [studyTrack, mergedProfile.studyTrack, basePayload.studyTrack],
-                { allowWeak: true }
-            );
-            const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
-                ? normalizeSelectedSubjects(
-                    resolvedStudyTrack || "",
-                    getFirstNonEmptyArray(
-                        selectedSubjects,
-                        mergedProfile.selectedSubjects,
-                        basePayload.selectedSubjects
-                    )
-                )
-                : getFirstNonEmptyArray(
-                    selectedSubjects,
-                    mergedProfile.selectedSubjects,
-                    basePayload.selectedSubjects
-                );
-            const resolvedSchedule = getMostInformativeProfileSchedule(
-                scheduleData,
-                mergedProfile.schedule,
-                basePayload.schedule
-            );
-            const resolvedTotalWorkedSeconds = Math.max(
-                totalWorkedSecondsAllTime || 0,
-                parseInteger(mergedProfile.totalWorkedSeconds, 0),
-                parseInteger(mergedProfile.totalStudyTime, 0),
-                parseInteger(basePayload.totalWorkedSeconds, 0),
-                parseInteger(basePayload.totalStudyTime, 0),
-                typeof calculateTotalWorkedSecondsFromSchedule === "function"
-                    ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
-                    : 0
-            );
-            const resolvedTotalQuestionsAllTime = Math.max(
-                totalQuestionsAllTime || 0,
-                parseInteger(mergedProfile.totalQuestionsAllTime, 0),
-                parseInteger(basePayload.totalQuestionsAllTime, 0),
-                typeof calculateTotalQuestionsFromSchedule === "function"
-                    ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
-                    : 0
-            );
-            const questionCounters = buildQuestionCounterPayload(resolvedSchedule);
+            const resolvedEmail = currentUser?.email || basePayload.email || "";
+            const questionCounters = buildQuestionCounterPayload(scheduleData);
             const activeStudySession = isTimerVisibleForLeaderboard(timerState.session) ? timerState.session : null;
             const activeTimerRecord = activeStudySession ? serializeTimerSession(activeStudySession) : null;
             const activeBreakTimerRecord = timerState.session?.isRunning && isBreakTimerMode(timerState.session?.mode)
@@ -11116,7 +9470,7 @@
                 : 0;
             const titleInfo = buildResolvedTitleInfo({
                 uid: currentUser?.uid || basePayload.uid || "",
-                schedule: resolvedSchedule,
+                schedule: scheduleData,
                 activeTimer: activeTimerRecord,
                 selectedTitleId: getStoredSelectedTitleId(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload),
                 titleAwards: getStoredTitleAwards(currentProfileModalData || {}, currentUserLiveDoc || {}, basePayload)
@@ -11130,27 +9484,23 @@
                 };
             return {
                 ...basePayload,
-                username: resolvedUsername,
-                normalizedUsername: normalizeUsernameLookup(resolvedUsername),
-                name: pickPreferredProfileText(
-                    [resolvedUsername, mergedProfile.name, basePayload.name, basePayload.username],
-                    { email: resolvedEmail, allowWeak: true }
-                ) || resolvedUsername,
+                username: currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
+                normalizedUsername: normalizeUsernameLookup(currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici"),
+                name: currentUsername || basePayload.name || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
                 email: resolvedEmail,
                 ...adminProfile,
                 emailVerified: !!currentUser?.emailVerified,
-                about: currentProfileAbout || mergedProfile.about || basePayload.about || "",
-                profileImage: currentProfileImage || mergedProfile.profileImage || basePayload.profileImage || "",
-                accountCreatedAt: currentAccountCreatedAt || mergedProfile.accountCreatedAt || basePayload.accountCreatedAt || new Date().toISOString(),
-                studyTrack: resolvedStudyTrack || "",
-                selectedSubjects: resolvedSelectedSubjects,
-                notes: normalizeUserNotes((userNotes && userNotes.length) ? userNotes : (mergedProfile.notes || basePayload.notes || [])),
-                noteFolders: normalizeNoteFolders((noteFolders && noteFolders.length) ? noteFolders : (mergedProfile.noteFolders || basePayload.noteFolders || [])),
-                schedule: resolvedSchedule,
-                totalWorkedSeconds: resolvedTotalWorkedSeconds,
-                totalStudyTime: resolvedTotalWorkedSeconds,
-                totalTime: Math.max(0, parseInteger(resolvedTotalWorkedSeconds, 0)) * 1000,
-                totalQuestionsAllTime: resolvedTotalQuestionsAllTime,
+                studyTrack: studyTrack || basePayload.studyTrack || "",
+                selectedSubjects: typeof normalizeSelectedSubjects === "function"
+                    ? normalizeSelectedSubjects(studyTrack || "", selectedSubjects || [])
+                    : (selectedSubjects || []),
+                notes: normalizeUserNotes(userNotes || []),
+                noteFolders: normalizeNoteFolders(noteFolders),
+                schedule: scheduleData,
+                totalWorkedSeconds: totalWorkedSecondsAllTime || 0,
+                totalStudyTime: totalWorkedSecondsAllTime || 0,
+                totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
+                totalQuestionsAllTime: totalQuestionsAllTime || 0,
                 ...questionCounters,
                 selectedTitleId: titleInfo.selectedTitleId,
                 titleAwards: titleInfo.titleAwards,
@@ -11158,7 +9508,6 @@
                 todayStudyTime: getCurrentDayWorkedSeconds(),
                 todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                 dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
-                dailyDateKey: getCurrentDayMeta(new Date()).dateKey,
                 todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                 currentSessionTime: timerPendingSeconds,
                 currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
@@ -11170,9 +9519,7 @@
                 isOnBreak: !!activeBreakTimerRecord?.isRunning,
                 lastSyncTime: syncTimestamp,
                 lastTimerSyncAt: syncTimestamp,
-                lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0,
-                lastSavedTimestamp: syncTimestamp,
-                sessionFinalized: !(activeTimerRecord || activeBreakTimerRecord)
+                lastBreakTimerSyncAt: activeBreakTimerRecord ? syncTimestamp : 0
             };
         };
 
@@ -11180,27 +9527,6 @@
             const originalGetCurrentUserSeedData = getCurrentUserSeedData;
             getCurrentUserSeedData = function() {
                 const seed = originalGetCurrentUserSeedData();
-                const mergedProfile = mergeCurrentUserProfileSources(
-                    getCurrentRuntimeProfileSeed(),
-                    currentUserLiveDoc || {},
-                    currentUserPublicProfileDoc || {},
-                    seed
-                );
-                const resolvedEmail = currentUser?.email || mergedProfile.email || seed.email || "";
-                const resolvedUsername = pickPreferredProfileText(
-                    [currentUsername, mergedProfile.username, mergedProfile.name, seed.username, seed.name],
-                    { email: resolvedEmail }
-                ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
-                const resolvedStudyTrack = pickPreferredProfileText(
-                    [studyTrack, mergedProfile.studyTrack, seed.studyTrack],
-                    { allowWeak: true }
-                );
-                const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
-                    ? normalizeSelectedSubjects(
-                        resolvedStudyTrack || "",
-                        getFirstNonEmptyArray(selectedSubjects, mergedProfile.selectedSubjects, seed.selectedSubjects)
-                    )
-                    : getFirstNonEmptyArray(selectedSubjects, mergedProfile.selectedSubjects, seed.selectedSubjects);
                 const titleInfo = buildResolvedTitleInfo({
                     uid: currentUser?.uid || seed.uid || "",
                     schedule: scheduleData,
@@ -11213,18 +9539,9 @@
                     : null;
                 return {
                     ...seed,
-                    username: resolvedUsername,
-                    normalizedUsername: normalizeUsernameLookup(resolvedUsername),
-                    name: pickPreferredProfileText(
-                        [resolvedUsername, mergedProfile.name, seed.name, seed.username],
-                        { email: resolvedEmail, allowWeak: true }
-                    ) || resolvedUsername,
-                    email: resolvedEmail,
-                    about: currentProfileAbout || mergedProfile.about || seed.about || "",
-                    profileImage: currentProfileImage || mergedProfile.profileImage || seed.profileImage || "",
-                    accountCreatedAt: currentAccountCreatedAt || mergedProfile.accountCreatedAt || seed.accountCreatedAt || new Date().toISOString(),
-                    studyTrack: resolvedStudyTrack || "",
-                    selectedSubjects: resolvedSelectedSubjects,
+                    username: currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
+                    normalizedUsername: normalizeUsernameLookup(currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici"),
+                    name: currentUsername || seed.name || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
                     totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
@@ -11234,7 +9551,6 @@
                     todayStudyTime: getCurrentDayWorkedSeconds(),
                     todayWorkedSeconds: getCurrentDayWorkedSeconds(),
                     dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
-                    dailyDateKey: getCurrentDayMeta(new Date()).dateKey,
                     todayDateKey: getCurrentDayMeta(new Date()).dateKey,
                     currentSessionTime: isTimerVisibleForLeaderboard(timerState.session) ? getPendingTimerDelta(timerState.session) : 0,
                     currentBreakSessionTime: activeBreakTimerRecord ? getPendingTimerDelta(timerState.session) : 0,
@@ -11243,8 +9559,6 @@
                     isRunning: !!(isTimerVisibleForLeaderboard(timerState.session) && timerState.session?.isRunning),
                     isOnBreak: !!activeBreakTimerRecord?.isRunning,
                     lastSyncTime: Date.now(),
-                    lastSavedTimestamp: Date.now(),
-                    sessionFinalized: !(isTimerVisibleForLeaderboard(timerState.session) || activeBreakTimerRecord),
                     emailVerified: !!currentUser?.emailVerified
                 };
             };
@@ -11404,113 +9718,6 @@
         updateWorkingStatus = wrappedUpdateWorkingStatus;
     }
 
-    async function saveCurrentTimerSession(options = {}) {
-        const activeSession = timerState.session ? { ...timerState.session } : null;
-        const commitSourceSession = activeSession ? createCommitSourceSession(activeSession) : null;
-        const commitState = commitSourceSession
-            ? commitTimerSessionLocally(commitSourceSession, {
-                referenceMs: Date.now(),
-                persistRecovery: true
-            })
-            : {
-                committedElapsedSeconds: 0,
-                referenceMs: Date.now()
-            };
-        const committedElapsedSeconds = Math.max(0, parseInteger(commitState.committedElapsedSeconds, 0));
-        const resolvedTaskLabel = !isBreakTimerMode(activeSession?.mode || timerState.mode)
-            ? getCurrentTimerTaskLabel(new Date(commitState.referenceMs))
-            : "";
-
-        if (activeSession) {
-            activeSession.baseElapsedSeconds = committedElapsedSeconds;
-            activeSession.lastPersistedElapsedSeconds = committedElapsedSeconds;
-            activeSession.isRunning = false;
-            activeSession.startedAtMs = 0;
-            activeSession.modalOpen = false;
-            activeSession.lastSeenAtMs = commitState.referenceMs;
-            activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
-            timerState.session = activeSession;
-            timerDrafts[activeSession.mode] = { ...activeSession };
-            isRunning = false;
-            stopTimerLoops();
-            persistTimerSessionLocally(activeSession);
-        }
-
-        if (resolvedTaskLabel && committedElapsedSeconds > 0) {
-            const { weekKey, dayIdx } = getCurrentDayMeta(new Date(commitState.referenceMs));
-            const dayData = ensureWeekDay(weekKey, dayIdx);
-            const updatedDayData = addWorkedSecondsToTask(dayData, resolvedTaskLabel, committedElapsedSeconds);
-            scheduleData[weekKey][dayIdx] = syncDayQuestionState(ensureDayObject(updatedDayData));
-        }
-
-        const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer(String(options.syncReason || "manual-save"), {
-            activeSession: null,
-            currentSessionTime: 0,
-            clearActive: true,
-            commitElapsed: !!commitSourceSession,
-            commitSourceSession,
-            committedElapsedSeconds,
-            userTriggeredWrite: true,
-            authorized: true
-        }));
-
-        releaseTimerOwnership();
-        const nextMode = activeSession?.mode || timerState.mode;
-        timerState.mode = nextMode;
-        logTimerReset("manual-save-close", {
-            mode: nextMode,
-            committedElapsedSeconds
-        });
-        timerState.session = null;
-        timerDrafts[nextMode] = null;
-        persistTimerSessionLocally(null);
-        clearTimerFinalizedSnapshot(currentUser?.uid || "");
-        updateLocalActiveTimerSnapshot(null);
-        refreshLeaderboardOptimistically(null);
-
-        if (options.closeModal !== false) {
-            hidePomodoroModal();
-        }
-
-        resetTimerDurationInputs(0);
-
-        Object.keys(timerDrafts).forEach(modeKey => {
-            timerDrafts[modeKey] = null;
-        });
-
-        timerState.session = createEmptyTimerSession(nextMode);
-        if (isCountdownTimerMode(nextMode)) {
-            timerState.session.targetDurationSeconds = 0;
-        }
-        timerDrafts[nextMode] = { ...timerState.session };
-
-        if (options.nextTaskLabel !== undefined) {
-            persistTimerTaskSelection(options.nextTaskLabel);
-        } else if (resolvedTaskLabel) {
-            persistTimerTaskSelection(resolvedTaskLabel);
-        }
-
-        renderTimerUi();
-        renderSchedule();
-        maybeRenderAnalyticsIfOpen();
-
-        if (!options.silentSuccessMessage) {
-            safeShowAlert(options.successMessage || "Süre kaydedildi. Günlük toplam korundu, sayaç yeni oturum için sıfırlandı.", "success");
-        }
-
-        monitorTimerSyncPromise(syncPromise, {
-            label: String(options.monitorLabel || "timer-save"),
-            timeoutMessage: options.timeoutMessage || "Kayit alindi. Bulut senkronu arkada suruyor.",
-            failureMessage: options.failureMessage || "Sure cihazda korundu. Baglanti gelince tekrar kaydetmeyi dene."
-        });
-
-        return {
-            committedElapsedSeconds,
-            taskLabel: resolvedTaskLabel,
-            nextMode
-        };
-    }
-
     function patchSignOutPreservation() {
         const originalSignOutUser = typeof signOutUser === "function" ? signOutUser : null;
         if (!originalSignOutUser || originalSignOutUser.__codexTimerPatched) return;
@@ -11550,8 +9757,6 @@
             refreshQuestionSummaryCounters();
             renderQuestionTrackingEnhancements();
             updateLiveStudyPreview();
-            renderPomodoroTaskSelector();
-            refreshVisibleTaskWorkedBadges();
             refreshVisibleProfileModalFromLiveData();
             syncCurrentUserTitleAwardsIfNeeded();
             maybeRenderAnalyticsIfOpen();
@@ -11566,10 +9771,6 @@
             if (!user) {
                 currentUser = null;
                 currentUserLiveDoc = null;
-                currentUserPublicProfileDoc = null;
-                currentUserPublicProfileBootstrapPromise = null;
-                currentUserProfileHydrated = false;
-                currentUserHasRemoteProfile = false;
                 currentUserWriteChain = Promise.resolve();
                 requiresEmailVerification = false;
                 hasBootstrappedUsersRealtime = false;
@@ -11593,25 +9794,8 @@
                 return;
             }
 
-                currentUser = user;
-                currentUserProfileHydrated = false;
-                currentUserHasRemoteProfile = false;
-                const cachedProfile = getHydrationSafeCachedProfile(user.uid);
-                if (cachedProfile) {
-                    bootstrapExtendedUserData(cachedProfile);
-                }
-                currentUserPublicProfileBootstrapPromise = db.collection(PUBLIC_PROFILE_COLLECTION).doc(user.uid).get()
-                    .then(doc => {
-                        currentUserPublicProfileDoc = doc.exists ? (doc.data() || {}) : null;
-                        currentUserHasRemoteProfile = currentUserHasRemoteProfile || !!doc.exists;
-                        return currentUserPublicProfileDoc;
-                    })
-                    .catch(error => {
-                        console.error("Kullanici public profil verisi yuklenemedi:", error);
-                        currentUserPublicProfileDoc = null;
-                        return null;
-                    });
-                localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
+            currentUser = user;
+            localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
             try {
                 await user.reload();
@@ -11741,8 +9925,6 @@
         installStrictFirestoreSafetyLayer();
         ensureVerificationCard();
         ensureTimerModeUi();
-        ensurePomodoroTaskSelectorUi();
-        ensureAnalyticsGraphUi();
         ensureSubjectQuestionModal();
         ensureNavyThemeButton();
         ensureNotesFolderUi();
