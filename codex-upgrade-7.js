@@ -33,6 +33,7 @@
     const FREE_GENERAL_SUBJECT = "free_general";
     const TIMER_TASK_SELECTION_KEY = "codexTimerSelectedTaskIdV1";
     const TIMER_TASK_FREE_ID = "__timer_free__";
+    const PROFILE_CACHE_KEY = "codexProfileCacheV1";
     const QUESTION_LIMIT = 500;
     const timerDeviceId = (() => {
         try {
@@ -96,6 +97,7 @@
     let lastAutoDailyResetSyncSignature = "";
     let lastTimerDayBoundaryResetSignature = "";
     let hasBootstrappedUsersRealtime = false;
+    let hasBootstrappedUsersFromCache = false;
 
     const timerState = {
         mode: normalizeTimerMode(localStorage.getItem(TIMER_MODE_KEY) || "pomodoro"),
@@ -254,6 +256,157 @@
             return true;
         } catch (error) {
             return false;
+        }
+    }
+
+    function getPerUserProfileCacheKey(uid = "") {
+        return `${PROFILE_CACHE_KEY}:${String(uid || "").trim()}`;
+    }
+
+    function readPerUserProfileCache(uid = "") {
+        const key = getPerUserProfileCacheKey(uid);
+        if (!key || key.endsWith(":")) return null;
+        const raw = safeStorageGet(key, "");
+        if (!raw) return null;
+        try {
+            const parsed = JSON.parse(raw);
+            if (!parsed || typeof parsed !== "object") return null;
+            return parsed.data && typeof parsed.data === "object" ? parsed.data : null;
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function writePerUserProfileCache(uid = "", profileData = {}) {
+        const safeUid = String(uid || "").trim();
+        if (!safeUid) return false;
+        const safeData = profileData && typeof profileData === "object" ? profileData : {};
+        return safeStorageSet(getPerUserProfileCacheKey(safeUid), JSON.stringify({
+            v: 1,
+            cachedAt: Date.now(),
+            data: safeData
+        }));
+    }
+
+    function applyCloudProfilePatchSafely(profileData = {}) {
+        const safeData = profileData && typeof profileData === "object" ? profileData : {};
+        const resolvedUsername = String(
+            safeData.username
+            || currentUser?.displayName
+            || currentUser?.email?.split("@")[0]
+            || safeData.email?.split?.("@")?.[0]
+            || ""
+        ).trim();
+        const resolvedEmailPrefix = String(currentUser?.email?.split?.("@")?.[0] || "").trim();
+
+        if (typeof currentUsername !== "undefined") {
+            const currentTrimmed = String(currentUsername || "").trim();
+            const looksFallback = !currentTrimmed || currentTrimmed === "Kullanici" || (resolvedEmailPrefix && currentTrimmed === resolvedEmailPrefix);
+            if (resolvedUsername && looksFallback) {
+                currentUsername = resolvedUsername;
+            }
+        }
+
+        if (typeof currentProfileAbout !== "undefined") {
+            if (!String(currentProfileAbout || "").trim() && String(safeData.about || "").trim()) {
+                currentProfileAbout = String(safeData.about || "");
+            }
+        }
+
+        if (typeof currentProfileImage !== "undefined") {
+            if (!String(currentProfileImage || "").trim() && String(safeData.profileImage || "").trim()) {
+                currentProfileImage = String(safeData.profileImage || "");
+            }
+        }
+
+        if (typeof currentAccountCreatedAt !== "undefined") {
+            if (!String(currentAccountCreatedAt || "").trim() && String(safeData.accountCreatedAt || "").trim()) {
+                currentAccountCreatedAt = String(safeData.accountCreatedAt || "");
+            }
+        }
+
+        if (typeof studyTrack !== "undefined") {
+            if (!String(studyTrack || "").trim() && String(safeData.studyTrack || "").trim()) {
+                studyTrack = String(safeData.studyTrack || "");
+            }
+        }
+
+        if (typeof selectedSubjects !== "undefined") {
+            const hasLocalSubjects = Array.isArray(selectedSubjects) && selectedSubjects.length > 0;
+            const cloudSubjects = Array.isArray(safeData.selectedSubjects) ? safeData.selectedSubjects : [];
+            if (!hasLocalSubjects && cloudSubjects.length) {
+                selectedSubjects = typeof normalizeSelectedSubjects === "function"
+                    ? normalizeSelectedSubjects(studyTrack || "", cloudSubjects)
+                    : [...cloudSubjects];
+            }
+        }
+
+        const mergedSchedule = typeof getMostInformativeProfileSchedule === "function"
+            ? getMostInformativeProfileSchedule(scheduleData, safeData.schedule || {})
+            : sanitizeScheduleData(scheduleData || {});
+        scheduleData = sanitizeScheduleData(mergedSchedule || {});
+
+        if (typeof renderSchedule === "function") {
+            renderSchedule();
+        }
+        if (typeof renderMyNotesPanel === "function") {
+            renderMyNotesPanel();
+        }
+        if (typeof updateProfileButton === "function") updateProfileButton();
+        if (typeof updateSubjectReminder === "function") updateSubjectReminder();
+    }
+
+    function subscribeCurrentUserProfile() {
+        if (currentUserResetUnsubscribe || !currentUser?.uid) return;
+
+        const uid = String(currentUser.uid);
+
+        if (!hasBootstrappedUsersRealtime) {
+            const cachedProfile = readPerUserProfileCache(uid);
+            if (cachedProfile) {
+                bootstrapExtendedUserData(cachedProfile);
+                if (typeof renderSchedule === "function") renderSchedule();
+                if (typeof renderMyNotesPanel === "function") renderMyNotesPanel();
+                hasBootstrappedUsersRealtime = true;
+                hasBootstrappedUsersFromCache = true;
+            }
+        }
+
+        currentUserResetUnsubscribe = db.collection("users").doc(uid).onSnapshot(snapshot => {
+            if (!snapshot?.exists) return;
+
+            const cloudData = snapshot.data() || {};
+            writePerUserProfileCache(uid, cloudData);
+
+            if (!hasBootstrappedUsersRealtime) {
+                bootstrapExtendedUserData(cloudData);
+                if (typeof renderSchedule === "function") renderSchedule();
+                if (typeof renderMyNotesPanel === "function") renderMyNotesPanel();
+                hasBootstrappedUsersRealtime = true;
+                hasBootstrappedUsersFromCache = false;
+                return;
+            }
+
+            if (hasBootstrappedUsersFromCache) {
+                // We already bootstrapped from cache; patch without wiping local state.
+                syncCurrentUserLiveDoc(cloudData, { silent: true });
+                applyAdminTimerResetFromUserData(cloudData, { silent: true });
+                applyCloudProfilePatchSafely(cloudData);
+                hasBootstrappedUsersFromCache = false;
+                return;
+            }
+
+            syncCurrentUserLiveDoc(cloudData, { silent: true });
+            applyAdminTimerResetFromUserData(cloudData, { silent: true });
+        }, error => {
+            console.error("Kullanici profili dinleyicisi basarisiz:", error);
+        });
+    }
+
+    function unsubscribeCurrentUserProfile() {
+        if (currentUserResetUnsubscribe) {
+            currentUserResetUnsubscribe();
+            currentUserResetUnsubscribe = null;
         }
     }
 
@@ -2685,16 +2838,16 @@
         wrapper.style.position = "relative";
 
         wrapper.innerHTML = `
-            <button id="timer-task-toggle" type="button" style="background: var(--button-bg); color: var(--header-text); border-radius: 12px; padding: 8px 14px; font-size: 0.92em; display: inline-flex; gap: 8px; align-items: center;">
-                <i class="fas fa-book"></i> <span id="timer-task-toggle-label">Ders Seç</span>
-            </button>
-            <div id="timer-task-menu" style="display:none; width: 100%; max-width: 360px; background: rgba(15, 18, 26, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
-                <select id="timer-task-select" style="width: 100%; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.08); color: var(--header-text); border: 1px solid rgba(255,255,255,0.12); margin-bottom: 8px;"></select>
+             <button id="timer-task-toggle" type="button" style="background: var(--button-bg); color: var(--header-text); border-radius: 12px; padding: 8px 14px; font-size: 0.92em; display: inline-flex; gap: 8px; align-items: center;">
+                 <i class="fas fa-book"></i> <span id="timer-task-toggle-label">Ders Seç</span>
+             </button>
+             <div id="timer-task-menu" style="display:none; width: 100%; max-width: 360px; background: rgba(15, 18, 26, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
+                <select id="timer-task-select" style="width: 100%; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.92); color: #0b1220; border: 1px solid rgba(15, 18, 26, 0.25); margin-bottom: 8px;"></select>
                 <button id="timer-task-apply" type="button" style="width: 100%; background: var(--accent-color); color: var(--header-text); border-radius: 10px; padding: 8px 10px;">
                     Seç
                 </button>
-            </div>
-        `;
+             </div>
+         `;
 
         inputGroup.insertAdjacentElement("beforebegin", wrapper);
 
@@ -7053,34 +7206,6 @@
             const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
             applyLeaderboardCloudDocs(docs);
 
-            const currentUserDoc = (snapshot.docs || []).find(doc => doc.id === currentUser?.uid) || null;
-            const currentData = currentUserDoc?.data?.() || {};
-            const initialSync = !hasBootstrappedUsersRealtime;
-
-            if (currentUserDoc) {
-                syncCurrentUserLiveDoc(currentData, { silent: initialSync });
-                applyAdminTimerResetFromUserData(currentData, { silent: initialSync });
-            } else {
-                currentUserLiveDoc = null;
-            }
-
-            if (initialSync) {
-                requiresEmailVerification = !!currentData.requiresEmailVerification;
-                if (requiresEmailVerification && !currentUser?.emailVerified) {
-                    showVerificationGate({
-                        email: currentUser?.email || "",
-                        meta: "Bu yeni hesap icin email dogrulamasi bekleniyor."
-                    });
-                } else {
-                    requiresEmailVerification = false;
-                    hideVerificationGate();
-                }
-                bootstrapExtendedUserData(currentData);
-                renderSchedule();
-                renderMyNotesPanel();
-                hasBootstrappedUsersRealtime = true;
-            }
-
             if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
                 renderLiveLeaderboardFromDocs();
             }
@@ -9190,11 +9315,13 @@
                         });
                     }
 
+                    unsubscribeCurrentUserProfile();
                     currentUser = null;
                     currentUserLiveDoc = null;
                     currentUserWriteChain = Promise.resolve();
                     requiresEmailVerification = false;
                     hasBootstrappedUsersRealtime = false;
+                    hasBootstrappedUsersFromCache = false;
                     noteFolders = normalizeNoteFolders([]);
                     activeNoteFolderId = NOTE_FOLDER_ALL_ID;
                     unsubscribeRealtimeLeaderboard();
@@ -9228,6 +9355,8 @@
 
                 hideVerificationGate();
                 hasBootstrappedUsersRealtime = false;
+                hasBootstrappedUsersFromCache = false;
+                subscribeCurrentUserProfile();
                 subscribeRealtimeLeaderboard();
             });
 
