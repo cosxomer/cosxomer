@@ -31,6 +31,8 @@
     const LEADERBOARD_COLLECTION = "leaderboard";
     const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
     const FREE_GENERAL_SUBJECT = "free_general";
+    const TIMER_TASK_SELECTION_KEY = "codexTimerSelectedTaskIdV1";
+    const TIMER_TASK_FREE_ID = "__timer_free__";
     const QUESTION_LIMIT = 500;
     const timerDeviceId = (() => {
         try {
@@ -116,6 +118,74 @@
         selectedDateKey: "",
         selectedWeekKey: ""
     };
+
+    function buildTaskId() {
+        return `task_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function normalizeTaskEntry(task = {}) {
+        const text = String(task && task.text ? task.text : "").trim();
+        if (!text) return null;
+        const id = String(task.id || task.taskId || task._id || buildTaskId());
+        const workedSeconds = Math.max(0, parseInteger(task.workedSeconds, 0));
+        return {
+            ...task,
+            id,
+            text,
+            completed: !!(task && task.completed),
+            workedSeconds
+        };
+    }
+
+    function getStoredTimerTaskId() {
+        try {
+            return String(localStorage.getItem(TIMER_TASK_SELECTION_KEY) || "");
+        } catch (error) {
+            return "";
+        }
+    }
+
+    function setStoredTimerTaskId(taskId = "") {
+        const value = String(taskId || "");
+        try {
+            localStorage.setItem(TIMER_TASK_SELECTION_KEY, value);
+        } catch (error) {
+            // ignore
+        }
+        if (timerState.session) {
+            timerState.session.taskId = value;
+        }
+    }
+
+    function getTodayTaskContext(referenceMs = Date.now()) {
+        const { weekKey, dayIdx } = getCurrentDayMeta(new Date(referenceMs));
+        const dayData = ensureWeekDay(weekKey, dayIdx);
+        return { weekKey, dayIdx, dayData };
+    }
+
+    function resolveSelectedTimerTask(dayData, preferredId = "") {
+        const tasks = Array.isArray(dayData?.tasks) ? dayData.tasks : [];
+        if (!tasks.length) return null;
+        const targetId = String(preferredId || "");
+        if (!targetId || targetId === TIMER_TASK_FREE_ID) return null;
+        return tasks.find(task => String(task?.id || "") === targetId) || null;
+    }
+
+    function applyTaskWorkSecondsForSession(session, elapsedSeconds, referenceMs = Date.now()) {
+        if (!session || isBreakTimerMode(session.mode)) return;
+        const safeElapsed = Math.max(0, parseInteger(elapsedSeconds, 0));
+        if (!safeElapsed) return;
+        const storedTaskId = String(session.taskId || getStoredTimerTaskId() || "");
+        if (!storedTaskId || storedTaskId === TIMER_TASK_FREE_ID) return;
+
+        const { weekKey, dayIdx, dayData } = getTodayTaskContext(referenceMs);
+        const targetTask = resolveSelectedTimerTask(dayData, storedTaskId);
+        if (!targetTask) return;
+
+        targetTask.workedSeconds = Math.max(0, parseInteger(targetTask.workedSeconds, 0)) + safeElapsed;
+        dayData.tasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
+        scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
+    }
 
     function normalizeTimerMode(mode = "") {
         const normalizedMode = String(mode || "").trim().toLowerCase();
@@ -1259,10 +1329,7 @@
         return {
             ...day,
             tasks: Array.isArray(day.tasks)
-                ? day.tasks.map(task => ({
-                    text: String(task && task.text ? task.text : "").trim(),
-                    completed: !!(task && task.completed)
-                })).filter(task => task.text)
+                ? day.tasks.map(normalizeTaskEntry).filter(Boolean)
                 : [],
             workedSeconds,
             breakSeconds,
@@ -2184,6 +2251,8 @@
         updateLocalActiveTimerSnapshot(null);
         refreshLeaderboardOptimistically(null);
         renderTimerUi();
+        applyTaskWorkSecondsForSession(session, elapsed, safeReferenceMs);
+        renderSchedule();
         releaseTimerOwnership();
 
         monitorTimerSyncPromise(syncRealtimeTimer(String(options.syncReason || "auto-finalize-inactive"), {
@@ -2594,6 +2663,91 @@
             note.className = "timer-mode-note";
             inputGroup.insertAdjacentElement("beforebegin", note);
         }
+
+        ensureTimerTaskSelector();
+        refreshTimerTaskSelector();
+    }
+
+    function ensureTimerTaskSelector() {
+        const content = document.querySelector("#pomodoro-modal .pomodoro-content");
+        const inputGroup = content?.querySelector(".pomodoro-time-inputs");
+        if (!content || !inputGroup) return;
+
+        if (document.getElementById("timer-task-selector")) return;
+
+        const wrapper = document.createElement("div");
+        wrapper.id = "timer-task-selector";
+        wrapper.style.display = "flex";
+        wrapper.style.flexDirection = "column";
+        wrapper.style.alignItems = "center";
+        wrapper.style.gap = "8px";
+        wrapper.style.marginBottom = "12px";
+        wrapper.style.position = "relative";
+
+        wrapper.innerHTML = `
+            <button id="timer-task-toggle" type="button" style="background: var(--button-bg); color: var(--header-text); border-radius: 12px; padding: 8px 14px; font-size: 0.92em; display: inline-flex; gap: 8px; align-items: center;">
+                <i class="fas fa-book"></i> <span id="timer-task-toggle-label">Ders Seç</span>
+            </button>
+            <div id="timer-task-menu" style="display:none; width: 100%; max-width: 360px; background: rgba(15, 18, 26, 0.9); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);">
+                <select id="timer-task-select" style="width: 100%; padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,0.08); color: var(--header-text); border: 1px solid rgba(255,255,255,0.12); margin-bottom: 8px;"></select>
+                <button id="timer-task-apply" type="button" style="width: 100%; background: var(--accent-color); color: var(--header-text); border-radius: 10px; padding: 8px 10px;">
+                    Seç
+                </button>
+            </div>
+        `;
+
+        inputGroup.insertAdjacentElement("beforebegin", wrapper);
+
+        const toggle = wrapper.querySelector("#timer-task-toggle");
+        const menu = wrapper.querySelector("#timer-task-menu");
+        const select = wrapper.querySelector("#timer-task-select");
+        const applyButton = wrapper.querySelector("#timer-task-apply");
+
+        toggle?.addEventListener("click", () => {
+            if (!menu) return;
+            menu.style.display = menu.style.display === "none" || !menu.style.display ? "block" : "none";
+        });
+
+        applyButton?.addEventListener("click", () => {
+            if (!select) return;
+            setStoredTimerTaskId(select.value);
+            refreshTimerTaskSelector();
+            if (menu) menu.style.display = "none";
+        });
+
+        select?.addEventListener("change", () => {
+            if (!select) return;
+            setStoredTimerTaskId(select.value);
+            refreshTimerTaskSelector();
+        });
+    }
+
+    function refreshTimerTaskSelector() {
+        const select = document.getElementById("timer-task-select");
+        const label = document.getElementById("timer-task-toggle-label");
+        if (!select || !label) return;
+
+        const { dayData } = getTodayTaskContext();
+        const tasks = Array.isArray(dayData?.tasks) ? dayData.tasks : [];
+        const options = [
+            { id: TIMER_TASK_FREE_ID, label: "Sadece kronometre" },
+            ...tasks.map(task => ({ id: String(task.id || ""), label: String(task.text || "").trim() })).filter(option => option.id && option.label)
+        ];
+
+        select.innerHTML = options.map(option => `
+            <option value="${escapeHtml(option.id)}">${escapeHtml(option.label)}</option>
+        `).join("");
+
+        const storedId = getStoredTimerTaskId();
+        const fallbackId = options.find(option => option.id === storedId) ? storedId : (options[0]?.id || TIMER_TASK_FREE_ID);
+        select.value = fallbackId;
+
+        const activeOption = options.find(option => option.id === fallbackId);
+        label.textContent = activeOption ? activeOption.label : "Ders Seç";
+
+        if (timerState.session) {
+            timerState.session.taskId = fallbackId;
+        }
     }
 
     function setTimerMode(mode, options = {}) {
@@ -2669,6 +2823,11 @@
 
                 if (isCountdownTimerMode(normalizedMode) && !freshDraft) {
                     timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
+                }
+                if (!isBreakTimerMode(normalizedMode)) {
+                    timerState.session.taskId = getStoredTimerTaskId() || TIMER_TASK_FREE_ID;
+                } else {
+                    timerState.session.taskId = TIMER_TASK_FREE_ID;
                 }
             }
         }
@@ -7427,6 +7586,7 @@
         }
 
         updateLiveStudyPreview();
+        refreshTimerTaskSelector();
     }
 
     function getDayQuestionSubjectOptions(dayData) {
@@ -7607,22 +7767,40 @@
             const contentWrapper = item.querySelector(".task-content-wrapper");
             if (!contentWrapper) return;
 
-            let badge = contentWrapper.querySelector(".task-question-badge");
+            let badgeGroup = contentWrapper.querySelector(".task-badges");
+            if (!badgeGroup) {
+                badgeGroup = document.createElement("div");
+                badgeGroup.className = "task-badges";
+                const deleteIcon = contentWrapper.querySelector(".fa-times");
+                if (deleteIcon) {
+                    contentWrapper.insertBefore(badgeGroup, deleteIcon);
+                } else {
+                    contentWrapper.appendChild(badgeGroup);
+                }
+            }
+
+            let badge = badgeGroup.querySelector(".task-question-badge");
             if (!badge) {
                 badge = document.createElement("span");
                 badge.className = "task-question-badge";
-                const deleteIcon = contentWrapper.querySelector(".fa-times");
-                if (deleteIcon) {
-                    contentWrapper.insertBefore(badge, deleteIcon);
-                } else {
-                    contentWrapper.appendChild(badge);
-                }
+                badgeGroup.appendChild(badge);
             }
 
             const taskLabel = String(dayData?.tasks?.[taskIdx]?.text || "").trim();
             const solvedCount = parseInteger(normalizeTaskQuestionMap(dayData)?.[taskLabel], 0);
             badge.textContent = `${solvedCount} soru`;
             badge.classList.toggle("is-hidden", solvedCount <= 0);
+
+            let timeBadge = badgeGroup.querySelector(".task-time-badge");
+            if (!timeBadge) {
+                timeBadge = document.createElement("span");
+                timeBadge.className = "task-time-badge";
+                badgeGroup.appendChild(timeBadge);
+            }
+
+            const taskSeconds = Math.max(0, parseInteger(dayData?.tasks?.[taskIdx]?.workedSeconds, 0));
+            timeBadge.textContent = `Süre ${typeof formatSeconds === "function" ? formatSeconds(taskSeconds) : taskSeconds}`;
+            timeBadge.classList.toggle("is-hidden", taskSeconds <= 0);
             item.title = "Soldaki sayı ile ya da sürükleyerek sıralayabilirsin.";
         });
     }
@@ -8794,6 +8972,9 @@
             session.sessionDateKey = getCurrentDayMeta(new Date(session.startedAtMs)).dateKey;
             session.modalOpen = isTimerModalOpen();
             session.lastSeenAtMs = Date.now();
+            session.taskId = !isBreakTimerMode(mode)
+                ? (getStoredTimerTaskId() || TIMER_TASK_FREE_ID)
+                : TIMER_TASK_FREE_ID;
 
             timerState.session = session;
             timerDrafts[mode] = { ...session };
@@ -8888,6 +9069,8 @@
             persistTimerSessionLocally(session);
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
+            applyTaskWorkSecondsForSession(session, elapsed, commitState.referenceMs);
+            renderSchedule();
             monitorTimerSyncPromise(syncRealtimeTimer("complete", {
                 activeSession: session,
                 currentSessionTime: 0,
@@ -8937,6 +9120,7 @@
             if (isCountdownTimerMode(timerState.mode)) {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
+            timerState.session.taskId = getStoredTimerTaskId() || TIMER_TASK_FREE_ID;
             timerDrafts[timerState.mode] = { ...timerState.session };
 
             refreshLeaderboardOptimistically(null);
@@ -9141,6 +9325,8 @@
                         persistTimerSessionLocally(activeSession);
                     }
 
+                    applyTaskWorkSecondsForSession(activeSession, committedElapsedSeconds, commitState.referenceMs);
+
                     const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
                         activeSession: null,
                         currentSessionTime: 0,
@@ -9221,6 +9407,7 @@
                     document.getElementById("pomodoro-modal").style.display = "flex";
                 }
                 ensureTimerModeUi();
+                refreshTimerTaskSelector();
                 setTimerMode(timerState.mode, { persist: false, keepSession: true });
                 if (timerState.session?.isRunning) {
                     syncRealtimeTimer("modal-show", {
@@ -9958,6 +10145,7 @@
             if (isCountdownTimerMode(timerState.mode)) {
                 timerState.session.targetDurationSeconds = getPomodoroSeedSeconds();
             }
+            timerState.session.taskId = getStoredTimerTaskId() || TIMER_TASK_FREE_ID;
         }
         renderTimerUi();
         renderQuestionTrackingEnhancements();
