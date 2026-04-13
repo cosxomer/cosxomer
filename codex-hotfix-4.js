@@ -977,6 +977,12 @@
         const currentMeta = getAdminAdjustmentDateMeta(new Date());
         const isWeeklyAdjustment = scheduleUpdate.normalizedScope === 'week';
         const effectiveSchedule = isWeeklyAdjustment ? preservedSchedule : nextSchedule;
+        const baseWeekSecondsAtAdjustment = isWeeklyAdjustment
+            ? getAdminScheduleWeekWorkedSeconds(preservedSchedule, targetMeta.weekKey)
+            : 0;
+        const offsetWeekSeconds = isWeeklyAdjustment
+            ? (normalizedSeconds - baseWeekSecondsAtAdjustment)
+            : 0;
         const preservedDaySeconds = getAdminScheduleDayWorkedSeconds(preservedSchedule, currentMeta.weekKey, currentMeta.dayIdx);
         const preservedTotalWorkedSeconds = Math.max(
             0,
@@ -1048,7 +1054,8 @@
                 requestedAtMs: adjustmentRequestedAtMs,
                 targetSeconds: normalizedSeconds,
                 appliedDaySeconds: dailyStudyTime,
-                appliedWeekSeconds: weeklyStudyTime
+                appliedWeekSeconds: weeklyStudyTime,
+                ...(isWeeklyAdjustment ? { baseWeekSeconds: baseWeekSecondsAtAdjustment, offsetWeekSeconds } : {})
             },
             dailyQuestionCount: dailyQuestions,
             weeklyQuestionCount: weeklyQuestions,

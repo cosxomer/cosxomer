@@ -34,6 +34,7 @@
     const TIMER_TASK_SELECTION_KEY = "codexTimerSelectedTaskIdV1";
     const TIMER_TASK_FREE_ID = "__timer_free__";
     const PROFILE_CACHE_KEY = "codexProfileCacheV1";
+    const ADMIN_WEEK_OFFSET_CACHE_KEY = "codexAdminWeekOffsetCacheV1";
     const QUESTION_LIMIT = 500;
     const timerDeviceId = (() => {
         try {
@@ -1289,7 +1290,8 @@
         const token = String(adjustment.token || adjustment.requestedAt || "").trim();
         const dateKey = String(adjustment.dateKey || "").trim();
         const weekKey = String(adjustment.weekKey || "").trim();
-        const scope = ["today", "week", "total"].includes(adjustment.scope) ? adjustment.scope : "today";
+        const rawScope = String(adjustment.scope || "").trim().toLowerCase();
+        const scope = ["today", "yesterday", "week", "total"].includes(rawScope) ? rawScope : "today";
         const requestedAtMs = Math.max(
             parseInteger(adjustment.requestedAtMs, 0),
             parseInteger(adjustment.timestamp, 0),
@@ -1301,6 +1303,9 @@
             parseInteger(adjustment.appliedDaySeconds, 0),
             targetSeconds
         );
+        const appliedWeekSeconds = Math.max(0, parseInteger(adjustment.appliedWeekSeconds, 0));
+        const baseWeekSeconds = Math.max(0, parseInteger(adjustment.baseWeekSeconds, 0));
+        const offsetWeekSeconds = parseInteger(adjustment.offsetWeekSeconds, 0);
 
         if (!token || !dateKey || !requestedAtMs) return null;
 
@@ -1311,8 +1316,98 @@
             scope,
             requestedAtMs,
             targetSeconds,
-            appliedDaySeconds
+            appliedDaySeconds,
+            appliedWeekSeconds,
+            baseWeekSeconds,
+            offsetWeekSeconds
         };
+    }
+
+    function computeAdminWeeklyTargetSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
+        const rawAdjustment = userData?.adminTimeAdjustment;
+        if (!rawAdjustment || typeof rawAdjustment !== "object") return null;
+
+        const normalizedAdjustment = normalizeAdminTimeAdjustment(rawAdjustment);
+        const scope = String(normalizedAdjustment?.scope || rawAdjustment.scope || "").trim().toLowerCase();
+        if (scope !== "week") return null;
+
+        const currentMeta = getCurrentDayMeta(referenceDate);
+        const currentWeekKey = currentMeta.weekKey;
+        const adjustmentWeekKey = String(normalizedAdjustment?.weekKey || rawAdjustment.weekKey || "").trim();
+        if (adjustmentWeekKey && adjustmentWeekKey !== currentWeekKey) return null;
+
+        const baseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(schedule || userData?.schedule || {}, referenceDate);
+        const hasOffset = (
+            (normalizedAdjustment && Object.prototype.hasOwnProperty.call(normalizedAdjustment, "offsetWeekSeconds"))
+            || Object.prototype.hasOwnProperty.call(rawAdjustment, "offsetWeekSeconds")
+        );
+        if (hasOffset) {
+            const offsetSeconds = parseInteger(
+                normalizedAdjustment?.offsetWeekSeconds,
+                parseInteger(rawAdjustment.offsetWeekSeconds, 0)
+            );
+            return Math.max(0, baseWeekSeconds + offsetSeconds);
+        }
+
+        const appliedWeekSeconds = Math.max(
+            0,
+            parseInteger(normalizedAdjustment?.appliedWeekSeconds, 0),
+            parseInteger(rawAdjustment.appliedWeekSeconds, 0)
+        );
+        const hasBaseWeekSeconds = (
+            (normalizedAdjustment && Object.prototype.hasOwnProperty.call(normalizedAdjustment, "baseWeekSeconds"))
+            || Object.prototype.hasOwnProperty.call(rawAdjustment, "baseWeekSeconds")
+        );
+        if (hasBaseWeekSeconds && appliedWeekSeconds > 0) {
+            const baseAtAdjustment = Math.max(
+                0,
+                parseInteger(normalizedAdjustment?.baseWeekSeconds, 0),
+                parseInteger(rawAdjustment.baseWeekSeconds, 0)
+            );
+            const derivedOffsetSeconds = appliedWeekSeconds - baseAtAdjustment;
+            return Math.max(0, baseWeekSeconds + derivedOffsetSeconds);
+        }
+
+        if (appliedWeekSeconds > 0) {
+            const uid = String(userData?.uid || "").trim();
+            const token = String(normalizedAdjustment?.token || rawAdjustment.token || "").trim();
+            const isCurrentUserDoc = !!currentUser?.uid && uid === currentUser.uid;
+            if (isCurrentUserDoc && token) {
+                const cacheKey = `${ADMIN_WEEK_OFFSET_CACHE_KEY}:${uid}:${token}`;
+                const cachedRaw = safeStorageGet(cacheKey, "");
+                if (cachedRaw !== "") {
+                    const cachedOffset = parseInteger(cachedRaw, 0);
+                    return Math.max(0, baseWeekSeconds + cachedOffset);
+                }
+
+                const derivedOffsetSeconds = appliedWeekSeconds - baseWeekSeconds;
+                safeStorageSet(cacheKey, String(derivedOffsetSeconds));
+                return Math.max(0, baseWeekSeconds + derivedOffsetSeconds);
+            }
+
+            return Math.max(baseWeekSeconds, appliedWeekSeconds);
+        }
+
+        const deltaSeconds = Math.max(
+            0,
+            parseInteger(normalizedAdjustment?.targetSeconds, 0),
+            parseInteger(rawAdjustment.targetSeconds, 0)
+        );
+        if (!deltaSeconds) return null;
+        return baseWeekSeconds + deltaSeconds;
+    }
+
+    function patchAdminWeeklyAdjustmentTarget() {
+        const original = typeof window.getAdminWeeklyAdjustmentTarget === "function"
+            ? window.getAdminWeeklyAdjustmentTarget
+            : null;
+        if (!original || original.__codexWeekOffsetPatched) return;
+
+        const wrapped = function(userData = {}, schedule = {}, referenceDate = new Date()) {
+            return computeAdminWeeklyTargetSeconds(userData, schedule, referenceDate);
+        };
+        wrapped.__codexWeekOffsetPatched = true;
+        window.getAdminWeeklyAdjustmentTarget = wrapped;
     }
 
     function getTrackedSubjectIds(dayData = null) {
@@ -4315,12 +4410,17 @@
                 ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
                 : 0
         );
-        const currentWeekSeconds = editable
-            ? Math.max(
-                getCurrentWeekWorkedSecondsFromSchedule(resolvedSchedule, referenceDate),
-                getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, referenceDate)
-            )
-            : getCurrentWeekWorkedSecondsFromSchedule(resolvedSchedule, referenceDate);
+        const resolvedWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(resolvedSchedule, referenceDate);
+        const localWeekSeconds = editable ? getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, referenceDate) : 0;
+        const weekScheduleForCompute = (editable && localWeekSeconds > resolvedWeekSeconds) ? (scheduleData || {}) : resolvedSchedule;
+        const baseWeekSeconds = editable ? Math.max(resolvedWeekSeconds, localWeekSeconds) : resolvedWeekSeconds;
+        const weekAdjustmentSource = editable
+            ? (currentUserLiveDoc || safeUser || safeBase || {})
+            : (safeBase || safeUser || safePublic || safeCached || {});
+        const adjustedWeekSeconds = computeAdminWeeklyTargetSeconds(weekAdjustmentSource, weekScheduleForCompute, referenceDate);
+        const currentWeekSeconds = adjustedWeekSeconds !== null
+            ? adjustedWeekSeconds
+            : baseWeekSeconds;
         const resolvedNotesSource = editable
             ? (safeBase.notes || safeUser.notes || userNotes || [])
             : (safeBase.notes || safePublic.notes || safeCached.notes || safeUser.notes || []);
@@ -4641,7 +4741,11 @@
         const resolvedSelectedTitleId = getStoredSelectedTitleId(basePayload, currentUserLiveDoc || {});
         const resolvedTitleAwards = getStoredTitleAwards(basePayload, currentUserLiveDoc || {});
         const dailyStudyTime = getFreshDailyStudySeconds(basePayload, safeSchedule);
-        const weeklyStudyTime = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
+        const baseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
+        const adjustedWeekSeconds = computeAdminWeeklyTargetSeconds(currentUserLiveDoc || basePayload || {}, safeSchedule, new Date());
+        const weeklyStudyTime = adjustedWeekSeconds !== null
+            ? adjustedWeekSeconds
+            : baseWeekSeconds;
         const activeTimer = basePayload.activeTimer || (timerState.session ? serializeTimerSession(timerState.session) : null);
         const activeTimerElapsedSeconds = activeTimer
             ? Math.max(0, getTimerElapsedSeconds(activeTimer))
@@ -4764,7 +4868,12 @@
         const resolvedRole = basePayload.role || (resolvedIsAdmin ? "admin" : "user");
         const resolvedAdminTitle = basePayload.adminTitle || (resolvedIsAdmin ? (derivedAdminMeta?.adminTitle || "Kurucu Admin") : "");
         const dailyStudyTime = getFreshDailyStudySeconds(basePayload, safeSchedule);
-        const weeklyStudyTime = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
+        const baseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule);
+        const weekAdjustmentSource = isCurrentUserTarget ? (currentUserLiveDoc || basePayload || {}) : basePayload;
+        const adjustedWeekSeconds = computeAdminWeeklyTargetSeconds(weekAdjustmentSource || {}, safeSchedule, new Date());
+        const weeklyStudyTime = adjustedWeekSeconds !== null
+            ? adjustedWeekSeconds
+            : baseWeekSeconds;
         const activeTimer = basePayload.activeTimer || (isCurrentUserTarget && timerState.session ? serializeTimerSession(timerState.session) : null);
         const currentSessionTime = Math.max(
             parseInteger(basePayload.currentSessionTime, 0),
@@ -5024,22 +5133,6 @@
             return true;
         }
 
-        if (
-            shouldForceReplaceFromAdmin
-            && adminTimeAdjustment.scope === "week"
-            && (!adminTimeAdjustment.weekKey || adminTimeAdjustment.weekKey === weekKey)
-        ) {
-            if (!scheduleData || typeof scheduleData !== "object") {
-                scheduleData = {};
-            }
-            scheduleData = sanitizeScheduleData(scheduleData);
-            scheduleData[weekKey] = sanitizeScheduleData(remoteSchedule)?.[weekKey] || {};
-            if (typeof refreshCurrentTotals === "function") {
-                refreshCurrentTotals();
-            }
-            return true;
-        }
-
         const currentStoredSeconds = Math.max(
             parseInteger(localDayData.workedSeconds, 0),
             parseInteger(remoteDayData.workedSeconds, 0)
@@ -5138,7 +5231,11 @@
             selectedTitleId: resolvedSelectedTitleId,
             titleAwards: resolvedTitleAwards
         });
-        const currentWeekWorkedSeconds = getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, new Date(syncTimestamp));
+        const baseWeekWorkedSeconds = getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, new Date(syncTimestamp));
+        const adjustedWeekWorkedSeconds = computeAdminWeeklyTargetSeconds(currentUserLiveDoc || {}, scheduleData || {}, new Date(syncTimestamp));
+        const currentWeekWorkedSeconds = adjustedWeekWorkedSeconds !== null
+            ? adjustedWeekWorkedSeconds
+            : baseWeekWorkedSeconds;
 
         return {
             schedule: scheduleData,
@@ -6268,6 +6365,10 @@
             displayReferenceMs: dayDisplayReferenceMs
         });
         const scheduleWeeklySeconds = getCurrentWeekWorkedSecondsFromSchedule(normalizedUserData?.schedule || {}, currentDate);
+        const adjustedWeeklySeconds = computeAdminWeeklyTargetSeconds(normalizedUserData, normalizedUserData?.schedule || {}, currentDate);
+        const resolvedWeeklySeconds = adjustedWeeklySeconds !== null
+            ? adjustedWeeklySeconds
+            : scheduleWeeklySeconds;
         if (currentLeaderboardTab === "daily") {
             const dayStart = new Date(currentDate);
             dayStart.setHours(0, 0, 0, 0);
@@ -6278,7 +6379,7 @@
                 scheduleDailySeconds
             );
         } else {
-            totalSeconds = scheduleWeeklySeconds;
+            totalSeconds = resolvedWeeklySeconds;
         }
 
         const activeTimer = normalizedUserData?.activeTimer;
@@ -6726,7 +6827,11 @@
             referenceDate,
             getLeaderboardDayDisplayReferenceMs(rawData, referenceDate, Date.now())
         );
-        const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+        const baseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+        const adjustedWeekSeconds = computeAdminWeeklyTargetSeconds(rawData, safeSchedule, referenceDate);
+        const currentWeekSeconds = adjustedWeekSeconds !== null
+            ? adjustedWeekSeconds
+            : baseWeekSeconds;
         updateInferredWorkingPresence(rawData, docId);
         const presenceState = getTrustedLeaderboardPresenceState(rawData, docId);
 
@@ -6767,7 +6872,11 @@
             const questionCounters = buildQuestionCounterPayload(safeSchedule);
             updateInferredWorkingPresence(rawData, doc.id);
             const presenceState = getTrustedLeaderboardPresenceState(rawData, doc.id);
-            const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+            const baseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(safeSchedule, referenceDate);
+            const adjustedWeekSeconds = computeAdminWeeklyTargetSeconds(rawData, safeSchedule, referenceDate);
+            const currentWeekSeconds = adjustedWeekSeconds !== null
+                ? adjustedWeekSeconds
+                : baseWeekSeconds;
             const dailyStudyTime = getCurrentDayWorkedSecondsFromSchedule(
                 safeSchedule,
                 referenceDate,
@@ -6885,7 +6994,11 @@
                 referenceDate,
                 getLeaderboardDayDisplayReferenceMs(mergedData, referenceDate, Date.now())
             );
-            const mergedCurrentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(mergedData.schedule, referenceDate);
+            const mergedBaseWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(mergedData.schedule, referenceDate);
+            const mergedAdjustedWeekSeconds = computeAdminWeeklyTargetSeconds(mergedData, mergedData.schedule, referenceDate);
+            const mergedCurrentWeekSeconds = mergedAdjustedWeekSeconds !== null
+                ? mergedAdjustedWeekSeconds
+                : mergedBaseWeekSeconds;
             mergedData.dailyStudyTime = mergedDailyStudyTime;
             mergedData.todayStudyTime = mergedDailyStudyTime;
             mergedData.todayWorkedSeconds = mergedDailyStudyTime;
@@ -7042,13 +7155,13 @@
                         : 0
                 );
                 const questions = currentPeriodQuestions;
-                const currentWeekTotals = getCurrentWeekWorkedSecondsFromSchedule(
-                    sanitizeScheduleData(data.schedule || {}),
-                    referenceDate
-                );
+                const currentWeekSchedule = sanitizeScheduleData(data.schedule || {});
+                const baseWeekTotals = getCurrentWeekWorkedSecondsFromSchedule(currentWeekSchedule, referenceDate);
+                const adjustedWeekTotals = computeAdminWeeklyTargetSeconds(data, currentWeekSchedule, referenceDate);
+                const currentWeekTotals = adjustedWeekTotals !== null ? adjustedWeekTotals : baseWeekTotals;
                 const titleInfo = buildResolvedTitleInfo({
                     uid: doc.id,
-                    schedule: sanitizeScheduleData(data.schedule || {}),
+                    schedule: currentWeekSchedule,
                     activeTimer: data.activeTimer || null,
                     selectedTitleId: getStoredSelectedTitleId(data),
                     titleAwards: getStoredTitleAwards(data)
@@ -10265,6 +10378,7 @@
         patchLeaderboardRealtime();
         patchProtectedOpeners();
         patchRenderSchedule();
+        patchAdminWeeklyAdjustmentTarget();
         attachRealtimeListeners();
         ensureCalendarBoundaryWatcher();
 
