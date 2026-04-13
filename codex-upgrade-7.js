@@ -95,6 +95,8 @@
     let hasTimerControl = false;
     let requiresEmailVerification = false;
     let taskDragState = null;
+    let taskCopySelectionState = null;
+    let taskCopySelections = {};
     let lastAutoDailyResetSyncSignature = "";
     let lastTimerDayBoundaryResetSignature = "";
     let hasBootstrappedUsersRealtime = false;
@@ -10213,6 +10215,158 @@
         });
     }
 
+    function getSelectedCopyTaskIndexes() {
+        return Object.keys(taskCopySelections)
+            .filter(key => taskCopySelections[key])
+            .map(key => parseInt(key, 10))
+            .filter(index => Number.isInteger(index) && index >= 0)
+            .sort((left, right) => left - right);
+    }
+
+    function clearTaskCopySelection(renderUi = true) {
+        taskCopySelectionState = null;
+        taskCopySelections = {};
+        if (renderUi) renderSchedule();
+    }
+
+    function patchTaskCopyFeature() {
+        const originalEnhanceScheduleUi = typeof enhanceScheduleUI === "function" ? enhanceScheduleUI : null;
+        if (!originalEnhanceScheduleUi) return;
+
+        window.startTaskCopySelection = function(dayIdx) {
+            const weekKey = getWeekKey(currentWeekStart);
+            const dayData = ensureWeekDay(weekKey, dayIdx);
+            if (!Array.isArray(dayData.tasks) || !dayData.tasks.length) return showAlert("Kopyalanacak görev bulunamadı.");
+            if (typeof cancelMoveSelection === "function") {
+                activeMoveSelection = null;
+                moveTaskSelections = {};
+            }
+            taskCopySelectionState = { weekKey, dayIdx };
+            taskCopySelections = {};
+            console.log("TASK COPY MODE STARTED", { weekKey, dayIdx });
+            renderSchedule();
+        };
+
+        window.toggleTaskCopySelection = function(dayIdx, taskIdx, checked) {
+            const currentWeekKey = getWeekKey(currentWeekStart);
+            if (!taskCopySelectionState || taskCopySelectionState.weekKey !== currentWeekKey || taskCopySelectionState.dayIdx !== dayIdx) return;
+            taskCopySelections[taskIdx] = !!checked;
+            renderSchedule();
+        };
+
+        window.pasteCopiedTasksIntoDay = function(targetDayIdx) {
+            const currentWeekKey = getWeekKey(currentWeekStart);
+            if (!taskCopySelectionState || taskCopySelectionState.weekKey !== currentWeekKey) return showAlert("Önce kopyala ve görevleri seç.");
+            const sourceDay = ensureWeekDay(currentWeekKey, taskCopySelectionState.dayIdx);
+            const selectedIndexes = getSelectedCopyTaskIndexes();
+            if (!selectedIndexes.length) return showAlert("Önce kopyalanacak görevleri seç.");
+
+            const targetDay = ensureWeekDay(currentWeekKey, targetDayIdx);
+            const existingKeys = new Set((Array.isArray(targetDay.tasks) ? targetDay.tasks : []).map(task => String(task?.text || "").trim().toLowerCase()));
+            const copiedTasks = selectedIndexes
+                .map(index => sourceDay.tasks?.[index])
+                .filter(Boolean)
+                // Copy only the label; do not carry over any timer/question metadata between days.
+                .map(task => {
+                    const label = String(task?.text || "").trim();
+                    if (!label) return null;
+                    const normalized = typeof normalizeTaskEntry === "function"
+                        ? normalizeTaskEntry({ text: label, completed: false })
+                        : { text: label, completed: false };
+                    if (!normalized || !String(normalized.text || "").trim()) return null;
+                    return { text: String(normalized.text || "").trim(), completed: false };
+                })
+                .filter(Boolean)
+                .filter(task => {
+                    const key = String(task.text || "").trim().toLowerCase();
+                    if (!key || existingKeys.has(key)) return false;
+                    existingKeys.add(key);
+                    return true;
+                });
+
+            if (!copiedTasks.length) return showAlert("Seçilen görevler hedef günde zaten var.");
+
+            targetDay.tasks.push(...copiedTasks);
+            scheduleData[currentWeekKey][targetDayIdx] = syncDayQuestionState(ensureDayObject(targetDay));
+            console.log("TASK COPY PASTE", {
+                sourceDayIdx: taskCopySelectionState.dayIdx,
+                targetDayIdx,
+                count: copiedTasks.length
+            });
+            taskCopySelectionState = null;
+            taskCopySelections = {};
+            saveData();
+            renderSchedule();
+            showAlert("Görevler kopyalandı ve kaydedildi.", "success");
+        };
+
+        window.cancelTaskCopySelection = function() {
+            clearTaskCopySelection(true);
+        };
+
+        if (typeof startMoveSelection === "function") {
+            const originalStartMoveSelection = startMoveSelection;
+            startMoveSelection = function(...args) {
+                taskCopySelectionState = null;
+                taskCopySelections = {};
+                return originalStartMoveSelection.apply(this, args);
+            };
+        }
+
+        enhanceScheduleUI = function(...args) {
+            originalEnhanceScheduleUi.apply(this, args);
+            const currentWeekKey = getWeekKey(currentWeekStart);
+            if (taskCopySelectionState && taskCopySelectionState.weekKey !== currentWeekKey) {
+                taskCopySelectionState = null;
+                taskCopySelections = {};
+            }
+
+            for (let dayIdx = 0; dayIdx < 7; dayIdx++) {
+                const input = document.getElementById(`q-input-${dayIdx}`);
+                const buttonGroup = input ? input.closest(".question-input-box")?.querySelector(".question-btn-group") : null;
+                const taskList = document.getElementById(`task-list-${dayIdx}`);
+                const isCopySource = !!taskCopySelectionState && taskCopySelectionState.weekKey === currentWeekKey && taskCopySelectionState.dayIdx === dayIdx;
+                const selectedCount = getSelectedCopyTaskIndexes().length;
+
+                if (buttonGroup) {
+                    buttonGroup.querySelectorAll(".task-copy-action").forEach(node => node.remove());
+
+                    const copyButton = document.createElement("button");
+                    copyButton.className = `question-btn task-copy-action ${isCopySource ? "task-copy-active" : ""}`;
+                    copyButton.type = "button";
+                    copyButton.style.background = "#8b5cf6";
+                    copyButton.textContent = isCopySource ? "İptal" : "Kopyala";
+                    copyButton.onclick = () => isCopySource ? clearTaskCopySelection(true) : startTaskCopySelection(dayIdx);
+                    buttonGroup.appendChild(copyButton);
+
+                    if (selectedCount > 0 && !isCopySource) {
+                        const pasteButton = document.createElement("button");
+                        pasteButton.className = "question-btn task-copy-action";
+                        pasteButton.type = "button";
+                        pasteButton.style.background = "#06b6d4";
+                        pasteButton.textContent = "Yapıştır ve Kaydet";
+                        pasteButton.onclick = () => pasteCopiedTasksIntoDay(dayIdx);
+                        buttonGroup.appendChild(pasteButton);
+                    }
+                }
+
+                if (!taskList) continue;
+                Array.from(taskList.children).forEach((taskItem, taskIdx) => {
+                    taskItem.querySelectorAll(".task-copy-checkbox").forEach(node => node.remove());
+                    if (!isCopySource) return;
+                    const contentWrapper = taskItem.querySelector(".task-content-wrapper");
+                    if (!contentWrapper) return;
+                    const checkbox = document.createElement("input");
+                    checkbox.type = "checkbox";
+                    checkbox.className = "task-copy-checkbox";
+                    checkbox.checked = !!taskCopySelections[taskIdx];
+                    checkbox.onchange = event => toggleTaskCopySelection(dayIdx, taskIdx, event.target.checked);
+                    taskItem.insertBefore(checkbox, contentWrapper);
+                });
+            }
+        };
+    }
+
     function patchRenderSchedule() {
         const originalRenderSchedule = typeof renderSchedule === "function" ? renderSchedule : null;
         if (!originalRenderSchedule) return;
@@ -10413,6 +10567,7 @@
         bindTimerModalControls();
         patchProfileCopy();
         patchLeaderboardRealtime();
+        patchTaskCopyFeature();
         patchProtectedOpeners();
         patchRenderSchedule();
         patchAdminWeeklyAdjustmentTarget();
