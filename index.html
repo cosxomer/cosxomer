@@ -403,6 +403,28 @@
             flex-wrap: wrap; 
             justify-content: flex-end;
         }
+
+        .android-download-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 20px;
+            border-radius: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background-color: #18b875;
+            color: #ffffff;
+            font-weight: 800;
+            letter-spacing: 0.01em;
+            text-decoration: none;
+            box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            transition: transform 0.26s ease, box-shadow 0.28s ease, filter 0.28s ease;
+        }
+
+        .android-download-btn:hover {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 18px 30px rgba(0, 0, 0, 0.26), 0 0 18px rgba(24, 184, 117, 0.45);
+            filter: saturate(1.04);
+        }
         
         .auth-section {
             flex-shrink: 0;
@@ -4499,6 +4521,9 @@
                 <button id="titles-info-btn" onclick="openTitlesModal()" style="background-color: var(--accent-color); color: var(--header-text);">
                     <i class="fas fa-award"></i> Ünvanlar
                 </button>
+                <a id="android-download-btn" class="android-download-btn" href="cosxomer-latest.apk" download>
+                    <i class="fab fa-android"></i> Android için APK İndir
+                </a>
                 <a href="https://instagram.com/cosxomer" id="instagram-link" target="_blank">
                     <i class="fab fa-instagram"></i> COSXOMER
                 </a>
