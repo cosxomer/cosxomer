@@ -5068,7 +5068,7 @@
         let totalWorkedSecondsAllTime = 0;
         let totalQuestionsAllTime = 0;
         let currentLeaderboardTab = 'daily'; // Sekme durumu
-        let currentUsername = "Ömer";
+        let currentUsername = "";
         let currentProfileAbout = "";
         let currentProfileImage = "";
         let currentAccountCreatedAt = "";
@@ -6137,7 +6137,7 @@
         }
 
         function updateProfileButton() {
-            document.getElementById('username-display').innerText = currentUsername || "Ömer";
+            document.getElementById('username-display').innerText = currentUsername || "Kullanıcı";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
         }
 
@@ -6626,7 +6626,7 @@
         }
 
         function updateProfileButton() {
-            document.getElementById('username-display').innerText = currentUsername || "Ömer";
+            document.getElementById('username-display').innerText = currentUsername || "Kullanıcı";
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
         }
 
@@ -7111,7 +7111,7 @@
                         ...data
                     };
                     scheduleData = data.schedule || {};
-                    currentUsername = data.username || currentUsername || "Ömer";
+                    currentUsername = data.username || currentUsername || "";
                     currentProfileAbout = data.about || "";
                     currentProfileImage = data.profileImage || "";
                     currentAccountCreatedAt = data.accountCreatedAt || new Date().toISOString();
@@ -7133,7 +7133,7 @@
                 document.getElementById('user-info').style.display = 'none';
                 document.getElementById('logout-btn').style.display = 'none';
                 document.getElementById('cloud-sync-btn').style.display = 'none';
-                currentUsername = "Ömer";
+                currentUsername = "";
                 currentProfileAbout = "";
                 currentProfileImage = "";
                 currentAccountCreatedAt = "";
