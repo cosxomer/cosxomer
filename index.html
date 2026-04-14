@@ -5055,6 +5055,74 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
+        const authPersistenceReady = typeof auth.setPersistence === 'function'
+            ? auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(error => {
+                console.warn("LOCAL auth persistence ayarlanamadi, SESSION denenecek:", error);
+                return auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(fallbackError => {
+                    console.warn("SESSION auth persistence da ayarlanamadi:", fallbackError);
+                });
+            })
+            : Promise.resolve();
+        const AUTH_RECOVERY_UID_KEY = 'cosxAuthLastUid';
+        const AUTH_RECOVERY_SEEN_AT_KEY = 'cosxAuthLastSeenAt';
+        const AUTH_RECOVERY_GRACE_MS = 6500;
+        let pendingAuthRecoveryTimer = null;
+
+        function rememberAuthRecoveryUser(user) {
+            try {
+                if (!user || !user.uid) return;
+                localStorage.setItem(AUTH_RECOVERY_UID_KEY, String(user.uid));
+                localStorage.setItem(AUTH_RECOVERY_SEEN_AT_KEY, String(Date.now()));
+            } catch (error) {
+                console.warn("Auth recovery isareti yazilamadi:", error);
+            }
+        }
+
+        function clearPendingAuthRecoveryTimer() {
+            if (pendingAuthRecoveryTimer) {
+                clearTimeout(pendingAuthRecoveryTimer);
+                pendingAuthRecoveryTimer = null;
+            }
+        }
+
+        function hasRecentAuthRecoveryMarker() {
+            try {
+                const lastUid = localStorage.getItem(AUTH_RECOVERY_UID_KEY) || "";
+                const lastSeenAt = Number(localStorage.getItem(AUTH_RECOVERY_SEEN_AT_KEY) || 0);
+                return !!lastUid && Number.isFinite(lastSeenAt) && (Date.now() - lastSeenAt) < (14 * 24 * 60 * 60 * 1000);
+            } catch (error) {
+                console.warn("Auth recovery isareti okunamadi:", error);
+                return false;
+            }
+        }
+
+        function shouldHoldSignedOutState() {
+            return hasRecentAuthRecoveryMarker() && (!!currentUser || document.hidden || document.visibilityState === 'hidden');
+        }
+
+        function scheduleAuthRecoveryFallback(onExpire) {
+            clearPendingAuthRecoveryTimer();
+            pendingAuthRecoveryTimer = window.setTimeout(() => {
+                pendingAuthRecoveryTimer = null;
+                if (auth && auth.currentUser) {
+                    rememberAuthRecoveryUser(auth.currentUser);
+                    return;
+                }
+                if (typeof onExpire === 'function') {
+                    onExpire();
+                }
+            }, AUTH_RECOVERY_GRACE_MS);
+        }
+
+        function markAuthRecoverySignedOut() {
+            clearPendingAuthRecoveryTimer();
+            try {
+                localStorage.removeItem(AUTH_RECOVERY_UID_KEY);
+                localStorage.removeItem(AUTH_RECOVERY_SEEN_AT_KEY);
+            } catch (error) {
+                console.warn("Auth recovery isareti silinemedi:", error);
+            }
+        }
 
         let currentUser = null;
         let scheduleData = {};
@@ -6204,6 +6272,11 @@
             if (newUsername.length < 2) return showAlert("Kullanıcı adı en az 2 karakter olmalı.");
             currentUsername = newUsername;
             currentProfileAbout = newAbout;
+            if (typeof currentUser.updateProfile === 'function') {
+                currentUser.updateProfile({ displayName: newUsername }).catch(error => {
+                    console.warn("Auth displayName güncellenemedi:", error);
+                });
+            }
             refreshCurrentTotals();
             saveData();
             updateProfileButton();
@@ -7000,6 +7073,11 @@
             currentProfileAbout = newAbout;
             studyTrack = newTrack;
             selectedSubjects = newSubjects;
+            if (typeof currentUser.updateProfile === 'function') {
+                currentUser.updateProfile({ displayName: newUsername }).catch(error => {
+                    console.warn("Auth displayName güncellenemedi:", error);
+                });
+            }
 
             refreshCurrentTotals();
             saveData();
@@ -7087,6 +7165,22 @@
 
         auth.onAuthStateChanged(user => {
             if (user) {
+                clearPendingAuthRecoveryTimer();
+                rememberAuthRecoveryUser(user);
+                const previousUid = String(currentUser?.uid || "");
+                if (previousUid && previousUid !== String(user.uid || "")) {
+                    currentUserLiveDoc = null;
+                    currentUsername = "";
+                    currentProfileAbout = "";
+                    currentProfileImage = "";
+                    currentAccountCreatedAt = "";
+                    studyTrack = "";
+                    selectedSubjects = [];
+                    userNotes = [];
+                    scheduleData = {};
+                    totalWorkedSecondsAllTime = 0;
+                    totalQuestionsAllTime = 0;
+                }
                 currentUser = user;
                 document.getElementById('login-gate').style.opacity = '0';
                 setTimeout(() => { document.getElementById('login-gate').style.display = 'none'; }, 300);
@@ -7126,22 +7220,33 @@
                     renderSchedule();
                 });
             } else {
-                currentUser = null;
-                currentUserLiveDoc = null;
-                document.getElementById('login-gate').style.display = 'flex';
-                document.getElementById('login-gate').style.opacity = '1';
-                document.getElementById('user-info').style.display = 'none';
-                document.getElementById('logout-btn').style.display = 'none';
-                document.getElementById('cloud-sync-btn').style.display = 'none';
-                currentUsername = "";
-                currentProfileAbout = "";
-                currentProfileImage = "";
-                currentAccountCreatedAt = "";
-                userNotes = [];
-                totalWorkedSecondsAllTime = 0;
-                totalQuestionsAllTime = 0;
-                updateMyNotesButton();
-                closeProfileModal();
+                const finalizeSignedOutState = () => {
+                    markAuthRecoverySignedOut();
+                    currentUser = null;
+                    currentUserLiveDoc = null;
+                    document.getElementById('login-gate').style.display = 'flex';
+                    document.getElementById('login-gate').style.opacity = '1';
+                    document.getElementById('user-info').style.display = 'none';
+                    document.getElementById('logout-btn').style.display = 'none';
+                    document.getElementById('cloud-sync-btn').style.display = 'none';
+                    currentUsername = "";
+                    currentProfileAbout = "";
+                    currentProfileImage = "";
+                    currentAccountCreatedAt = "";
+                    userNotes = [];
+                    totalWorkedSecondsAllTime = 0;
+                    totalQuestionsAllTime = 0;
+                    updateMyNotesButton();
+                    closeProfileModal();
+                };
+
+                if (shouldHoldSignedOutState()) {
+                    scheduleAuthRecoveryFallback(finalizeSignedOutState);
+                    syncAmbientIntervals();
+                    return;
+                }
+
+                finalizeSignedOutState();
             }
             syncAmbientIntervals();
         });
@@ -7156,7 +7261,7 @@
         function signInWithEmailPassword() {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-password').value;
-            auth.signInWithEmailAndPassword(email, pass).catch(err => {
+            authPersistenceReady.then(() => auth.signInWithEmailAndPassword(email, pass)).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
         }
@@ -7167,8 +7272,14 @@
             const pass = document.getElementById('signup-password').value;
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
             const accountCreatedAt = new Date().toISOString();
-            auth.createUserWithEmailAndPassword(email, pass).then(cred => {
-                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
+            authPersistenceReady.then(() => auth.createUserWithEmailAndPassword(email, pass)).then(cred => {
+                return Promise.resolve(
+                    typeof cred.user.updateProfile === 'function'
+                        ? cred.user.updateProfile({ displayName: username }).catch(error => {
+                            console.warn("Auth displayName güncellenemedi:", error);
+                        })
+                        : null
+                ).then(() => db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false }));
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
@@ -7177,6 +7288,7 @@
         function signOutUser() { 
             updateWorkingStatus(false);
             closeProfileModal();
+            markAuthRecoverySignedOut();
             auth.signOut(); 
         }
 
@@ -11442,7 +11554,7 @@
                 if (!pass) return setAuthError('Sifreni yaz.');
 
                 setAuthError("");
-                auth.signInWithEmailAndPassword(email, pass).catch(error => {
+                authPersistenceReady.then(() => auth.signInWithEmailAndPassword(email, pass)).catch(error => {
                     setAuthError(translateAuthError(error, 'login'));
                 });
             };
@@ -11458,8 +11570,14 @@
 
                 const accountCreatedAt = new Date().toISOString();
                 setAuthError("");
-                auth.createUserWithEmailAndPassword(email, pass)
-                    .then(cred => db.collection('users').doc(cred.user.uid).set({
+                authPersistenceReady.then(() => auth.createUserWithEmailAndPassword(email, pass))
+                    .then(cred => Promise.resolve(
+                        typeof cred.user.updateProfile === 'function'
+                            ? cred.user.updateProfile({ displayName: username }).catch(error => {
+                                console.warn("Auth displayName güncellenemedi:", error);
+                            })
+                            : null
+                    ).then(() => db.collection('users').doc(cred.user.uid).set({
                         username,
                         email,
                         isAdmin: isAdminIdentity(username, email),
@@ -11476,7 +11594,7 @@
                         totalWorkedSeconds: 0,
                         totalQuestionsAllTime: 0,
                         isWorking: false
-                    }))
+                    })))
                     .catch(error => {
                         setAuthError(translateAuthError(error, 'signup'));
                     });
@@ -12547,7 +12665,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260413-0001"></script>      
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260413-0006"></script>     
+<script src="codex-upgrade-7.js?v=20260414-0009"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {

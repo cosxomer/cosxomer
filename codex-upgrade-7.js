@@ -291,15 +291,49 @@
         }));
     }
 
+    function resolveTrustedUsername(basePayload = {}, options = {}) {
+        const safePayload = basePayload && typeof basePayload === "object" ? basePayload : {};
+        const includeCurrent = options.includeCurrent !== false;
+        const allowAuthDisplayName = !!options.allowAuthDisplayName;
+        const explicitCandidates = [
+            safePayload.username,
+            safePayload.name,
+            currentUserLiveDoc?.username,
+            currentUserLiveDoc?.name,
+            includeCurrent ? currentUsername : ""
+        ];
+
+        for (const candidate of explicitCandidates) {
+            const resolved = String(candidate || "").trim();
+            if (resolved) return resolved;
+        }
+
+        if (allowAuthDisplayName) {
+            const displayName = String(currentUser?.displayName || "").trim();
+            if (displayName) return displayName;
+        }
+
+        return "";
+    }
+
+    function syncAuthDisplayNameSafely(username = "") {
+        const safeUsername = String(username || "").trim();
+        if (!currentUser || !safeUsername || typeof currentUser.updateProfile !== "function") {
+            return Promise.resolve();
+        }
+
+        if (String(currentUser.displayName || "").trim() === safeUsername) {
+            return Promise.resolve();
+        }
+
+        return currentUser.updateProfile({ displayName: safeUsername }).catch(error => {
+            console.warn("Auth displayName guncellenemedi:", error);
+        });
+    }
+
     function applyCloudProfilePatchSafely(profileData = {}) {
         const safeData = profileData && typeof profileData === "object" ? profileData : {};
-        const resolvedUsername = String(
-            safeData.username
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || safeData.email?.split?.("@")?.[0]
-            || ""
-        ).trim();
+        const resolvedUsername = resolveTrustedUsername(safeData, { allowAuthDisplayName: true });
         const resolvedEmailPrefix = String(currentUser?.email?.split?.("@")?.[0] || "").trim();
 
         if (typeof currentUsername !== "undefined") {
@@ -4801,14 +4835,7 @@
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
-        const resolvedUsername = String(
-            currentUsername
-            || basePayload.username
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || basePayload.email?.split?.("@")?.[0]
-            || ""
-        ).trim();
+        const resolvedUsername = resolveTrustedUsername(basePayload, { allowAuthDisplayName: true });
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || basePayload.uid || "",
             schedule: safeSchedule,
@@ -4880,13 +4907,9 @@
             || basePayload.email
             || ""
         ).trim();
-        const resolvedUsername = String(
-            (isCurrentUserTarget ? (currentUsername || "") : "")
-            || basePayload.username
-            || (isCurrentUserTarget ? (currentUser?.displayName || "") : "")
-            || resolvedEmail.split("@")[0]
-            || ""
-        ).trim();
+        const resolvedUsername = isCurrentUserTarget
+            ? resolveTrustedUsername(basePayload, { allowAuthDisplayName: true })
+            : String(basePayload.username || basePayload.name || "").trim();
         const resolvedStudyTrack = String(
             (isCurrentUserTarget ? (studyTrack || "") : "")
             || basePayload.studyTrack
@@ -5060,12 +5083,7 @@
 
         const dailyQuestions = getCurrentDayQuestionsFromSchedule(scheduleData);
         const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(scheduleData);
-        const resolvedUsername = String(
-            currentUsername
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || ""
-        ).trim();
+        const resolvedUsername = resolveTrustedUsername({}, { allowAuthDisplayName: true });
 
         const questionPatch = {
             uid: currentUser.uid,
@@ -5248,14 +5266,7 @@
         const resolvedBreakSessionTime = activeBreakTimerRecord
             ? sessionPendingSeconds
             : 0;
-        const resolvedName = String(
-            currentUsername
-            || currentUser?.displayName
-            || currentUser?.email?.split("@")[0]
-            || currentUserLiveDoc?.username
-            || currentUserLiveDoc?.name
-            || ""
-        ).trim() || "Kullanici";
+        const resolvedName = resolveTrustedUsername({}, { allowAuthDisplayName: true }) || "Kullanici";
         const legacyWorkingStartedAt = activeStudyTimerRecord
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
@@ -5361,8 +5372,8 @@
 
         return {
             ...baseData,
-            username: currentUsername || baseData.username || "Kullanıcı",
-            name: currentUsername || baseData.name || baseData.username || "Kullanici",
+            username: resolveTrustedUsername(baseData, { allowAuthDisplayName: true }) || "Kullanıcı",
+            name: resolveTrustedUsername(baseData, { allowAuthDisplayName: true }) || "Kullanici",
             email: currentUser?.email || baseData.email || "",
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
             about: currentProfileAbout || baseData.about || "",
@@ -8411,13 +8422,7 @@
         clearLoadedUserData();
 
         if (typeof currentUsername !== "undefined") {
-            currentUsername = String(
-                safeData.username
-                || currentUser?.displayName
-                || currentUser?.email?.split("@")[0]
-                || safeData.email?.split?.("@")?.[0]
-                || ""
-            ).trim();
+            currentUsername = resolveTrustedUsername(safeData, { allowAuthDisplayName: true });
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -8789,6 +8794,8 @@
                     currentUser = credential.user;
                     currentUsername = signupPayload.username;
                     currentAccountCreatedAt = accountCreatedAt;
+                    await syncAuthDisplayNameSafely(signupPayload.username);
+                    writePerUserProfileCache(credential.user.uid, signupPayload);
                     await db.collection(PUBLIC_PROFILE_COLLECTION).doc(credential.user.uid).set({
                         ...buildPublicProfilePayload(signupPayload),
                         uid: credential.user.uid
@@ -8889,6 +8896,7 @@
                 currentProfileAbout = newAbout;
                 studyTrack = newTrack;
                 selectedSubjects = newSubjects;
+                await syncAuthDisplayNameSafely(newUsername);
 
                 if (currentUserLiveDoc && typeof currentUserLiveDoc === "object") {
                     currentUserLiveDoc = {
@@ -9459,43 +9467,69 @@
                 applyTurkishInputSupport();
 
                 if (!user) {
-                    const hadSession = !!timerState.session;
-                    if (hadSession) {
-                        preserveTimerStateForRecovery(timerState.session, {
-                            modalOpen: false,
-                            includeRecovery: true
-                        });
+                    const finalizeSignedOutState = () => {
+                        const hadSession = !!timerState.session;
+                        if (hadSession) {
+                            preserveTimerStateForRecovery(timerState.session, {
+                                modalOpen: false,
+                                includeRecovery: true
+                            });
+                        }
+
+                        if (typeof markAuthRecoverySignedOut === "function") {
+                            markAuthRecoverySignedOut();
+                        }
+                        unsubscribeCurrentUserProfile();
+                        currentUser = null;
+                        currentUserLiveDoc = null;
+                        currentUserWriteChain = Promise.resolve();
+                        requiresEmailVerification = false;
+                        hasBootstrappedUsersRealtime = false;
+                        hasBootstrappedUsersFromCache = false;
+                        noteFolders = normalizeNoteFolders([]);
+                        activeNoteFolderId = NOTE_FOLDER_ALL_ID;
+                        unsubscribeRealtimeLeaderboard();
+                        if (currentUserSaveTimer) {
+                            clearTimeout(currentUserSaveTimer);
+                            currentUserSaveTimer = null;
+                        }
+                        currentUserSaveNoticePending = false;
+                        currentUserSaveAuthorized = false;
+                        currentUserSaveResolvers = [];
+                        stopTimerLoops();
+                        timerState.session = null;
+                        if (!hadSession) {
+                            persistTimerSessionLocally(null);
+                        }
+                        releaseTimerOwnership();
+                        clearLegacyPomodoroStorage();
+                        hideVerificationGate();
+                        renderTimerUi();
+                    };
+
+                    if (typeof shouldHoldSignedOutState === "function" && shouldHoldSignedOutState()) {
+                        if (typeof scheduleAuthRecoveryFallback === "function") {
+                            scheduleAuthRecoveryFallback(finalizeSignedOutState);
+                        } else {
+                            window.setTimeout(finalizeSignedOutState, 6500);
+                        }
+                        return;
                     }
 
-                    unsubscribeCurrentUserProfile();
-                    currentUser = null;
-                    currentUserLiveDoc = null;
-                    currentUserWriteChain = Promise.resolve();
-                    requiresEmailVerification = false;
-                    hasBootstrappedUsersRealtime = false;
-                    hasBootstrappedUsersFromCache = false;
-                    noteFolders = normalizeNoteFolders([]);
-                    activeNoteFolderId = NOTE_FOLDER_ALL_ID;
-                    unsubscribeRealtimeLeaderboard();
-                    if (currentUserSaveTimer) {
-                        clearTimeout(currentUserSaveTimer);
-                        currentUserSaveTimer = null;
-                    }
-                    currentUserSaveNoticePending = false;
-                    currentUserSaveAuthorized = false;
-                    currentUserSaveResolvers = [];
-                    stopTimerLoops();
-                    timerState.session = null;
-                    if (!hadSession) {
-                        persistTimerSessionLocally(null);
-                    }
-                    releaseTimerOwnership();
-                    clearLegacyPomodoroStorage();
-                    hideVerificationGate();
-                    renderTimerUi();
+                    finalizeSignedOutState();
                     return;
                 }
 
+                if (typeof clearPendingAuthRecoveryTimer === "function") {
+                    clearPendingAuthRecoveryTimer();
+                }
+                if (typeof rememberAuthRecoveryUser === "function") {
+                    rememberAuthRecoveryUser(user);
+                }
+                if (String(currentUser?.uid || "") !== String(user.uid || "")) {
+                    clearLoadedUserData();
+                    currentUserLiveDoc = null;
+                }
                 currentUser = user;
                 localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
@@ -9952,9 +9986,9 @@
                 };
             return {
                 ...basePayload,
-                username: currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
-                normalizedUsername: normalizeUsernameLookup(currentUsername || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici"),
-                name: currentUsername || basePayload.name || basePayload.username || resolvedEmail?.split?.("@")?.[0] || "Kullanici",
+                username: resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici",
+                normalizedUsername: normalizeUsernameLookup(resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici"),
+                name: resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici",
                 email: resolvedEmail,
                 ...adminProfile,
                 emailVerified: !!currentUser?.emailVerified,
@@ -10038,7 +10072,7 @@
             if (!currentUser) return Promise.resolve();
             return scheduleCurrentUserSave({
                 label: "saveData",
-                authorized: options.authorized === true,
+                authorized: options.authorized !== false,
                 immediate: options.immediate === true
             }).catch(error => {
                 console.error("Bulut kaydi basarisiz:", error);
@@ -10389,31 +10423,57 @@
             applyTurkishInputSupport();
 
             if (!user) {
-                currentUser = null;
-                currentUserLiveDoc = null;
-                currentUserWriteChain = Promise.resolve();
-                requiresEmailVerification = false;
-                hasBootstrappedUsersRealtime = false;
-                clearLoadedUserData();
-                unsubscribeRealtimeLeaderboard();
-                if (currentUserSaveTimer) {
-                    clearTimeout(currentUserSaveTimer);
-                    currentUserSaveTimer = null;
+                const finalizeSignedOutState = () => {
+                    if (typeof markAuthRecoverySignedOut === "function") {
+                        markAuthRecoverySignedOut();
+                    }
+                    currentUser = null;
+                    currentUserLiveDoc = null;
+                    currentUserWriteChain = Promise.resolve();
+                    requiresEmailVerification = false;
+                    hasBootstrappedUsersRealtime = false;
+                    clearLoadedUserData();
+                    unsubscribeRealtimeLeaderboard();
+                    if (currentUserSaveTimer) {
+                        clearTimeout(currentUserSaveTimer);
+                        currentUserSaveTimer = null;
+                    }
+                    currentUserSaveNoticePending = false;
+                    currentUserSaveResolvers = [];
+                    stopTimerLoops();
+                    timerState.session = null;
+                    persistTimerSessionLocally(null);
+                    releaseTimerOwnership();
+                    clearLegacyPomodoroStorage();
+                    hideVerificationGate();
+                    renderTimerUi();
+                    if (typeof renderSchedule === "function") renderSchedule();
+                    if (typeof renderMyNotesPanel === "function") renderMyNotesPanel();
+                };
+
+                if (typeof shouldHoldSignedOutState === "function" && shouldHoldSignedOutState()) {
+                    if (typeof scheduleAuthRecoveryFallback === "function") {
+                        scheduleAuthRecoveryFallback(finalizeSignedOutState);
+                    } else {
+                        window.setTimeout(finalizeSignedOutState, 6500);
+                    }
+                    return;
                 }
-                currentUserSaveNoticePending = false;
-                currentUserSaveResolvers = [];
-                stopTimerLoops();
-                timerState.session = null;
-                persistTimerSessionLocally(null);
-                releaseTimerOwnership();
-                clearLegacyPomodoroStorage();
-                hideVerificationGate();
-                renderTimerUi();
-                if (typeof renderSchedule === "function") renderSchedule();
-                if (typeof renderMyNotesPanel === "function") renderMyNotesPanel();
+
+                finalizeSignedOutState();
                 return;
             }
 
+            if (typeof clearPendingAuthRecoveryTimer === "function") {
+                clearPendingAuthRecoveryTimer();
+            }
+            if (typeof rememberAuthRecoveryUser === "function") {
+                rememberAuthRecoveryUser(user);
+            }
+            if (String(currentUser?.uid || "") !== String(user.uid || "")) {
+                clearLoadedUserData();
+                currentUserLiveDoc = null;
+            }
             currentUser = user;
             localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
