@@ -1,9 +1,10 @@
 window.COSX_APP_UPDATE = {
-    latestVersion: "20260416-4h",
+    latestVersion: "20260416-4h-1",
     apkUrl: "https://cosxomer3.web.app/cosxomer-latest.apk",
-    headline: "Yeni uygulama sürümü hazır",
+    headline: "Uygulamamız güncellendi",
     notes: [
         "Pomodoro ve kronometre otomatik durma süresi 4 saate çıkarıldı.",
-        "Kararlılık ve güncel sürüm yönlendirmesi iyileştirildi."
+        "Güncellemek için İndir butonuna basıp yeni APK sürümünü kurabilirsin.",
+        "Bu bildirim artık yeni sürümlerde otomatik olarak gösterilecek."
     ]
 };

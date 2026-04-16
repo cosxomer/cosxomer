@@ -26,8 +26,8 @@
     const VERIFY_COOLDOWN_KEY = "codexVerifyCooldownUntilV1";
     const SITE_RELEASE_NOTICE_KEY = "codexSiteReleaseNoticeV1";
     const APP_UPDATE_NOTICE_KEY = "codexNativeAppUpdateNoticeV1";
-    const APP_BUILD_VERSION = "20260416-4h";
-    const SITE_RELEASE_NOTICE_VERSION = APP_BUILD_VERSION;
+    const APP_BUILD_VERSION = "20260416-4h-1";
+    const SITE_RELEASE_NOTICE_VERSION = "20260416-site-2";
     const APP_UPDATE_REMOTE_SCRIPT_URL = "https://cosxomer3.web.app/app-version.js";
     const DEFAULT_APP_DOWNLOAD_URL = "https://cosxomer3.web.app/cosxomer-latest.apk";
     const NOTE_FOLDER_ALL_ID = "__all__";
@@ -795,8 +795,9 @@
             showCodexGuidanceModal({
                 title: metadata.headline,
                 bodyHtml: `
-                    <strong>Uygulamanın daha güncel bir sürümü hazır.</strong>
-                    Yeni sürümü indirip kurarak en son düzeltmeleri alabilirsin.
+                    <strong>Uygulamamız güncellendi.</strong>
+                    Güncel sürümü yüklemek için <strong>İndir</strong> butonuna basabilirsin.
+                    APK indirilmeye başladığında yeni sürümü kurman yeterli olacak.
                     ${notesHtml}
                 `,
                 primaryText: "İndir",
@@ -804,9 +805,6 @@
                 onPrimary: () => {
                     markVersionedNoticeHandled(APP_UPDATE_NOTICE_KEY, metadata.latestVersion);
                     openExternalUrl(metadata.apkUrl || DEFAULT_APP_DOWNLOAD_URL);
-                },
-                onSecondary: () => {
-                    markVersionedNoticeHandled(APP_UPDATE_NOTICE_KEY, metadata.latestVersion);
                 }
             });
 
@@ -819,11 +817,15 @@
         if (hasVersionedNoticeBeenHandled(SITE_RELEASE_NOTICE_KEY, SITE_RELEASE_NOTICE_VERSION)) return false;
 
         showCodexGuidanceModal({
-            title: "Güncellenen Özellikler",
+            title: "Site ve Uygulama Güncellendi",
             bodyHtml: `
-                <strong>Otomatik durma süresi güncellendi.</strong>
-                Pomodoro ve kronometre tarafında otomatik durma süresi
-                <strong>3 saatten 4 saate çıkarıldı.</strong>
+                <strong>Site ve uygulamamız güncellenmiştir.</strong>
+                Yapılan değişiklikler aşağıdadır:
+                <ul style="margin:12px 0 0;padding-left:18px;">
+                    <li>Pomodoro ve kronometre otomatik durma süresi <strong>3 saatten 4 saate</strong> çıkarıldı.</li>
+                    <li>Güncel uygulama sürümü için sitedeki <strong>APK İndir</strong> kısmını kullanabilirsin.</li>
+                    <li>Mobil uygulamada da yeni sürüm olduğunda indirme uyarısı gösterilecek.</li>
+                </ul>
             `,
             primaryText: "Tamam",
             onPrimary: () => {
