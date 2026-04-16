@@ -5,7 +5,7 @@
     const TIMER_SYNC_MS = 10 * 60 * 1000;
     const TIMER_FORCED_CHECKPOINT_MS = 60 * 60 * 1000;
     const TIMER_OWNER_TTL_MS = 15000;
-    const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
+    const TIMER_AUTO_STOP_MS = 4 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS + (2 * 60 * 1000), 12 * 60 * 1000);
     const USER_SAVE_DEBOUNCE_MS = 180;
@@ -24,6 +24,12 @@
     const TIMER_NOTICE_DISABLE_KEY = "codexTimerNoticeDisabledV1";
     const VERIFY_EMAIL_KEY = "codexVerifyEmailV1";
     const VERIFY_COOLDOWN_KEY = "codexVerifyCooldownUntilV1";
+    const SITE_RELEASE_NOTICE_KEY = "codexSiteReleaseNoticeV1";
+    const APP_UPDATE_NOTICE_KEY = "codexNativeAppUpdateNoticeV1";
+    const APP_BUILD_VERSION = "20260416-4h";
+    const SITE_RELEASE_NOTICE_VERSION = APP_BUILD_VERSION;
+    const APP_UPDATE_REMOTE_SCRIPT_URL = "https://cosxomer3.web.app/app-version.js";
+    const DEFAULT_APP_DOWNLOAD_URL = "https://cosxomer3.web.app/cosxomer-latest.apk";
     const NOTE_FOLDER_ALL_ID = "__all__";
     const NOTE_FOLDER_DEFAULT_ID = "general";
     const LOCAL_LEADERBOARD_PREVIEW_ID = "__local_leaderboard_preview__";
@@ -670,6 +676,172 @@
         });
 
         return true;
+    }
+
+    function buildVersionedNoticeKey(baseKey, version = "") {
+        return `${baseKey}:${String(version || "").trim() || "default"}`;
+    }
+
+    function hasVersionedNoticeBeenHandled(baseKey, version = "") {
+        return safeStorageGet(buildVersionedNoticeKey(baseKey, version), "") === "1";
+    }
+
+    function markVersionedNoticeHandled(baseKey, version = "") {
+        safeStorageSet(buildVersionedNoticeKey(baseKey, version), "1");
+    }
+
+    function compareReleaseVersions(left = "", right = "") {
+        const normalize = value => String(value || "")
+            .trim()
+            .split(/[^a-z0-9]+/i)
+            .filter(Boolean)
+            .map(part => /^\d+$/.test(part) ? Number(part) : part.toLowerCase());
+        const leftParts = normalize(left);
+        const rightParts = normalize(right);
+        const maxLength = Math.max(leftParts.length, rightParts.length);
+        for (let index = 0; index < maxLength; index += 1) {
+            const leftPart = leftParts[index];
+            const rightPart = rightParts[index];
+            if (leftPart === undefined) return -1;
+            if (rightPart === undefined) return 1;
+            if (typeof leftPart === "number" && typeof rightPart === "number") {
+                if (leftPart !== rightPart) return leftPart > rightPart ? 1 : -1;
+                continue;
+            }
+            const leftText = String(leftPart);
+            const rightText = String(rightPart);
+            if (leftText !== rightText) return leftText > rightText ? 1 : -1;
+        }
+        return 0;
+    }
+
+    function openExternalUrl(url = "") {
+        const safeUrl = String(url || "").trim();
+        if (!safeUrl) return;
+
+        const browserPlugin = window.Capacitor?.Plugins?.Browser;
+        if (browserPlugin && typeof browserPlugin.open === "function") {
+            browserPlugin.open({ url: safeUrl }).catch(() => {
+                window.open(safeUrl, "_blank", "noopener,noreferrer");
+            });
+            return;
+        }
+
+        const link = document.createElement("a");
+        link.href = safeUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.style.display = "none";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    }
+
+    let remoteAppUpdateMetadataPromise = null;
+
+    function loadRemoteAppUpdateMetadata() {
+        if (remoteAppUpdateMetadataPromise) return remoteAppUpdateMetadataPromise;
+        remoteAppUpdateMetadataPromise = new Promise(resolve => {
+            if (window.COSX_APP_UPDATE && typeof window.COSX_APP_UPDATE === "object") {
+                resolve(window.COSX_APP_UPDATE);
+                return;
+            }
+
+            const existingScript = document.getElementById("codex-app-update-remote-script");
+            if (existingScript) {
+                existingScript.addEventListener("load", () => resolve(window.COSX_APP_UPDATE || null), { once: true });
+                existingScript.addEventListener("error", () => resolve(null), { once: true });
+                return;
+            }
+
+            const script = document.createElement("script");
+            script.id = "codex-app-update-remote-script";
+            script.async = true;
+            script.src = `${APP_UPDATE_REMOTE_SCRIPT_URL}?v=${encodeURIComponent(APP_BUILD_VERSION)}&t=${Date.now()}`;
+            script.onload = () => resolve(window.COSX_APP_UPDATE || null);
+            script.onerror = () => resolve(null);
+            document.head.appendChild(script);
+        }).catch(() => null);
+
+        return remoteAppUpdateMetadataPromise;
+    }
+
+    function normalizeAppUpdateMetadata(rawMetadata = {}) {
+        const notes = Array.isArray(rawMetadata.notes)
+            ? rawMetadata.notes.map(note => String(note || "").trim()).filter(Boolean)
+            : [];
+
+        return {
+            latestVersion: String(rawMetadata.latestVersion || "").trim(),
+            apkUrl: String(rawMetadata.apkUrl || DEFAULT_APP_DOWNLOAD_URL).trim(),
+            headline: String(rawMetadata.headline || "Yeni uygulama sürümü hazır").trim(),
+            notes
+        };
+    }
+
+    function maybeShowNativeAppUpdateNotice() {
+        if (!NATIVE_APP_RUNTIME) return Promise.resolve(false);
+
+        return loadRemoteAppUpdateMetadata().then(rawMetadata => {
+            const metadata = normalizeAppUpdateMetadata(rawMetadata || {});
+            if (!metadata.latestVersion) return false;
+            if (compareReleaseVersions(metadata.latestVersion, APP_BUILD_VERSION) <= 0) return false;
+            if (hasVersionedNoticeBeenHandled(APP_UPDATE_NOTICE_KEY, metadata.latestVersion)) return false;
+
+            const notesHtml = metadata.notes.length
+                ? `<ul style="margin:12px 0 0;padding-left:18px;">${metadata.notes.map(note => `<li>${escapeHtml(note)}</li>`).join("")}</ul>`
+                : "";
+
+            showCodexGuidanceModal({
+                title: metadata.headline,
+                bodyHtml: `
+                    <strong>Uygulamanın daha güncel bir sürümü hazır.</strong>
+                    Yeni sürümü indirip kurarak en son düzeltmeleri alabilirsin.
+                    ${notesHtml}
+                `,
+                primaryText: "İndir",
+                secondaryText: "Daha Sonra",
+                onPrimary: () => {
+                    markVersionedNoticeHandled(APP_UPDATE_NOTICE_KEY, metadata.latestVersion);
+                    openExternalUrl(metadata.apkUrl || DEFAULT_APP_DOWNLOAD_URL);
+                },
+                onSecondary: () => {
+                    markVersionedNoticeHandled(APP_UPDATE_NOTICE_KEY, metadata.latestVersion);
+                }
+            });
+
+            return true;
+        }).catch(() => false);
+    }
+
+    function maybeShowSiteReleaseNotice() {
+        if (NATIVE_APP_RUNTIME) return false;
+        if (hasVersionedNoticeBeenHandled(SITE_RELEASE_NOTICE_KEY, SITE_RELEASE_NOTICE_VERSION)) return false;
+
+        showCodexGuidanceModal({
+            title: "Güncellenen Özellikler",
+            bodyHtml: `
+                <strong>Otomatik durma süresi güncellendi.</strong>
+                Pomodoro ve kronometre tarafında otomatik durma süresi
+                <strong>3 saatten 4 saate çıkarıldı.</strong>
+            `,
+            primaryText: "Tamam",
+            onPrimary: () => {
+                markVersionedNoticeHandled(SITE_RELEASE_NOTICE_KEY, SITE_RELEASE_NOTICE_VERSION);
+            }
+        });
+
+        return true;
+    }
+
+    function scheduleInitialCodexUpgradeNotices() {
+        window.setTimeout(() => {
+            if (NATIVE_APP_RUNTIME) {
+                maybeShowNativeAppUpdateNotice();
+                return;
+            }
+            maybeShowSiteReleaseNotice();
+        }, 900);
     }
 
     function escapeHtml(value) {
@@ -2593,7 +2765,7 @@
         });
 
         if (options.showAlert !== false) {
-            safeShowAlert("3 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
+            safeShowAlert("4 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
         }
 
         return {
@@ -3122,12 +3294,12 @@
         const note = document.getElementById("timer-mode-note");
         if (note) {
             note.innerHTML = normalizedMode === "stopwatch"
-                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 3 saat sonunda otomatik durur."
+                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 4 saat sonunda otomatik durur."
                 : normalizedMode === "break-stopwatch"
                     ? "<strong>Mola kronometresi</strong> molayı ileri sayar. İstersen manuel kaydedip kapatabilirsin."
                     : normalizedMode === "break-pomodoro"
                         ? "<strong>Mola geri sayımı</strong> seçtiğin mola süresinden geri sayar; süre bitince sesli uyarı verir ve molayı kaydeder."
-                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 3 saat sonunda otomatik durur.";
+                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 4 saat sonunda otomatik durur.";
         }
 
         if (!options.keepSession) {
@@ -10647,6 +10819,7 @@
         renderNoteFolderControls();
         normalizeVisibleUiText(document.body);
         observeTimerOwnership();
+        scheduleInitialCodexUpgradeNotices();
     }
 
     if (document.readyState === "loading") {
