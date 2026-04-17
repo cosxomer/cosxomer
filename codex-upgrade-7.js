@@ -107,6 +107,7 @@
     let lastTimerDayBoundaryResetSignature = "";
     let hasBootstrappedUsersRealtime = false;
     let hasBootstrappedUsersFromCache = false;
+    let hasReliableCurrentUserProfile = false;
 
     const timerState = {
         mode: normalizeTimerMode(localStorage.getItem(TIMER_MODE_KEY) || "pomodoro"),
@@ -290,36 +291,177 @@
         const safeUid = String(uid || "").trim();
         if (!safeUid) return false;
         const safeData = profileData && typeof profileData === "object" ? profileData : {};
-        return safeStorageSet(getPerUserProfileCacheKey(safeUid), JSON.stringify({
+        const didWrite = safeStorageSet(getPerUserProfileCacheKey(safeUid), JSON.stringify({
             v: 1,
             cachedAt: Date.now(),
             data: safeData
         }));
+        if (didWrite && typeof saveCodexCachedUserProfile === "function") {
+            saveCodexCachedUserProfile(safeUid, safeData, currentUser);
+        }
+        return didWrite;
+    }
+
+    function isWeakResolvedProfileName(value = "", email = "") {
+        const resolvedValue = String(value || "").trim();
+        if (!resolvedValue) return true;
+        const normalizedValue = resolvedValue.toLocaleLowerCase("tr-TR");
+        if (normalizedValue === "kullanici" || normalizedValue === "kullanıcı") {
+            return true;
+        }
+
+        const emailLocalPart = String(email || "")
+            .split("@")[0]
+            .trim()
+            .toLocaleLowerCase("tr-TR");
+        return !!emailLocalPart && normalizedValue === emailLocalPart;
+    }
+
+    function hasMeaningfulScheduleSnapshot(schedule = {}) {
+        const safeSchedule = schedule && typeof schedule === "object" ? schedule : {};
+        return Object.values(safeSchedule).some(weekDays => {
+            if (!Array.isArray(weekDays)) return false;
+            return weekDays.some(day => {
+                const safeDay = day && typeof day === "object" ? day : {};
+                return (Array.isArray(safeDay.tasks) && safeDay.tasks.length > 0)
+                    || parseInteger(safeDay.questions, 0) > 0
+                    || parseInteger(safeDay.workedSeconds, 0) > 0
+                    || (safeDay.subjectQuestions && Object.keys(safeDay.subjectQuestions).length > 0);
+            });
+        });
+    }
+
+    function hasMeaningfulUserProfileSnapshot(profileData = {}) {
+        const safeData = profileData && typeof profileData === "object" ? profileData : {};
+        const resolvedEmail = String(safeData.email || currentUser?.email || "").trim();
+        const resolvedUsername = String(
+            safeData.username
+            || safeData.name
+            || currentUserLiveDoc?.username
+            || currentUserLiveDoc?.name
+            || ""
+        ).trim();
+        const hasStrongUsername = !isWeakResolvedProfileName(resolvedUsername, resolvedEmail);
+        const hasProfileFields = hasStrongUsername
+            || !!String(safeData.profileImage || "").trim()
+            || !!String(safeData.about || "").trim()
+            || !!String(safeData.studyTrack || "").trim()
+            || (Array.isArray(safeData.selectedSubjects) && safeData.selectedSubjects.length > 0);
+        const hasTotals = parseInteger(safeData.totalWorkedSeconds, 0) > 0
+            || parseInteger(safeData.totalStudyTime, 0) > 0
+            || parseInteger(safeData.totalQuestionsAllTime, 0) > 0;
+        const hasNotes = Array.isArray(safeData.notes) && safeData.notes.length > 0;
+        return hasProfileFields || hasTotals || hasNotes || hasMeaningfulScheduleSnapshot(safeData.schedule || {});
+    }
+
+    function readAnyCachedUserProfile(uid = "") {
+        const safeUid = String(uid || "").trim();
+        if (!safeUid) return null;
+
+        const scopedCache = readPerUserProfileCache(safeUid);
+        const inlineCache = typeof getCodexCachedUserProfile === "function"
+            ? getCodexCachedUserProfile(safeUid)
+            : null;
+
+        if (scopedCache && inlineCache && typeof mergeInlineUserProfileSources === "function") {
+            const mergedCache = mergeInlineUserProfileSources(scopedCache, inlineCache, currentUser);
+            if (hasMeaningfulUserProfileSnapshot(mergedCache)) {
+                return mergedCache;
+            }
+        }
+
+        if (hasMeaningfulUserProfileSnapshot(scopedCache)) return scopedCache;
+        if (hasMeaningfulUserProfileSnapshot(inlineCache)) return inlineCache;
+        return scopedCache || inlineCache || null;
+    }
+
+    function rememberReliableCurrentUserProfile(profileData = {}, user = currentUser) {
+        const safeUser = user || currentUser;
+        const safeUid = String(safeUser?.uid || currentUser?.uid || "").trim();
+        const safeData = profileData && typeof profileData === "object" ? profileData : {};
+        if (!safeUid || !hasMeaningfulUserProfileSnapshot(safeData)) return false;
+
+        hasReliableCurrentUserProfile = true;
+        writePerUserProfileCache(safeUid, safeData);
+        return true;
+    }
+
+    function canPersistCurrentUserPayload(payload = {}, label = "saveData") {
+        if (!currentUser?.uid) return false;
+        if (hasReliableCurrentUserProfile) return true;
+
+        if (hasMeaningfulUserProfileSnapshot(currentUserLiveDoc || {})) {
+            hasReliableCurrentUserProfile = true;
+            return true;
+        }
+
+        const cachedProfile = readAnyCachedUserProfile(currentUser.uid);
+        if (hasMeaningfulUserProfileSnapshot(cachedProfile || {})) {
+            hasReliableCurrentUserProfile = true;
+            return true;
+        }
+
+        const safePayload = payload && typeof payload === "object" ? payload : {};
+        const resolvedUsername = resolveTrustedUsername(safePayload, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        });
+        const resolvedEmail = String(safePayload.email || currentUser?.email || "").trim();
+        const hasStrongPayloadIdentity = !isWeakResolvedProfileName(resolvedUsername, resolvedEmail);
+        if (hasStrongPayloadIdentity && hasMeaningfulUserProfileSnapshot(safePayload)) {
+            hasReliableCurrentUserProfile = true;
+            return true;
+        }
+
+        console.warn(`${label} güvenilir profil yüklenmeden engellendi.`);
+        return false;
     }
 
     function resolveTrustedUsername(basePayload = {}, options = {}) {
         const safePayload = basePayload && typeof basePayload === "object" ? basePayload : {};
         const includeCurrent = options.includeCurrent !== false;
         const allowAuthDisplayName = !!options.allowAuthDisplayName;
+        const allowWeakFallback = options.allowWeakFallback === true;
+        const cachedProfile = readAnyCachedUserProfile(safePayload.uid || currentUser?.uid || "");
+        const resolvedEmail = String(
+            safePayload.email
+            || cachedProfile?.email
+            || currentUserLiveDoc?.email
+            || currentUser?.email
+            || ""
+        ).trim();
         const explicitCandidates = [
             safePayload.username,
             safePayload.name,
+            cachedProfile?.username,
+            cachedProfile?.name,
             currentUserLiveDoc?.username,
             currentUserLiveDoc?.name,
             includeCurrent ? currentUsername : ""
         ];
 
+        let fallback = "";
         for (const candidate of explicitCandidates) {
             const resolved = String(candidate || "").trim();
-            if (resolved) return resolved;
+            if (!resolved) continue;
+            if (!fallback) fallback = resolved;
+            if (!isWeakResolvedProfileName(resolved, resolvedEmail)) {
+                return resolved;
+            }
         }
 
         if (allowAuthDisplayName) {
             const displayName = String(currentUser?.displayName || "").trim();
-            if (displayName) return displayName;
+            const canTrustDisplayName = displayName
+                && !isWeakResolvedProfileName(displayName, resolvedEmail)
+                && (hasReliableCurrentUserProfile || hasMeaningfulUserProfileSnapshot(currentUserLiveDoc || safePayload));
+            if (canTrustDisplayName) return displayName;
+            if (!fallback && displayName) {
+                fallback = displayName;
+            }
         }
 
-        return "";
+        return allowWeakFallback ? fallback : "";
     }
 
     function syncAuthDisplayNameSafely(username = "") {
@@ -339,13 +481,16 @@
 
     function applyCloudProfilePatchSafely(profileData = {}) {
         const safeData = profileData && typeof profileData === "object" ? profileData : {};
-        const resolvedUsername = resolveTrustedUsername(safeData, { allowAuthDisplayName: true });
+        const resolvedUsername = resolveTrustedUsername(safeData, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        });
         const resolvedEmailPrefix = String(currentUser?.email?.split?.("@")?.[0] || "").trim();
 
         if (typeof currentUsername !== "undefined") {
             const currentTrimmed = String(currentUsername || "").trim();
             const looksFallback = !currentTrimmed || currentTrimmed === "Kullanici" || (resolvedEmailPrefix && currentTrimmed === resolvedEmailPrefix);
-            if (resolvedUsername && looksFallback) {
+            if (resolvedUsername && (!hasReliableCurrentUserProfile || looksFallback)) {
                 currentUsername = resolvedUsername;
             }
         }
@@ -397,6 +542,10 @@
         }
         if (typeof updateProfileButton === "function") updateProfileButton();
         if (typeof updateSubjectReminder === "function") updateSubjectReminder();
+        rememberReliableCurrentUserProfile({
+            ...safeData,
+            schedule: scheduleData
+        });
     }
 
     function subscribeCurrentUserProfile() {
@@ -405,13 +554,14 @@
         const uid = String(currentUser.uid);
 
         if (!hasBootstrappedUsersRealtime) {
-            const cachedProfile = readPerUserProfileCache(uid);
+            const cachedProfile = readAnyCachedUserProfile(uid);
             if (cachedProfile) {
                 bootstrapExtendedUserData(cachedProfile);
                 if (typeof renderSchedule === "function") renderSchedule();
                 if (typeof renderMyNotesPanel === "function") renderMyNotesPanel();
                 hasBootstrappedUsersRealtime = true;
                 hasBootstrappedUsersFromCache = true;
+                rememberReliableCurrentUserProfile(cachedProfile);
             }
         }
 
@@ -419,7 +569,7 @@
             if (!snapshot?.exists) return;
 
             const cloudData = snapshot.data() || {};
-            writePerUserProfileCache(uid, cloudData);
+            rememberReliableCurrentUserProfile(cloudData);
 
             if (!hasBootstrappedUsersRealtime) {
                 bootstrapExtendedUserData(cloudData);
@@ -1447,6 +1597,7 @@
     function syncCurrentUserLiveDoc(userData = {}, options = {}) {
         const dailyResetState = getDailySnapshotResetState(userData || {});
         currentUserLiveDoc = dailyResetState.normalizedData;
+        rememberReliableCurrentUserProfile(currentUserLiveDoc);
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
@@ -8567,6 +8718,7 @@
     }
 
     function clearLoadedUserData() {
+        hasReliableCurrentUserProfile = false;
         if (typeof currentUsername !== "undefined") currentUsername = "";
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = "";
         if (typeof currentProfileImage !== "undefined") currentProfileImage = "";
@@ -8596,7 +8748,10 @@
         clearLoadedUserData();
 
         if (typeof currentUsername !== "undefined") {
-            currentUsername = resolveTrustedUsername(safeData, { allowAuthDisplayName: true });
+            currentUsername = resolveTrustedUsername(safeData, {
+                allowAuthDisplayName: false,
+                allowWeakFallback: false
+            });
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -8646,6 +8801,10 @@
         }
         renderNoteFolderControls();
         restoreTimerFromPersistence(safeData);
+        rememberReliableCurrentUserProfile({
+            ...safeData,
+            schedule: scheduleData
+        });
         if (typeof updateProfileButton === "function") updateProfileButton();
         if (typeof updateMyNotesButton === "function") updateMyNotesButton();
         if (typeof updateSubjectReminder === "function") updateSubjectReminder();
@@ -9239,6 +9398,9 @@
 
             const writePromise = withManualFirestoreWrite(() => queueCurrentUserWrite(label, async () => {
                 const payload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
+                if (!canPersistCurrentUserPayload(payload, label)) {
+                    return;
+                }
                 const userRef = db.collection("users").doc(currentUser.uid);
                 await userRef.set(payload, { merge: true });
                 await syncPublicProfileSnapshot(payload);
@@ -9705,6 +9867,7 @@
                     currentUserLiveDoc = null;
                 }
                 currentUser = user;
+                hasReliableCurrentUserProfile = false;
                 localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
                 try {
@@ -10160,9 +10323,9 @@
                 };
             return {
                 ...basePayload,
-                username: resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici",
-                normalizedUsername: normalizeUsernameLookup(resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici"),
-                name: resolveTrustedUsername(basePayload, { allowAuthDisplayName: true }) || "Kullanici",
+                username: resolveTrustedUsername(basePayload, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici",
+                normalizedUsername: normalizeUsernameLookup(resolveTrustedUsername(basePayload, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici"),
+                name: resolveTrustedUsername(basePayload, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici",
                 email: resolvedEmail,
                 ...adminProfile,
                 emailVerified: !!currentUser?.emailVerified,
@@ -10215,9 +10378,9 @@
                     : null;
                 return {
                     ...seed,
-                    username: currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
-                    normalizedUsername: normalizeUsernameLookup(currentUsername || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici"),
-                    name: currentUsername || seed.name || seed.username || currentUser?.email?.split?.("@")?.[0] || "Kullanici",
+                    username: resolveTrustedUsername(seed, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici",
+                    normalizedUsername: normalizeUsernameLookup(resolveTrustedUsername(seed, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici"),
+                    name: resolveTrustedUsername(seed, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici",
                     noteFolders: normalizeNoteFolders(noteFolders),
                     totalStudyTime: totalWorkedSecondsAllTime || 0,
                     totalTime: Math.max(0, parseInteger(totalWorkedSecondsAllTime, 0)) * 1000,
@@ -10649,6 +10812,7 @@
                 currentUserLiveDoc = null;
             }
             currentUser = user;
+            hasReliableCurrentUserProfile = false;
             localStorage.setItem(VERIFY_EMAIL_KEY, user.email || "");
 
             try {
