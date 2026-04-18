@@ -189,12 +189,19 @@
         if (!safeElapsed) return;
         const storedTaskId = String(session.taskId || getStoredTimerTaskId() || "");
         if (!storedTaskId || storedTaskId === TIMER_TASK_FREE_ID) return;
+        const alreadyAppliedSeconds = Math.max(0, parseInteger(session.taskAppliedSeconds, 0));
+        const pendingTaskSeconds = Math.max(0, safeElapsed - alreadyAppliedSeconds);
+        if (!pendingTaskSeconds) {
+            session.taskAppliedSeconds = Math.max(alreadyAppliedSeconds, safeElapsed);
+            return;
+        }
 
         const { weekKey, dayIdx, dayData } = getTodayTaskContext(referenceMs);
         const targetTask = resolveSelectedTimerTask(dayData, storedTaskId);
         if (!targetTask) return;
 
-        targetTask.workedSeconds = Math.max(0, parseInteger(targetTask.workedSeconds, 0)) + safeElapsed;
+        targetTask.workedSeconds = Math.max(0, parseInteger(targetTask.workedSeconds, 0)) + pendingTaskSeconds;
+        session.taskAppliedSeconds = Math.max(alreadyAppliedSeconds, safeElapsed);
         dayData.tasks = Array.isArray(dayData.tasks) ? dayData.tasks : [];
         scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
     }
@@ -2501,6 +2508,7 @@
             isRunning: !!session.isRunning,
             baseElapsedSeconds: Math.max(0, parseInteger(session.baseElapsedSeconds, 0)),
             lastPersistedElapsedSeconds: Math.max(0, parseInteger(session.lastPersistedElapsedSeconds, 0)),
+            taskAppliedSeconds: Math.max(0, parseInteger(session.taskAppliedSeconds, 0)),
             targetDurationSeconds: Math.max(0, parseInteger(session.targetDurationSeconds, 0)),
             startedAtMs: session.isRunning ? parseInteger(session.startedAtMs, Date.now()) : 0,
             lastForcedCheckpointAtMs: Math.max(
@@ -2512,7 +2520,8 @@
             ownerId: timerInstanceId,
             ownerDeviceId: timerDeviceId,
             modalOpen,
-            lastSeenAtMs
+            lastSeenAtMs,
+            taskId: String(session.taskId || (isBreakTimerMode(session.mode) ? TIMER_TASK_FREE_ID : (getStoredTimerTaskId() || TIMER_TASK_FREE_ID)))
         };
     }
 
@@ -2801,7 +2810,9 @@
             lastForcedCheckpointAtMs: 0,
             sessionDateKey: getCurrentDayMeta(referenceDate).dateKey,
             modalOpen: false,
-            lastSeenAtMs: 0
+            lastSeenAtMs: 0,
+            taskId: isBreakTimerMode(normalizedMode) ? TIMER_TASK_FREE_ID : (getStoredTimerTaskId() || TIMER_TASK_FREE_ID),
+            taskAppliedSeconds: 0
         };
     }
 
@@ -2850,6 +2861,7 @@
             session.modalOpen = !!options.modalOpen;
         }
         session.updatedAtMs = safeReferenceMs;
+        applyTaskWorkSecondsForSession(session, commitState.committedElapsedSeconds, safeReferenceMs);
 
         timerDrafts[session.mode] = { ...session };
         persistTimerSessionLocally(session);
@@ -2888,6 +2900,7 @@
         );
         session.sessionDateKey = getCurrentDayMeta(new Date(safeReferenceMs)).dateKey;
         session.updatedAtMs = safeReferenceMs;
+        applyTaskWorkSecondsForSession(session, elapsed, safeReferenceMs);
 
         timerState.session = session;
         timerDrafts[session.mode] = { ...session };
@@ -2897,7 +2910,6 @@
         updateLocalActiveTimerSnapshot(null);
         refreshLeaderboardOptimistically(null);
         renderTimerUi();
-        applyTaskWorkSecondsForSession(session, elapsed, safeReferenceMs);
         renderSchedule();
         releaseTimerOwnership();
 
@@ -6606,6 +6618,7 @@
                     ? Math.max(0, parseInteger(seedSession.baseElapsedSeconds, 0))
                     : frozenElapsedSeconds,
                 lastPersistedElapsedSeconds: Math.max(0, parseInteger(seedSession.lastPersistedElapsedSeconds, 0)),
+                taskAppliedSeconds: Math.max(0, parseInteger(seedSession.taskAppliedSeconds, 0)),
                 targetDurationSeconds: Math.max(0, parseInteger(seedSession.targetDurationSeconds, 0)),
                 startedAtMs: seedSessionRunning ? Math.max(0, parseInteger(seedSession.startedAtMs, referenceDate.getTime())) : 0,
                 lastForcedCheckpointAtMs: Math.max(
@@ -6616,7 +6629,8 @@
                 updatedAtMs: Math.max(0, parseInteger(seedSession.updatedAtMs, Date.now())),
                 lastSeenAtMs: getTimerLastSeenAt(seedSession),
                 modalOpen: seedSessionRunning ? !!seedSession.modalOpen : false,
-                ownerId: String(seedSession.ownerId || timerInstanceId)
+                ownerId: String(seedSession.ownerId || timerInstanceId),
+                taskId: String(seedSession.taskId || (isBreakTimerMode(seedSession.mode) ? TIMER_TASK_FREE_ID : (getStoredTimerTaskId() || TIMER_TASK_FREE_ID)))
             };
         } else {
             timerState.session = buildFreshTimerSession(timerState.mode, referenceDate);
@@ -9638,6 +9652,7 @@
             session.modalOpen = false;
             session.lastSeenAtMs = commitState.referenceMs;
             session.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+            applyTaskWorkSecondsForSession(session, elapsed, commitState.referenceMs);
             timerState.session = session;
             timerDrafts[session.mode] = { ...session };
             isRunning = false;
@@ -9682,6 +9697,7 @@
             session.startedAtMs = 0;
             session.lastSeenAtMs = commitState.referenceMs;
             session.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+            applyTaskWorkSecondsForSession(session, elapsed, commitState.referenceMs);
             stopTimerLoops();
             isRunning = false;
             releaseTimerOwnership();
@@ -9690,7 +9706,6 @@
             persistTimerSessionLocally(session);
             refreshLeaderboardOptimistically(null);
             renderTimerUi();
-            applyTaskWorkSecondsForSession(session, elapsed, commitState.referenceMs);
             renderSchedule();
             monitorTimerSyncPromise(syncRealtimeTimer("complete", {
                 activeSession: session,
@@ -9970,14 +9985,13 @@
                         activeSession.modalOpen = false;
                         activeSession.lastSeenAtMs = commitState.referenceMs;
                         activeSession.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+                        applyTaskWorkSecondsForSession(activeSession, committedElapsedSeconds, commitState.referenceMs);
                         timerState.session = activeSession;
                         timerDrafts[activeSession.mode] = { ...activeSession };
                         isRunning = false;
                         stopTimerLoops();
                         persistTimerSessionLocally(activeSession);
                     }
-
-                    applyTaskWorkSecondsForSession(activeSession, committedElapsedSeconds, commitState.referenceMs);
 
                     const syncPromise = withManualFirestoreWrite(() => syncRealtimeTimer("manual-save", {
                         activeSession: null,
