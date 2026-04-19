@@ -369,17 +369,49 @@
         const inlineCache = typeof getCodexCachedUserProfile === "function"
             ? getCodexCachedUserProfile(safeUid)
             : null;
+        const recoverySnapshot = typeof readTimerRecoverySnapshot === "function"
+            ? readTimerRecoverySnapshot()
+            : null;
+        const recoveryProfile = recoverySnapshot && String(recoverySnapshot.uid || "").trim() === safeUid
+            ? {
+                uid: safeUid,
+                schedule: sanitizeScheduleData(recoverySnapshot.schedule || {}),
+                totalWorkedSeconds: Math.max(
+                    0,
+                    parseInteger(recoverySnapshot.totalWorkedSecondsAllTime, 0),
+                    parseInteger(recoverySnapshot.totalWorkedSeconds, 0),
+                    parseInteger(recoverySnapshot.totalStudyTime, 0)
+                ),
+                totalStudyTime: Math.max(
+                    0,
+                    parseInteger(recoverySnapshot.totalWorkedSecondsAllTime, 0),
+                    parseInteger(recoverySnapshot.totalWorkedSeconds, 0),
+                    parseInteger(recoverySnapshot.totalStudyTime, 0)
+                ),
+                totalQuestionsAllTime: Math.max(
+                    0,
+                    parseInteger(recoverySnapshot.totalQuestionsAllTime, 0)
+                ),
+                username: currentUserLiveDoc?.username || currentUsername || "",
+                name: currentUserLiveDoc?.name || currentUsername || "",
+                studyTrack: currentUserLiveDoc?.studyTrack || studyTrack || "",
+                selectedSubjects: Array.isArray(selectedSubjects) ? [...selectedSubjects] : []
+            }
+            : null;
 
-        if (scopedCache && inlineCache && typeof mergeInlineUserProfileSources === "function") {
-            const mergedCache = mergeInlineUserProfileSources(scopedCache, inlineCache, currentUser);
+        if ((scopedCache || inlineCache || recoveryProfile) && typeof mergeInlineUserProfileSources === "function") {
+            const mergedCache = [scopedCache, inlineCache, recoveryProfile]
+                .filter(source => source && typeof source === "object")
+                .reduce((merged, source) => mergeInlineUserProfileSources(merged, source, currentUser), {});
             if (hasMeaningfulUserProfileSnapshot(mergedCache)) {
                 return mergedCache;
             }
         }
 
+        if (hasMeaningfulUserProfileSnapshot(recoveryProfile)) return recoveryProfile;
         if (hasMeaningfulUserProfileSnapshot(scopedCache)) return scopedCache;
         if (hasMeaningfulUserProfileSnapshot(inlineCache)) return inlineCache;
-        return scopedCache || inlineCache || null;
+        return recoveryProfile || scopedCache || inlineCache || null;
     }
 
     function rememberReliableCurrentUserProfile(profileData = {}, user = currentUser) {
@@ -391,6 +423,91 @@
         hasReliableCurrentUserProfile = true;
         writePerUserProfileCache(safeUid, safeData);
         return true;
+    }
+
+    function buildCurrentUserLocalSnapshot() {
+        if (!currentUser?.uid) return null;
+
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+
+        const baseData = currentUserLiveDoc && typeof currentUserLiveDoc === "object"
+            ? currentUserLiveDoc
+            : {};
+        const resolvedUsername = resolveTrustedUsername(baseData, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        });
+        const resolvedSchedule = sanitizeScheduleData(scheduleData || baseData.schedule || {});
+        const resolvedStudyTrack = String(studyTrack || baseData.studyTrack || "").trim();
+        const resolvedSelectedSubjects = typeof normalizeSelectedSubjects === "function"
+            ? normalizeSelectedSubjects(resolvedStudyTrack || "", selectedSubjects?.length ? selectedSubjects : (baseData.selectedSubjects || []))
+            : (selectedSubjects?.length ? [...selectedSubjects] : (Array.isArray(baseData.selectedSubjects) ? [...baseData.selectedSubjects] : []));
+        const activeStudyTimer = timerState.session && !isBreakTimerMode(timerState.session.mode)
+            ? serializeTimerSession(timerState.session)
+            : null;
+        const activeBreakTimer = timerState.session && isBreakTimerMode(timerState.session.mode)
+            ? serializeTimerSession(timerState.session)
+            : null;
+        const totalWorkedSeconds = Math.max(
+            parseInteger(totalWorkedSecondsAllTime, 0),
+            parseInteger(baseData.totalWorkedSeconds, 0),
+            parseInteger(baseData.totalStudyTime, 0),
+            typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                ? calculateTotalWorkedSecondsFromSchedule(resolvedSchedule)
+                : 0
+        );
+        const totalQuestions = Math.max(
+            parseInteger(totalQuestionsAllTime, 0),
+            parseInteger(baseData.totalQuestionsAllTime, 0),
+            typeof calculateTotalQuestionsFromSchedule === "function"
+                ? calculateTotalQuestionsFromSchedule(resolvedSchedule)
+                : 0
+        );
+
+        return {
+            ...baseData,
+            uid: currentUser.uid,
+            username: resolvedUsername || String(baseData.username || baseData.name || currentUsername || "").trim(),
+            name: resolvedUsername || String(baseData.name || baseData.username || currentUsername || "").trim(),
+            email: currentUser.email || baseData.email || "",
+            about: currentProfileAbout || baseData.about || "",
+            profileImage: currentProfileImage || baseData.profileImage || "",
+            accountCreatedAt: currentAccountCreatedAt || baseData.accountCreatedAt || "",
+            studyTrack: resolvedStudyTrack,
+            selectedSubjects: resolvedSelectedSubjects,
+            noteFolders: normalizeNoteFolders(noteFolders?.length ? noteFolders : (baseData.noteFolders || [])),
+            notes: normalizeUserNotes(userNotes?.length ? userNotes : (baseData.notes || [])),
+            schedule: resolvedSchedule,
+            totalWorkedSeconds,
+            totalStudyTime: totalWorkedSeconds,
+            totalQuestionsAllTime: totalQuestions,
+            totalTime: totalWorkedSeconds * 1000,
+            dailyStudyTime: getCurrentDayWorkedSeconds(),
+            todayStudyTime: getCurrentDayWorkedSeconds(),
+            todayWorkedSeconds: getCurrentDayWorkedSeconds(),
+            dailyStudyDateKey: getCurrentDayMeta(new Date()).dateKey,
+            todayDateKey: getCurrentDayMeta(new Date()).dateKey,
+            activeTimer: activeStudyTimer,
+            activeBreakTimer,
+            isRunning: !!activeStudyTimer?.isRunning,
+            isOnBreak: !!activeBreakTimer?.isRunning,
+            isWorking: !!activeStudyTimer?.isRunning,
+            lastTimerSyncAt: Date.now(),
+            lastSyncTime: Date.now()
+        };
+    }
+
+    function persistCurrentUserLocalSnapshot() {
+        const snapshot = buildCurrentUserLocalSnapshot();
+        if (!snapshot || !hasMeaningfulUserProfileSnapshot(snapshot)) return false;
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            ...snapshot
+        };
+        return rememberReliableCurrentUserProfile(snapshot);
     }
 
     function canPersistCurrentUserPayload(payload = {}, label = "saveData") {
@@ -553,6 +670,7 @@
             ...safeData,
             schedule: scheduleData
         });
+        persistCurrentUserLocalSnapshot();
     }
 
     function subscribeCurrentUserProfile() {
@@ -1630,6 +1748,7 @@
             safeShowAlert("Bu hesapta calisan zamanlayici baska bir cihaz tarafindan kontrol ediliyor.");
         }
 
+        persistCurrentUserLocalSnapshot();
         return true;
     }
 
@@ -1650,6 +1769,7 @@
             currentSessionTime: pendingSeconds,
             lastTimerSyncAt: Date.now()
         };
+        persistCurrentUserLocalSnapshot();
     }
 
     function normalizeAdminTimeAdjustment(adjustment = null) {
@@ -5172,7 +5292,10 @@
         const publicNotes = typeof getPublicUserNotes === "function"
             ? getPublicUserNotes(basePayload.notes || userNotes || [])
             : [];
-        const resolvedUsername = resolveTrustedUsername(basePayload, { allowAuthDisplayName: true });
+        const resolvedUsername = resolveTrustedUsername(basePayload, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        });
         const resolvedTitleInfo = buildResolvedTitleInfo({
             uid: currentUser?.uid || basePayload.uid || "",
             schedule: safeSchedule,
@@ -5245,7 +5368,10 @@
             || ""
         ).trim();
         const resolvedUsername = isCurrentUserTarget
-            ? resolveTrustedUsername(basePayload, { allowAuthDisplayName: true })
+            ? resolveTrustedUsername(basePayload, {
+                allowAuthDisplayName: false,
+                allowWeakFallback: false
+            })
             : String(basePayload.username || basePayload.name || "").trim();
         const resolvedStudyTrack = String(
             (isCurrentUserTarget ? (studyTrack || "") : "")
@@ -5420,7 +5546,10 @@
 
         const dailyQuestions = getCurrentDayQuestionsFromSchedule(scheduleData);
         const weeklyQuestions = getCurrentWeekQuestionsFromSchedule(scheduleData);
-        const resolvedUsername = resolveTrustedUsername({}, { allowAuthDisplayName: true });
+        const resolvedUsername = resolveTrustedUsername({}, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        });
 
         const questionPatch = {
             uid: currentUser.uid,
@@ -5485,6 +5614,7 @@
         dayData.workedSeconds = Math.max(0, parseInteger(dayData.workedSeconds, 0) + deltaSeconds);
         scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
         refreshCurrentTotals();
+        persistCurrentUserLocalSnapshot();
     }
 
     function applyBreakDelta(deltaSeconds, date = new Date()) {
@@ -5494,6 +5624,7 @@
         dayData.breakSeconds = Math.max(0, parseInteger(dayData.breakSeconds, 0) + deltaSeconds);
         scheduleData[weekKey][dayIdx] = ensureDayObject(dayData);
         refreshCurrentTotals();
+        persistCurrentUserLocalSnapshot();
     }
 
     function getCurrentDayWorkedSeconds(date = new Date()) {
@@ -5603,7 +5734,10 @@
         const resolvedBreakSessionTime = activeBreakTimerRecord
             ? sessionPendingSeconds
             : 0;
-        const resolvedName = resolveTrustedUsername({}, { allowAuthDisplayName: true }) || "Kullanici";
+        const resolvedName = resolveTrustedUsername({}, {
+            allowAuthDisplayName: false,
+            allowWeakFallback: false
+        }) || "Kullanici";
         const legacyWorkingStartedAt = activeStudyTimerRecord
             ? Math.max(
                 parseInteger(activeSession.startedAtMs, 0),
@@ -5709,8 +5843,8 @@
 
         return {
             ...baseData,
-            username: resolveTrustedUsername(baseData, { allowAuthDisplayName: true }) || "Kullanıcı",
-            name: resolveTrustedUsername(baseData, { allowAuthDisplayName: true }) || "Kullanici",
+            username: resolveTrustedUsername(baseData, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanıcı",
+            name: resolveTrustedUsername(baseData, { allowAuthDisplayName: false, allowWeakFallback: false }) || "Kullanici",
             email: currentUser?.email || baseData.email || "",
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
             about: currentProfileAbout || baseData.about || "",
@@ -6677,6 +6811,7 @@
                 scheduleTimerDayBoundaryResetSync(referenceDate, resetSignature);
             }
         }
+        persistCurrentUserLocalSnapshot();
         renderTimerUi();
     }
 
@@ -6720,6 +6855,7 @@
                 ? calculateTotalQuestionsFromSchedule(scheduleData)
                 : 0
         );
+        persistCurrentUserLocalSnapshot();
 
         timerState.session = createEmptyTimerSession(timerState.mode);
         if (isCountdownTimerMode(timerState.mode)) {
@@ -8819,6 +8955,7 @@
             ...safeData,
             schedule: scheduleData
         });
+        persistCurrentUserLocalSnapshot();
         if (typeof updateProfileButton === "function") updateProfileButton();
         if (typeof updateMyNotesButton === "function") updateMyNotesButton();
         if (typeof updateSubjectReminder === "function") updateSubjectReminder();
@@ -10765,6 +10902,7 @@
             refreshVisibleProfileModalFromLiveData();
             syncCurrentUserTitleAwardsIfNeeded();
             maybeRenderAnalyticsIfOpen();
+            persistCurrentUserLocalSnapshot();
         };
     }
 
