@@ -1,10 +1,10 @@
 window.COSX_APP_UPDATE = {
-    latestVersion: "20260416-4h-1",
+    latestVersion: "20260419-offlinefix-1",
     apkUrl: "https://cosxomer3.web.app/cosxomer-latest.apk",
-    headline: "Uygulamamız güncellendi",
+    headline: "Uygulamamiz guncellendi",
     notes: [
-        "Pomodoro ve kronometre otomatik durma süresi 4 saate çıkarıldı.",
-        "Güncellemek için İndir butonuna basıp yeni APK sürümünü kurabilirsin.",
-        "Bu bildirim artık yeni sürümlerde otomatik olarak gösterilecek."
+        "Internet kesintisinde profil ve surelerin sifirlanma riski guclu yerel snapshot ile sertlestirildi.",
+        "Kullanici adinin Omer veya mail on ekine donmesine yol acan zayif fallback zinciri kapatildi.",
+        "Guncellemek icin APK Indir alanindan yeni surumu kurabilirsin."
     ]
 };
