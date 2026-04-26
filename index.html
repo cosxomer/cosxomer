@@ -59,6 +59,18 @@
             overflow: hidden;
         }
 
+        * {
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        a,
+        button,
+        .leaderboard-item,
+        .task-item,
+        .theme-button {
+            -webkit-touch-callout: none;
+        }
+
         /* HELLO KITTY TEMASI */
         body[data-theme="kitty"] {
             --bg-color: #f4e8ee;
@@ -403,28 +415,6 @@
             flex-wrap: wrap; 
             justify-content: flex-end;
         }
-
-        .android-download-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 20px;
-            border-radius: 14px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            background-color: #18b875;
-            color: #ffffff;
-            font-weight: 800;
-            letter-spacing: 0.01em;
-            text-decoration: none;
-            box-shadow: 0 14px 26px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-            transition: transform 0.26s ease, box-shadow 0.28s ease, filter 0.28s ease;
-        }
-
-        .android-download-btn:hover {
-            transform: translateY(-2px) scale(1.03);
-            box-shadow: 0 18px 30px rgba(0, 0, 0, 0.26), 0 0 18px rgba(24, 184, 117, 0.45);
-            filter: saturate(1.04);
-        }
         
         .auth-section {
             flex-shrink: 0;
@@ -613,6 +603,26 @@
 
         body[data-theme="kitty"] .app-update-card p {
             color: rgba(124, 70, 96, 0.84);
+        }
+
+        @media (max-width: 900px) {
+            .leaderboard-panel,
+            .pomodoro-content,
+            .profile-modal-content,
+            .notes-modal-content,
+            .support-modal-content,
+            .app-update-card {
+                backdrop-filter: none !important;
+                -webkit-backdrop-filter: none !important;
+                box-shadow: 0 12px 24px rgba(0, 0, 0, 0.22) !important;
+            }
+
+            .leaderboard-item,
+            .timer-mode-toggle__button,
+            .pomodoro-task-field__toggle {
+                box-shadow: none !important;
+                transition-duration: 0.12s !important;
+            }
         }
 
         #instagram-link {
@@ -3341,8 +3351,8 @@
         }
 
         .cropper-stage {
-            width: min(82vw, 320px);
-            aspect-ratio: 1 / 1;
+            width: 280px;
+            height: 280px;
             position: relative;
             overflow: hidden;
             border-radius: 20px;
@@ -3368,7 +3378,7 @@
 
         .cropper-circle-mask {
             position: absolute;
-            inset: clamp(14px, 5.5%, 18px);
+            inset: 18px;
             border-radius: 50%;
             box-shadow: 0 0 0 999px rgba(0, 0, 0, 0.45);
             border: 2px solid rgba(255, 255, 255, 0.9);
@@ -3384,39 +3394,6 @@
         .cropper-controls label {
             color: var(--accent-color);
             font-weight: 700;
-        }
-
-        .cropper-zoom-toolbar {
-            display: grid;
-            grid-template-columns: auto 1fr auto;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .cropper-zoom-btn {
-            min-width: 44px;
-            padding: 10px 12px;
-            border-radius: 12px;
-        }
-
-        .cropper-zoom-meta {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            font-size: 0.88em;
-            opacity: 0.82;
-        }
-
-        .cropper-zoom-value {
-            color: var(--header-text);
-            font-weight: 800;
-            min-width: 52px;
-            text-align: center;
-        }
-
-        .cropper-fit-btn {
-            width: 100%;
         }
 
         .cropper-actions {
@@ -3594,11 +3571,13 @@
              min-height: 550px; 
              display: flex; 
              flex-direction: column;
+             box-sizing: border-box;
+             overflow: hidden;
+             position: relative;
         }
 
         .day-cell.active-today {
-            box-shadow: inset 0 0 20px rgba(248, 113, 113, 0.4);
-            border: 2px solid #f87171 !important;
+            box-shadow: inset 0 0 0 2px #f87171, inset 0 0 20px rgba(248, 113, 113, 0.4);
             background-color: rgba(248, 113, 113, 0.05);
         }
         
@@ -4394,7 +4373,7 @@
             .study-insight-option { width: 100%; justify-content: flex-start; }
             .pomodoro-close-btn { top: 16px; right: 16px; width: 42px; height: 42px; }
             .cropper-modal-content { padding: 20px; }
-            .cropper-stage { width: min(80vw, 256px); aspect-ratio: 1 / 1; }
+            .cropper-stage { width: 240px; height: 240px; }
         }
         @media (max-width: 480px) {
             header {
@@ -4510,14 +4489,17 @@
             }
 
             #leaderboard-panel {
-                height: min(80vh, calc(100dvh - 16px)) !important;
-                max-height: min(80vh, calc(100dvh - 16px)) !important;
+                top: 0 !important;
+                bottom: 0 !important;
+                height: 100dvh !important;
+                max-height: 100dvh !important;
+                min-height: 100dvh !important;
             }
         }
     </style>
 </head>
 <body>
-    <div class="app-version-stamp">designed by cosxomer v1.3</div>
+    <div class="app-version-stamp">designed by cosxomer v1.4</div>
     <div id="app-update-modal" class="app-update-modal" aria-hidden="true">
         <div class="app-update-card">
             <h3 id="app-update-title">Guncel Surum Hazir</h3>
@@ -4615,9 +4597,6 @@
                 <button id="titles-info-btn" onclick="openTitlesModal()" style="background-color: var(--accent-color); color: var(--header-text);">
                     <i class="fas fa-award"></i> Ünvanlar
                 </button>
-                <a id="android-download-btn" class="android-download-btn" href="cosxomer-latest.apk" download>
-                    <i class="fab fa-android"></i> Android için APK İndir
-                </a>
                 <a href="https://instagram.com/cosxomer" id="instagram-link" target="_blank">
                     <i class="fab fa-instagram"></i> COSXOMER
                 </a>
@@ -4933,7 +4912,7 @@
     <div id="image-cropper-modal" class="modal-overlay">
         <div class="cropper-modal-content">
             <h3>Profil Resmini Ayarla</h3>
-            <p>Çember içinde görünmesini istediğin kısmı sürükleyerek, uzaklaştırarak ve yakınlaştırarak ayarla.</p>
+            <p>Çember içinde görünmesini istediğin kısmı sürükleyerek ve yakınlaştırarak ayarla.</p>
             <div class="cropper-stage-wrapper">
                 <div id="cropper-stage" class="cropper-stage">
                     <img id="cropper-image" alt="Profil Resmi Kırpma Önizleme">
@@ -4942,25 +4921,9 @@
             </div>
             <div class="cropper-controls">
                 <div class="profile-field-group">
-                    <label for="cropper-zoom-range">Kadraj Ayarı</label>
-                    <div class="cropper-zoom-toolbar">
-                        <button type="button" class="cropper-zoom-btn" onclick="stepCropZoom(-0.08)">
-                            <i class="fas fa-search-minus"></i>
-                        </button>
-                        <input type="range" id="cropper-zoom-range" min="1" max="3.8" step="0.01" oninput="handleCropZoomChange(this.value)">
-                        <button type="button" class="cropper-zoom-btn" onclick="stepCropZoom(0.08)">
-                            <i class="fas fa-search-plus"></i>
-                        </button>
-                    </div>
-                    <div class="cropper-zoom-meta">
-                        <span>Uzak</span>
-                        <strong id="cropper-zoom-value" class="cropper-zoom-value">%100</strong>
-                        <span>Yakın</span>
-                    </div>
+                    <label for="cropper-zoom-range">Yakınlaştır</label>
+                    <input type="range" id="cropper-zoom-range" min="1" max="3" step="0.01" oninput="handleCropZoomChange(this.value)">
                 </div>
-                <button type="button" class="cropper-fit-btn" onclick="resetCropZoomToFit()" style="background-color: var(--button-bg); color: var(--header-text);">
-                    <i class="fas fa-expand"></i> Görsele Sığdır
-                </button>
             </div>
             <div class="cropper-actions">
                 <button onclick="closeImageCropper()" style="background-color: var(--button-bg); color: var(--header-text);">
@@ -5149,74 +5112,6 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        const authPersistenceReady = typeof auth.setPersistence === 'function'
-            ? auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(error => {
-                console.warn("LOCAL auth persistence ayarlanamadi, SESSION denenecek:", error);
-                return auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(fallbackError => {
-                    console.warn("SESSION auth persistence da ayarlanamadi:", fallbackError);
-                });
-            })
-            : Promise.resolve();
-        const AUTH_RECOVERY_UID_KEY = 'cosxAuthLastUid';
-        const AUTH_RECOVERY_SEEN_AT_KEY = 'cosxAuthLastSeenAt';
-        const AUTH_RECOVERY_GRACE_MS = 6500;
-        let pendingAuthRecoveryTimer = null;
-
-        function rememberAuthRecoveryUser(user) {
-            try {
-                if (!user || !user.uid) return;
-                localStorage.setItem(AUTH_RECOVERY_UID_KEY, String(user.uid));
-                localStorage.setItem(AUTH_RECOVERY_SEEN_AT_KEY, String(Date.now()));
-            } catch (error) {
-                console.warn("Auth recovery isareti yazilamadi:", error);
-            }
-        }
-
-        function clearPendingAuthRecoveryTimer() {
-            if (pendingAuthRecoveryTimer) {
-                clearTimeout(pendingAuthRecoveryTimer);
-                pendingAuthRecoveryTimer = null;
-            }
-        }
-
-        function hasRecentAuthRecoveryMarker() {
-            try {
-                const lastUid = localStorage.getItem(AUTH_RECOVERY_UID_KEY) || "";
-                const lastSeenAt = Number(localStorage.getItem(AUTH_RECOVERY_SEEN_AT_KEY) || 0);
-                return !!lastUid && Number.isFinite(lastSeenAt) && (Date.now() - lastSeenAt) < (14 * 24 * 60 * 60 * 1000);
-            } catch (error) {
-                console.warn("Auth recovery isareti okunamadi:", error);
-                return false;
-            }
-        }
-
-        function shouldHoldSignedOutState() {
-            return hasRecentAuthRecoveryMarker() && (!!currentUser || document.hidden || document.visibilityState === 'hidden');
-        }
-
-        function scheduleAuthRecoveryFallback(onExpire) {
-            clearPendingAuthRecoveryTimer();
-            pendingAuthRecoveryTimer = window.setTimeout(() => {
-                pendingAuthRecoveryTimer = null;
-                if (auth && auth.currentUser) {
-                    rememberAuthRecoveryUser(auth.currentUser);
-                    return;
-                }
-                if (typeof onExpire === 'function') {
-                    onExpire();
-                }
-            }, AUTH_RECOVERY_GRACE_MS);
-        }
-
-        function markAuthRecoverySignedOut() {
-            clearPendingAuthRecoveryTimer();
-            try {
-                localStorage.removeItem(AUTH_RECOVERY_UID_KEY);
-                localStorage.removeItem(AUTH_RECOVERY_SEEN_AT_KEY);
-            } catch (error) {
-                console.warn("Auth recovery isareti silinemedi:", error);
-            }
-        }
 
         let currentUser = null;
         let scheduleData = {};
@@ -5245,9 +5140,6 @@
         let cropImageNaturalHeight = 0;
         let cropBaseWidth = 0;
         let cropBaseHeight = 0;
-        let cropFitScale = 1;
-        let cropMinScale = 1;
-        let cropMaxScale = 3.8;
         let cropScale = 1;
         let cropOffsetX = 0;
         let cropOffsetY = 0;
@@ -6366,11 +6258,6 @@
             if (newUsername.length < 2) return showAlert("Kullanıcı adı en az 2 karakter olmalı.");
             currentUsername = newUsername;
             currentProfileAbout = newAbout;
-            if (typeof currentUser.updateProfile === 'function') {
-                currentUser.updateProfile({ displayName: newUsername }).catch(error => {
-                    console.warn("Auth displayName güncellenemedi:", error);
-                });
-            }
             refreshCurrentTotals();
             saveData();
             updateProfileButton();
@@ -6807,13 +6694,10 @@
         }
 
         function getBestCachedUserProfile(uid, user = currentUser) {
-            const aggregatedCache = typeof readAnyCachedUserProfile === 'function'
-                ? readAnyCachedUserProfile(uid)
+            const aggregatedCache = typeof readAnyCachedCurrentUserProfile === 'function'
+                ? readAnyCachedCurrentUserProfile(uid)
                 : (typeof readLastValidUserData === 'function' ? readLastValidUserData(uid) : null);
             const inlineCache = getCodexCachedUserProfile(uid);
-            const perUserCache = typeof readPerUserProfileCache === 'function'
-                ? readPerUserProfileCache(uid)
-                : null;
             const recoverySnapshot = typeof readTimerRecoverySnapshot === 'function'
                 ? readTimerRecoverySnapshot()
                 : null;
@@ -6835,17 +6719,23 @@
                         parseInt(recoverySnapshot.totalWorkedSeconds, 10) || 0,
                         parseInt(recoverySnapshot.totalStudyTime, 10) || 0
                     ),
-                    totalQuestionsAllTime: Math.max(parseInt(recoverySnapshot.totalQuestionsAllTime, 10) || 0, 0)
+                    totalQuestionsAllTime: Math.max(
+                        parseInt(recoverySnapshot.totalQuestionsAllTime, 10) || 0,
+                        0
+                    )
                 }
                 : null;
 
-            const sources = [aggregatedCache, perUserCache, inlineCache, recoveryProfile].filter(Boolean);
+            const sources = [aggregatedCache, inlineCache, recoveryProfile].filter(Boolean);
             if (sources.length > 1) {
                 const merged = sources.reduce((acc, source) => mergeInlineUserProfileSources(acc, source, user), {});
                 if (hasMeaningfulCachedUserProfile(merged)) return merged;
             }
 
-            return sources.find(source => hasMeaningfulCachedUserProfile(source)) || sources[0] || null;
+            if (hasMeaningfulCachedUserProfile(aggregatedCache)) return aggregatedCache;
+            if (hasMeaningfulCachedUserProfile(recoveryProfile)) return recoveryProfile;
+            if (hasMeaningfulCachedUserProfile(inlineCache)) return inlineCache;
+            return aggregatedCache || recoveryProfile || inlineCache || null;
         }
 
         function updateProfileButton() {
@@ -6859,9 +6749,6 @@
             cropImageNaturalHeight = 0;
             cropBaseWidth = 0;
             cropBaseHeight = 0;
-            cropFitScale = 1;
-            cropMinScale = 1;
-            cropMaxScale = 3.8;
             cropScale = 1;
             cropOffsetX = 0;
             cropOffsetY = 0;
@@ -6869,25 +6756,6 @@
             cropPointerId = null;
             document.getElementById('image-cropper-modal').style.display = 'none';
             document.getElementById('cropper-stage').classList.remove('dragging');
-        }
-
-        function getCropMaskInset(stage) {
-            if (!stage) return 18;
-            return Math.max(14, Math.min(18, Math.round(Math.min(stage.clientWidth, stage.clientHeight) * 0.055)));
-        }
-
-        function syncCropZoomUi() {
-            const zoomInput = document.getElementById('cropper-zoom-range');
-            const zoomValue = document.getElementById('cropper-zoom-value');
-            if (zoomInput) {
-                zoomInput.min = cropMinScale.toFixed(2);
-                zoomInput.max = cropMaxScale.toFixed(2);
-                zoomInput.value = cropScale.toFixed(2);
-            }
-            if (zoomValue) {
-                const relativePercent = cropMinScale > 0 ? Math.round((cropScale / cropMinScale) * 100) : 100;
-                zoomValue.textContent = `%${relativePercent}`;
-            }
         }
 
         function closeProfileModal() {
@@ -6962,7 +6830,7 @@
             const zoomInput = document.getElementById('cropper-zoom-range');
 
             cropImageSource = source;
-            zoomInput.value = cropMinScale;
+            zoomInput.value = 1;
             document.getElementById('image-cropper-modal').style.display = 'flex';
 
             cropperImage.onload = () => {
@@ -6971,25 +6839,20 @@
 
                 const stageWidth = stage.clientWidth;
                 const stageHeight = stage.clientHeight;
-                const maskInset = getCropMaskInset(stage);
-                const cropDiameter = Math.max(1, Math.min(stageWidth, stageHeight) - (maskInset * 2));
                 const imageRatio = cropImageNaturalWidth / cropImageNaturalHeight;
 
-                const coverScale = Math.max(cropDiameter / cropImageNaturalWidth, cropDiameter / cropImageNaturalHeight);
-                cropBaseWidth = cropImageNaturalWidth * coverScale;
-                cropBaseHeight = cropImageNaturalHeight * coverScale;
+                if (imageRatio > stageWidth / stageHeight) {
+                    cropBaseHeight = stageHeight;
+                    cropBaseWidth = stageHeight * imageRatio;
+                } else {
+                    cropBaseWidth = stageWidth;
+                    cropBaseHeight = stageWidth / imageRatio;
+                }
 
-                cropFitScale = Math.min(
-                    1,
-                    Math.min(cropDiameter / cropBaseWidth, cropDiameter / cropBaseHeight)
-                );
-                cropMinScale = cropFitScale;
-                cropMaxScale = Math.max(3.8, Math.min(6, Math.max(cropImageNaturalWidth, cropImageNaturalHeight) / 180));
                 cropScale = 1;
-                cropOffsetX = (stageWidth - (cropBaseWidth * cropScale)) / 2;
-                cropOffsetY = (stageHeight - (cropBaseHeight * cropScale)) / 2;
+                cropOffsetX = (stageWidth - cropBaseWidth) / 2;
+                cropOffsetY = (stageHeight - cropBaseHeight) / 2;
                 clampCropOffsets();
-                syncCropZoomUi();
                 updateCropperPreview();
             };
 
@@ -7002,23 +6865,11 @@
 
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
-            const maskInset = getCropMaskInset(stage);
-            const cropSize = Math.min(stage.clientWidth, stage.clientHeight) - (maskInset * 2);
-            const maxOffsetX = displayedWidth <= cropSize
-                ? maskInset + ((cropSize - displayedWidth) / 2)
-                : maskInset;
-            const maxOffsetY = displayedHeight <= cropSize
-                ? maskInset + ((cropSize - displayedHeight) / 2)
-                : maskInset;
-            const minOffsetX = displayedWidth <= cropSize
-                ? maxOffsetX
-                : stage.clientWidth - maskInset - displayedWidth;
-            const minOffsetY = displayedHeight <= cropSize
-                ? maxOffsetY
-                : stage.clientHeight - maskInset - displayedHeight;
+            const minOffsetX = stage.clientWidth - displayedWidth;
+            const minOffsetY = stage.clientHeight - displayedHeight;
 
-            cropOffsetX = Math.min(maxOffsetX, Math.max(minOffsetX, cropOffsetX));
-            cropOffsetY = Math.min(maxOffsetY, Math.max(minOffsetY, cropOffsetY));
+            cropOffsetX = Math.min(0, Math.max(minOffsetX, cropOffsetX));
+            cropOffsetY = Math.min(0, Math.max(minOffsetY, cropOffsetY));
         }
 
         function updateCropperPreview() {
@@ -7040,7 +6891,7 @@
             const focusX = (centerX - cropOffsetX) / previousWidth;
             const focusY = (centerY - cropOffsetY) / previousHeight;
 
-            cropScale = Math.max(cropMinScale, Math.min(cropMaxScale, parseFloat(value) || cropMinScale));
+            cropScale = parseFloat(value) || 1;
 
             const nextWidth = cropBaseWidth * cropScale;
             const nextHeight = cropBaseHeight * cropScale;
@@ -7049,22 +6900,6 @@
 
             clampCropOffsets();
             updateCropperPreview();
-            syncCropZoomUi();
-        }
-
-        function stepCropZoom(delta) {
-            handleCropZoomChange(cropScale + delta);
-        }
-
-        function resetCropZoomToFit() {
-            const stage = document.getElementById('cropper-stage');
-            if (!stage || !cropBaseWidth || !cropBaseHeight) return;
-            cropScale = cropFitScale;
-            cropOffsetX = (stage.clientWidth - (cropBaseWidth * cropScale)) / 2;
-            cropOffsetY = (stage.clientHeight - (cropBaseHeight * cropScale)) / 2;
-            clampCropOffsets();
-            updateCropperPreview();
-            syncCropZoomUi();
         }
 
         async function applyCroppedProfileImage() {
@@ -7072,27 +6907,28 @@
             const stage = document.getElementById('cropper-stage');
             if (!cropperImage || !stage || !cropBaseWidth || !cropBaseHeight) return;
 
-            const maskInset = getCropMaskInset(stage);
-            const cropSize = Math.min(stage.clientWidth, stage.clientHeight) - (maskInset * 2);
+            const maskInset = 18;
+            const cropSize = stage.clientWidth - (maskInset * 2);
             const displayedWidth = cropBaseWidth * cropScale;
             const displayedHeight = cropBaseHeight * cropScale;
 
+            let sx = ((maskInset - cropOffsetX) / displayedWidth) * cropImageNaturalWidth;
+            let sy = ((maskInset - cropOffsetY) / displayedHeight) * cropImageNaturalHeight;
+            let sWidth = (cropSize / displayedWidth) * cropImageNaturalWidth;
+            let sHeight = (cropSize / displayedHeight) * cropImageNaturalHeight;
+
+            sWidth = Math.min(cropImageNaturalWidth, sWidth);
+            sHeight = Math.min(cropImageNaturalHeight, sHeight);
+            sx = Math.max(0, Math.min(cropImageNaturalWidth - sWidth, sx));
+            sy = Math.max(0, Math.min(cropImageNaturalHeight - sHeight, sy));
+
             const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
+            canvas.width = 320;
+            canvas.height = 320;
             const ctx = canvas.getContext('2d');
-            ctx.imageSmoothingEnabled = true;
-            ctx.imageSmoothingQuality = 'high';
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(cropperImage, sx, sy, sWidth, sHeight, 0, 0, canvas.width, canvas.height);
 
-            const drawScale = canvas.width / cropSize;
-            const drawX = (cropOffsetX - maskInset) * drawScale;
-            const drawY = (cropOffsetY - maskInset) * drawScale;
-            const drawWidth = displayedWidth * drawScale;
-            const drawHeight = displayedHeight * drawScale;
-            ctx.drawImage(cropperImage, drawX, drawY, drawWidth, drawHeight);
-
-            currentProfileImage = canvas.toDataURL('image/png');
+            currentProfileImage = canvas.toDataURL('image/jpeg', 0.82);
             document.getElementById('profile-preview-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('header-profile-image').src = getProfileImageSrc(currentProfileImage, currentUsername);
             document.getElementById('profile-image-input').value = '';
@@ -7190,12 +7026,6 @@
                 updateCropperPreview();
             });
 
-            stage.addEventListener('wheel', event => {
-                if (!cropImageSource) return;
-                event.preventDefault();
-                stepCropZoom(event.deltaY > 0 ? -0.06 : 0.06);
-            }, { passive: false });
-
             stage.addEventListener('pointerup', event => {
                 if (stage.hasPointerCapture(event.pointerId)) {
                     stage.releasePointerCapture(event.pointerId);
@@ -7223,11 +7053,6 @@
             currentProfileAbout = newAbout;
             studyTrack = newTrack;
             selectedSubjects = newSubjects;
-            if (typeof currentUser.updateProfile === 'function') {
-                currentUser.updateProfile({ displayName: newUsername }).catch(error => {
-                    console.warn("Auth displayName güncellenemedi:", error);
-                });
-            }
 
             refreshCurrentTotals();
             saveData();
@@ -7315,22 +7140,6 @@
 
         auth.onAuthStateChanged(user => {
             if (user) {
-                clearPendingAuthRecoveryTimer();
-                rememberAuthRecoveryUser(user);
-                const previousUid = String(currentUser?.uid || "");
-                if (previousUid && previousUid !== String(user.uid || "")) {
-                    currentUserLiveDoc = null;
-                    currentUsername = "";
-                    currentProfileAbout = "";
-                    currentProfileImage = "";
-                    currentAccountCreatedAt = "";
-                    studyTrack = "";
-                    selectedSubjects = [];
-                    userNotes = [];
-                    scheduleData = {};
-                    totalWorkedSecondsAllTime = 0;
-                    totalQuestionsAllTime = 0;
-                }
                 currentUser = user;
                 document.getElementById('login-gate').style.opacity = '0';
                 setTimeout(() => { document.getElementById('login-gate').style.display = 'none'; }, 300);
@@ -7342,13 +7151,14 @@
                     db.collection('users').doc(user.uid).get().catch(() => null),
                     db.collection('publicProfiles').doc(user.uid).get().catch(() => null)
                 ]).then(([userDoc, profileDoc]) => {
-                    const cachedProfile = getBestCachedUserProfile(user.uid, user);
+                    const cachedProfile = getCodexCachedUserProfile(user.uid);
+                    const bestCachedProfile = getBestCachedUserProfile(user.uid, user);
                     const hasRemoteData = !!userDoc?.exists || !!profileDoc?.exists;
-                    const hasCachedData = hasMeaningfulCachedUserProfile(cachedProfile);
+                    const hasCachedData = hasMeaningfulCachedUserProfile(bestCachedProfile);
 
                     const data = mergeInlineUserProfileSources(
-                        userDoc?.exists ? (userDoc.data() || {}) : (cachedProfile || {}),
-                        profileDoc?.exists ? (profileDoc.data() || {}) : (cachedProfile || {}),
+                        userDoc?.exists ? (userDoc.data() || {}) : (bestCachedProfile || {}),
+                        profileDoc?.exists ? (profileDoc.data() || {}) : (bestCachedProfile || {}),
                         user
                     );
                     currentUserLiveDoc = {
@@ -7371,33 +7181,22 @@
                     renderSchedule();
                 });
             } else {
-                const finalizeSignedOutState = () => {
-                    markAuthRecoverySignedOut();
-                    currentUser = null;
-                    currentUserLiveDoc = null;
-                    document.getElementById('login-gate').style.display = 'flex';
-                    document.getElementById('login-gate').style.opacity = '1';
-                    document.getElementById('user-info').style.display = 'none';
-                    document.getElementById('logout-btn').style.display = 'none';
-                    document.getElementById('cloud-sync-btn').style.display = 'none';
-                    currentUsername = "";
-                    currentProfileAbout = "";
-                    currentProfileImage = "";
-                    currentAccountCreatedAt = "";
-                    userNotes = [];
-                    totalWorkedSecondsAllTime = 0;
-                    totalQuestionsAllTime = 0;
-                    updateMyNotesButton();
-                    closeProfileModal();
-                };
-
-                if (shouldHoldSignedOutState()) {
-                    scheduleAuthRecoveryFallback(finalizeSignedOutState);
-                    syncAmbientIntervals();
-                    return;
-                }
-
-                finalizeSignedOutState();
+                currentUser = null;
+                currentUserLiveDoc = null;
+                document.getElementById('login-gate').style.display = 'flex';
+                document.getElementById('login-gate').style.opacity = '1';
+                document.getElementById('user-info').style.display = 'none';
+                document.getElementById('logout-btn').style.display = 'none';
+                document.getElementById('cloud-sync-btn').style.display = 'none';
+                currentUsername = "";
+                currentProfileAbout = "";
+                currentProfileImage = "";
+                currentAccountCreatedAt = "";
+                userNotes = [];
+                totalWorkedSecondsAllTime = 0;
+                totalQuestionsAllTime = 0;
+                updateMyNotesButton();
+                closeProfileModal();
             }
             syncAmbientIntervals();
         });
@@ -7412,7 +7211,7 @@
         function signInWithEmailPassword() {
             const email = document.getElementById('login-email').value;
             const pass = document.getElementById('login-password').value;
-            authPersistenceReady.then(() => auth.signInWithEmailAndPassword(email, pass)).catch(err => {
+            auth.signInWithEmailAndPassword(email, pass).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
         }
@@ -7423,14 +7222,8 @@
             const pass = document.getElementById('signup-password').value;
             if (username.length < 2) return showAlert("Geçersiz kullanıcı adı.");
             const accountCreatedAt = new Date().toISOString();
-            authPersistenceReady.then(() => auth.createUserWithEmailAndPassword(email, pass)).then(cred => {
-                return Promise.resolve(
-                    typeof cred.user.updateProfile === 'function'
-                        ? cred.user.updateProfile({ displayName: username }).catch(error => {
-                            console.warn("Auth displayName güncellenemedi:", error);
-                        })
-                        : null
-                ).then(() => db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false }));
+            auth.createUserWithEmailAndPassword(email, pass).then(cred => {
+                return db.collection('users').doc(cred.user.uid).set({ username: username, email: email, isAdmin: isAdminIdentity(username, email), about: "", profileImage: "", accountCreatedAt: accountCreatedAt, notes: [], supportMessages: [], schedule: {}, totalWorkedSeconds: 0, totalQuestionsAllTime: 0, isWorking: false });
             }).catch(err => {
                 document.getElementById('login-error-message').innerText = "Hata: " + err.message;
             });
@@ -7439,7 +7232,6 @@
         function signOutUser() { 
             updateWorkingStatus(false);
             closeProfileModal();
-            markAuthRecoverySignedOut();
             auth.signOut(); 
         }
 
@@ -7886,7 +7678,7 @@
                     localStorage.removeItem('pomodoroDeadline');
                     updateTimerDisplay();
                     new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg').play();
-                showAlert("Süre Doldu! Harika iş.");
+                    showAlert("Süre Doldu! Harika iş.");
                     document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
                     updateWorkingStatus(false);
                 } else {
@@ -8001,43 +7793,24 @@
             return { seconds, questions };
         }
 
-        function getAdminWeeklyAdjustmentTarget(userData = {}, schedule = {}, referenceDate = new Date()) {
-            const rawAdjustment = userData?.adminTimeAdjustment;
-            if (!rawAdjustment || typeof rawAdjustment !== 'object') return null;
-
-            const normalizedAdjustment = typeof normalizeAdminTimeAdjustment === 'function'
-                ? normalizeAdminTimeAdjustment(rawAdjustment)
-                : null;
-            const scope = String(normalizedAdjustment?.scope || rawAdjustment.scope || '').trim().toLowerCase();
-            if (scope !== 'week') return null;
+        function getAdminWeeklyAdjustmentTarget(userData = {}, referenceDate = new Date()) {
+            if (typeof normalizeAdminTimeAdjustment !== 'function') return null;
+            const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
+            if (!adjustment || adjustment.scope !== 'week') return null;
 
             const currentWeekKey = getWeekKey(referenceDate);
-            const adjustmentWeekKey = String(normalizedAdjustment?.weekKey || rawAdjustment.weekKey || '').trim();
-            if (adjustmentWeekKey && adjustmentWeekKey !== currentWeekKey) return null;
+            if (adjustment.weekKey && adjustment.weekKey !== currentWeekKey) return null;
 
-            const baseWeekSeconds = getCurrentWeekTotalsFromSchedule(schedule || userData?.schedule || {}).seconds || 0;
-            const appliedWeekSeconds = Math.max(
+            return Math.max(
                 0,
-                parseInteger(normalizedAdjustment?.appliedWeekSeconds, 0),
-                parseInteger(rawAdjustment.appliedWeekSeconds, 0)
+                parseInt(adjustment.appliedWeekSeconds, 10) || 0,
+                parseInt(adjustment.targetSeconds, 10) || 0
             );
-            if (appliedWeekSeconds > 0) {
-                return Math.max(baseWeekSeconds, appliedWeekSeconds);
-            }
-
-            const deltaSeconds = Math.max(
-                0,
-                parseInteger(normalizedAdjustment?.targetSeconds, 0),
-                parseInteger(rawAdjustment.targetSeconds, 0)
-            );
-            if (!deltaSeconds) return null;
-
-            return baseWeekSeconds + deltaSeconds;
         }
 
         function getResolvedCurrentWeekSeconds(userData = {}, schedule = {}, referenceDate = new Date()) {
             const scheduleWeeklySeconds = getCurrentWeekTotalsFromSchedule(schedule || {}).seconds || 0;
-            const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, schedule, referenceDate);
+            const adminWeeklyTarget = getAdminWeeklyAdjustmentTarget(userData, referenceDate);
             if (adminWeeklyTarget !== null) return adminWeeklyTarget;
 
             return Math.max(
@@ -11714,7 +11487,7 @@
                 if (!pass) return setAuthError('Sifreni yaz.');
 
                 setAuthError("");
-                authPersistenceReady.then(() => auth.signInWithEmailAndPassword(email, pass)).catch(error => {
+                auth.signInWithEmailAndPassword(email, pass).catch(error => {
                     setAuthError(translateAuthError(error, 'login'));
                 });
             };
@@ -11730,14 +11503,8 @@
 
                 const accountCreatedAt = new Date().toISOString();
                 setAuthError("");
-                authPersistenceReady.then(() => auth.createUserWithEmailAndPassword(email, pass))
-                    .then(cred => Promise.resolve(
-                        typeof cred.user.updateProfile === 'function'
-                            ? cred.user.updateProfile({ displayName: username }).catch(error => {
-                                console.warn("Auth displayName güncellenemedi:", error);
-                            })
-                            : null
-                    ).then(() => db.collection('users').doc(cred.user.uid).set({
+                auth.createUserWithEmailAndPassword(email, pass)
+                    .then(cred => db.collection('users').doc(cred.user.uid).set({
                         username,
                         email,
                         isAdmin: isAdminIdentity(username, email),
@@ -11754,7 +11521,7 @@
                         totalWorkedSeconds: 0,
                         totalQuestionsAllTime: 0,
                         isWorking: false
-                    })))
+                    }))
                     .catch(error => {
                         setAuthError(translateAuthError(error, 'signup'));
                     });
@@ -12823,10 +12590,10 @@
             color: rgba(244, 233, 255, 0.5) !important;
         }
     </style>
-<script src="app-version.js?v=20260426-1300"></script>
-<script src="codex-hotfix-4.js?v=20260413-0001"></script>
+<script src="app-version.js?v=20260426-1400"></script>
+<script src="codex-hotfix-4.js?v=20260416-0011"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260425-0001"></script>
+<script src="codex-upgrade-7.js?v=20260416-0011"></script>
 <script id="codex-github-pages-mobile-fix">
         (function () {
             var updateConfig = window.COSX_APP_UPDATE || null;
@@ -12882,15 +12649,18 @@
                     leaderboardPanel.style.overflowX = 'hidden';
                     leaderboardPanel.style.overflowY = 'hidden';
                     leaderboardPanel.style.webkitOverflowScrolling = 'touch';
-                    leaderboardPanel.style.touchAction = 'none';
-                    leaderboardPanel.style.height = mobileViewport ? 'min(80vh, calc(100dvh - 16px))' : '100dvh';
-                    leaderboardPanel.style.maxHeight = mobileViewport ? 'min(80vh, calc(100dvh - 16px))' : '100dvh';
+                    leaderboardPanel.style.touchAction = 'manipulation';
+                    leaderboardPanel.style.top = '0';
+                    leaderboardPanel.style.bottom = '0';
+                    leaderboardPanel.style.height = '100dvh';
+                    leaderboardPanel.style.maxHeight = '100dvh';
+                    leaderboardPanel.style.minHeight = '100dvh';
                 }
 
                 if (leaderboardList) {
                     leaderboardList.style.flex = '1 1 auto';
                     leaderboardList.style.minHeight = '0';
-                    leaderboardList.style.maxHeight = '100%';
+                    leaderboardList.style.maxHeight = 'none';
                     leaderboardList.style.overflowY = 'auto';
                     leaderboardList.style.overflowX = 'hidden';
                     leaderboardList.style.webkitOverflowScrolling = 'touch';

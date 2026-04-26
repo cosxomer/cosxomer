@@ -5,7 +5,7 @@
     const TIMER_SYNC_MS = 10 * 60 * 1000;
     const TIMER_FORCED_CHECKPOINT_MS = 60 * 60 * 1000;
     const TIMER_OWNER_TTL_MS = 15000;
-    const TIMER_AUTO_STOP_MS = 4 * 60 * 60 * 1000;
+const TIMER_AUTO_STOP_MS = 4 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS + (2 * 60 * 1000), 12 * 60 * 1000);
     const USER_SAVE_DEBOUNCE_MS = 180;
@@ -1119,6 +1119,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc);
         if (!foreignTimer || !timerState.session?.isRunning) return false;
+        if (currentUser?.uid && currentUserLiveDoc?.activeTimer) {
+            claimTimerOwnership(true);
+            return false;
+        }
         hasTimerControl = false;
 
         stopTimerLoops();
@@ -1986,7 +1990,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         const now = Date.now();
         const stale = now - ownerHeartbeat > TIMER_OWNER_TTL_MS;
         const foreignTimer = getFreshForeignActiveTimer(currentUserLiveDoc, now);
-        if (foreignTimer && String(foreignTimer.ownerId || "").trim() !== timerInstanceId) {
+        if (foreignTimer && !force && String(foreignTimer.ownerId || "").trim() !== timerInstanceId) {
             hasTimerControl = false;
             return false;
         }
@@ -2026,6 +2030,47 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 hasTimerControl = ownerId === timerInstanceId;
             }
         });
+    }
+
+    function handleAppBackAction() {
+        const leaderboardPanel = document.getElementById("leaderboard-panel");
+        if (leaderboardPanel?.classList.contains("open")) {
+            leaderboardPanel.classList.remove("open");
+            document.body.classList.remove("leaderboard-live-low");
+            if (typeof syncBodyModalLock === "function") syncBodyModalLock();
+            return true;
+        }
+
+        if (document.getElementById("pomodoro-modal")?.style.display === "flex") {
+            if (typeof hidePomodoroModal === "function") hidePomodoroModal();
+            return true;
+        }
+        if (document.getElementById("support-modal")?.style.display === "flex") {
+            if (typeof closeSupportModal === "function") closeSupportModal();
+            return true;
+        }
+        if (document.getElementById("my-notes-modal")?.style.display === "flex") {
+            document.getElementById("my-notes-modal").style.display = "none";
+            if (typeof syncBodyModalLock === "function") syncBodyModalLock();
+            return true;
+        }
+        if (document.getElementById("profile-modal")?.style.display === "flex") {
+            if (typeof closeProfileModal === "function") closeProfileModal();
+            return true;
+        }
+        if (document.getElementById("titles-modal")?.style.display === "flex") {
+            if (typeof closeTitlesModal === "function") closeTitlesModal();
+            return true;
+        }
+        if (typeof closeAnalyticsModal === "function") {
+            const analyticsModal = document.getElementById("analytics-modal");
+            if (analyticsModal?.style.display === "flex") {
+                closeAnalyticsModal();
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function isTimerModalOpen() {
@@ -2635,7 +2680,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         });
 
         if (options.showAlert !== false) {
-            safeShowAlert("3 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
+            safeShowAlert("4 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
         }
 
         return {
@@ -3095,6 +3140,11 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
             const select = field.querySelector("#pomodoro-task-select");
             if (select) {
+                ["click", "mousedown", "touchstart", "pointerdown"].forEach(eventName => {
+                    select.addEventListener(eventName, event => {
+                        event.stopPropagation();
+                    });
+                });
                 select.addEventListener("change", async event => {
                     if (timerTaskState.isSwitchingTask) return;
                     timerTaskState.isSwitchingTask = true;
@@ -3212,12 +3262,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         const note = document.getElementById("timer-mode-note");
         if (note) {
             note.innerHTML = normalizedMode === "stopwatch"
-                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 4 saat sonunda otomatik durur."
+            ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 4 saat sonunda otomatik durur."
                 : normalizedMode === "break-stopwatch"
                     ? "<strong>Mola kronometresi</strong> molayı ileri sayar. İstersen manuel kaydedip kapatabilirsin."
                     : normalizedMode === "break-pomodoro"
                         ? "<strong>Mola geri sayımı</strong> seçtiğin mola süresinden geri sayar; süre bitince sesli uyarı verir ve molayı kaydeder."
-                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 4 saat sonunda otomatik durur.";
+            : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 4 saat sonunda otomatik durur.";
         }
 
         if (!options.keepSession) {
@@ -8877,17 +8927,19 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 margin-right: 8px;
                 padding: 4px 9px;
                 border-radius: 999px;
-                border: 1px solid rgba(34, 197, 94, 0.24);
-                background: rgba(34, 197, 94, 0.12);
-                color: #bbf7d0;
+                border: 1px solid rgba(190, 24, 93, 0.34);
+                background: rgba(255, 255, 255, 0.94);
+                color: #9d174d;
+                box-shadow: 0 8px 20px rgba(190, 24, 93, 0.12);
+                text-shadow: none;
                 font-size: 0.72em;
                 font-weight: 700;
                 white-space: nowrap;
             }
             .task-worked-badge.is-live {
-                border-color: rgba(250, 204, 21, 0.34);
-                background: rgba(250, 204, 21, 0.16);
-                color: #fde68a;
+                border-color: rgba(234, 88, 12, 0.34);
+                background: rgba(255, 247, 237, 0.96);
+                color: #c2410c;
             }
             .analytics-graph-total-card {
                 display: grid;
@@ -8986,10 +9038,16 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         if (toggleNode) toggleNode.disabled = false;
         select.disabled = isBreakTimerMode(timerState.mode);
-        select.innerHTML = ['<option value="">Sadece kronometre</option>', ...taskOptions.map(taskLabel => `
+        const nextOptionsMarkup = ['<option value="">Sadece kronometre</option>', ...taskOptions.map(taskLabel => `
             <option value="${escapeHtml(taskLabel)}">${escapeHtml(taskLabel)}</option>
         `)].join("");
-        select.value = safeTaskLabel;
+        if (!timerTaskState.isPickerOpen || select.dataset.optionsMarkup !== nextOptionsMarkup) {
+            select.innerHTML = nextOptionsMarkup;
+            select.dataset.optionsMarkup = nextOptionsMarkup;
+        }
+        if (!timerTaskState.isPickerOpen) {
+            select.value = safeTaskLabel;
+        }
 
         const storedSeconds = getDayTaskWorkedSeconds(dayData, safeTaskLabel);
         const liveSeconds = getCurrentTaskWorkedSecondsPreview(safeTaskLabel, getTodayTaskSelectionState(new Date()).dayIdx, new Date());
@@ -10880,19 +10938,21 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 ensureTimerModeUi();
                 ensurePomodoroTaskSelectorUi();
                 setTimerMode(timerState.mode, { persist: false, keepSession: true });
-                if (timerState.session?.isRunning) {
-                    syncRealtimeTimer("modal-show", {
-                        activeSession: timerState.session,
-                        currentSessionTime: getPendingTimerDelta(timerState.session),
-                        userTriggeredWrite: true,
-                        authorized: true
-                    }).catch(error => {
-                        console.error("Timer modal acilis senkronu basarisiz:", error);
-                    });
-                }
                 renderTimerUi();
                 renderPomodoroTaskSelector();
                 if (typeof syncBodyModalLock === "function") syncBodyModalLock();
+                if (timerState.session?.isRunning) {
+                    window.setTimeout(() => {
+                        syncRealtimeTimer("modal-show", {
+                            activeSession: timerState.session,
+                            currentSessionTime: getPendingTimerDelta(timerState.session),
+                            userTriggeredWrite: true,
+                            authorized: true
+                        }).catch(error => {
+                            console.error("Timer modal acilis senkronu basarisiz:", error);
+                        });
+                    }, 120);
+                }
             };
         })(typeof showPomodoroModal === "function" ? showPomodoroModal : null);
 
@@ -10940,8 +11000,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
             panel.classList.add("open");
             document.body.classList.add("leaderboard-live-low");
-            subscribeRealtimeLeaderboard();
-            renderLiveLeaderboardFromDocs();
+            window.requestAnimationFrame(() => {
+                subscribeRealtimeLeaderboard();
+                window.requestAnimationFrame(() => {
+                    renderLiveLeaderboardFromDocs();
+                });
+            });
         };
 
         switchLeaderboardTab = function(tab) {
@@ -11909,6 +11973,74 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 }
             }
         });
+
+        if (window.Capacitor?.Plugins?.App?.addListener) {
+            window.Capacitor.Plugins.App.addListener("appStateChange", ({ isActive }) => {
+                if (timerState.session?.isRunning) {
+                    const checkpoint = captureRunningTimerCheckpoint(timerState.session, Date.now(), {
+                        bumpCheckpoint: true,
+                        touchSeen: true,
+                        modalOpen: isTimerModalOpen(),
+                        persistRecovery: true
+                    });
+                    if (!checkpoint) {
+                        touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                    }
+                }
+
+                if (!isActive && timerState.session?.isRunning) {
+                    syncRealtimeTimer("native-background", {
+                        activeSession: timerState.session,
+                        currentSessionTime: getPendingTimerDelta(timerState.session),
+                        userTriggeredWrite: true,
+                        authorized: true
+                    }).catch(error => {
+                        console.error("Native background timer senkronu basarisiz:", error);
+                    });
+                    return;
+                }
+
+                if (isActive && timerState.session?.isRunning) {
+                    const recoveryState = maybeRecoverInactiveTimerSession(Date.now(), {
+                        syncReason: "native-foreground-recovery",
+                        showAlert: false,
+                        modalOpen: isTimerModalOpen()
+                    });
+                    if (recoveryState.action !== "auto-finalized" && timerState.session?.isRunning) {
+                        touchTimerVisibility(Date.now(), { modalOpen: isTimerModalOpen(), persist: true });
+                        maybeTriggerForcedHourlyCheckpoint(Date.now());
+                        syncRealtimeTimer("native-foreground", {
+                            activeSession: timerState.session,
+                            currentSessionTime: getPendingTimerDelta(timerState.session),
+                            userTriggeredWrite: true,
+                            authorized: true
+                        }).catch(error => {
+                            console.error("Native foreground timer senkronu basarisiz:", error);
+                        });
+                    }
+                }
+            });
+
+            window.handleNativeBackAction = () => {
+                if (handleAppBackAction()) return true;
+                if (window.history.length > 1) {
+                    window.history.back();
+                    return true;
+                }
+                return false;
+            };
+
+            window.addEventListener("cosx:native-back", () => {
+                window.handleNativeBackAction?.();
+            });
+
+            window.Capacitor.Plugins.App.addListener("backButton", ({ canGoBack }) => {
+                if (handleAppBackAction()) return;
+                if (canGoBack && window.history.length > 1) {
+                    window.history.back();
+                }
+            });
+        }
 
         window.addEventListener("pagehide", () => {
             if (timerState.session?.isRunning) {
