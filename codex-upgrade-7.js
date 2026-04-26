@@ -759,6 +759,8 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
     function handleCalendarBoundaryChange(previousMeta = null, referenceDate = new Date()) {
         const nextMeta = getCurrentDayMeta(referenceDate);
+        const weekChanged = !!previousMeta?.weekKey && previousMeta.weekKey !== nextMeta.weekKey;
+        const dayChanged = !!previousMeta?.dateKey && previousMeta.dateKey !== nextMeta.dateKey;
         const wasViewingCurrentWeek = Boolean(
             previousMeta?.weekKey
             && currentWeekStart instanceof Date
@@ -776,6 +778,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         } else {
             refreshQuestionSummaryCounters();
             updateLiveStudyPreview();
+        }
+
+        if (dayChanged || weekChanged) {
+            inferredWorkingPresenceByUserId = new Map();
+            observedWorkingBadgeByUserId = new Map();
+            legacyWorkingPresenceByUserId = new Map();
         }
 
         refreshLeaderboardOptimistically();
@@ -7323,6 +7331,37 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     function getTrustedLeaderboardPresenceState(rawData = {}, docId = "", now = Date.now()) {
+        const currentMeta = getCurrentDayMeta(new Date(now));
+        const storedWeekKey = String(
+            rawData?.weeklyStudyWeekKey
+            || rawData?.currentWeekKey
+            || rawData?.weekKey
+            || ""
+        ).trim();
+        const explicitDateKey = String(
+            rawData?.dailyStudyDateKey
+            || rawData?.todayDateKey
+            || ""
+        ).trim();
+        const stalePeriodBoundary = (
+            (!!storedWeekKey && storedWeekKey !== currentMeta.weekKey)
+            || (!!explicitDateKey && explicitDateKey !== currentMeta.dateKey)
+        );
+        if (stalePeriodBoundary) {
+            if (docId) {
+                inferredWorkingPresenceByUserId.delete(docId);
+                observedWorkingBadgeByUserId.delete(docId);
+                legacyWorkingPresenceByUserId.delete(docId);
+            }
+            return {
+                currentSessionTime: 0,
+                isWorking: false,
+                isRunning: false,
+                legacyWorkingStartedAt: 0,
+                lastSyncAt: getLeaderboardSessionLastSyncAt(rawData)
+            };
+        }
+
         const rawCurrentSessionTime = Math.max(0, parseInteger(rawData?.currentSessionTime, 0));
         const activeTimer = rawData?.activeTimer || null;
         const activeTimerRunning = isTimerRecordRunning(activeTimer, now);
@@ -8105,9 +8144,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     function renderLiveLeaderboardFromDocs() {
         const listContainer = document.getElementById("leaderboard-list");
         if (!listContainer) return;
+        const currentMeta = getCurrentDayMeta(new Date());
 
         const signature = [
             currentLeaderboardTab,
+            currentMeta.dateKey,
+            currentMeta.weekKey,
             String(leaderboardRealtimeDocs.length),
             leaderboardRealtimeDocs.map(doc => {
                 const data = doc?.data || {};
