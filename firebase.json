@@ -1,0 +1,42 @@
+{
+  "hosting": {
+    "public": ".",
+    "ignore": [
+      "firebase.json",
+      "firestore.rules",
+      "firestore.indexes.json",
+      ".firebaserc",
+      "**/.*",
+      "**/node_modules/**",
+      "**/*.apk",
+      "**/*.ipa",
+      "**/*.exe",
+      "**/*.dll",
+      "**/*.so",
+      "**/*.bin",
+      "**/*.ps1",
+      "**/*.bat",
+      "**/*.cmd",
+      "**/*.zip",
+      "**/*.7z",
+      "**/*.rar",
+      "123.html",
+      "123.txt",
+      "gagag.txt",
+      "index.txt",
+      "liste (2).html",
+      "mşşş.html",
+      "SİTEYEDEK.txt",
+      "YEDEKKKKKKKKKK.txt",
+      "Yeni Metin Belgesi (2).txt",
+      "Yeni Metin Belgesi (3).txt",
+      "cosxomer site/**",
+      "github-pages-hazir-site/**",
+      "github-pages-hazir-site-clean-20260328/**"
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

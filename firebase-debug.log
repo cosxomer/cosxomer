@@ -1,0 +1,61 @@
+[debug] [2026-04-26T05:16:52.862Z] ----------------------------------------------------------------------
+[debug] [2026-04-26T05:16:52.877Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\omrfr\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js serve
+[debug] [2026-04-26T05:16:52.878Z] CLI Version:   15.12.0
+[debug] [2026-04-26T05:16:52.878Z] Platform:      win32
+[debug] [2026-04-26T05:16:52.878Z] Node Version:  v24.14.1
+[debug] [2026-04-26T05:16:52.878Z] Time:          Sun Apr 26 2026 08:16:52 GMT+0300 (Türkiye Standart Saati)
+[debug] [2026-04-26T05:16:52.878Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-04-26T05:16:55.557Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-04-26T05:16:55.558Z] > authorizing via signed-in user (gnsbk.37@gmail.com)
+[debug] [2026-04-26T05:16:55.558Z] [iam] checking project cosxomer3 for permissions ["firebase.projects.get"]
+[debug] [2026-04-26T05:16:55.559Z] Checked if tokens are valid: false, expires at: 1777147039400
+[debug] [2026-04-26T05:16:55.559Z] Checked if tokens are valid: false, expires at: 1777147039400
+[debug] [2026-04-26T05:16:55.560Z] > refreshing access token with scopes: []
+[debug] [2026-04-26T05:16:55.562Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-04-26T05:16:55.562Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-26T05:16:55.757Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 200
+[debug] [2026-04-26T05:16:55.758Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-04-26T05:16:55.770Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3:testIamPermissions [none]
+[debug] [2026-04-26T05:16:55.770Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3:testIamPermissions  x-goog-user-project=cosxomer3
+[debug] [2026-04-26T05:16:55.770Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2026-04-26T05:16:56.787Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3:testIamPermissions 200
+[debug] [2026-04-26T05:16:56.788Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3:testIamPermissions {"permissions":["firebase.projects.get"]}
+[debug] [2026-04-26T05:16:56.790Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:56.790Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:56.791Z] >>> [apiv2][query] GET https://serviceusage.googleapis.com/v1/projects/cosxomer3/services/cloudresourcemanager.googleapis.com [none]
+[debug] [2026-04-26T05:16:56.791Z] >>> [apiv2][(partial)header] GET https://serviceusage.googleapis.com/v1/projects/cosxomer3/services/cloudresourcemanager.googleapis.com  x-goog-user-project=cosxomer3
+[debug] [2026-04-26T05:16:57.888Z] <<< [apiv2][status] GET https://serviceusage.googleapis.com/v1/projects/cosxomer3/services/cloudresourcemanager.googleapis.com 200
+[debug] [2026-04-26T05:16:57.889Z] <<< [apiv2][body] GET https://serviceusage.googleapis.com/v1/projects/cosxomer3/services/cloudresourcemanager.googleapis.com [omitted]
+[debug] [2026-04-26T05:16:57.895Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:57.895Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:57.895Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3 [none]
+[debug] [2026-04-26T05:16:58.123Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3 200
+[debug] [2026-04-26T05:16:58.123Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/cosxomer3 {"projectNumber":"611855250903","projectId":"cosxomer3","lifecycleState":"ACTIVE","name":"cosxomer3","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2026-04-01T07:18:38.498Z"}
+[info] 
+[info] === Serving from 'C:\Users\omrfr\Desktop\cosxomer-site'...
+[info] 
+[debug] [2026-04-26T05:16:58.135Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:58.135Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:58.136Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/cosxomer3/sites 
+[debug] [2026-04-26T05:16:59.506Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/cosxomer3/sites 200
+[debug] [2026-04-26T05:16:59.506Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/cosxomer3/sites {"sites":[{"name":"projects/cosxomer3/sites/cosxomer3","defaultUrl":"https://cosxomer3.web.app","type":"DEFAULT_SITE"}]}
+[debug] [2026-04-26T05:16:59.507Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:59.507Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:16:59.507Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3/webApps/-/config [none]
+[debug] [2026-04-26T05:17:00.308Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3/webApps/-/config 200
+[debug] [2026-04-26T05:17:00.309Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3/webApps/-/config {"projectId":"cosxomer3","appId":"1:611855250903:web:b01f0f5fe6cefeea3a4792","storageBucket":"cosxomer3.firebasestorage.app","apiKey":"AIzaSyCZJR-ZJgsNF9iA3Hv1YqNWrKM5FFvasWw","authDomain":"cosxomer3.firebaseapp.com","messagingSenderId":"611855250903","measurementId":"G-866W2EQB2Y","projectNumber":"611855250903","version":"2"}
+[debug] [2026-04-26T05:17:00.316Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:17:00.316Z] Checked if tokens are valid: true, expires at: 1777184214758
+[debug] [2026-04-26T05:17:00.316Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3 [none]
+[debug] [2026-04-26T05:17:00.645Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3 200
+[debug] [2026-04-26T05:17:00.645Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/cosxomer3 {"projectId":"cosxomer3","projectNumber":"611855250903","displayName":"cosxomer3","name":"projects/cosxomer3","resources":{"hostingSite":"cosxomer3"},"state":"ACTIVE","etag":"1_9ce2dacb-27f1-4ec8-a703-a9dcf22157d6"}
+[info] +  hosting[cosxomer3]: Local server: http://localhost:5000 {"metadata":{"emulator":{"name":"hosting"},"message":"Local server: \u001b[4m\u001b[1mhttp://localhost:5000\u001b[22m\u001b[24m"}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET / HTTP/1.1" 200 - "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET / HTTP/1.1\" 200 - \"-\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-pomodoro-ui-6.css HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-pomodoro-ui-6.css HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-kitty-responsive-5.css HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-kitty-responsive-5.css HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-upgrade-7.css HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-upgrade-7.css HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-pomodoro-ui-6.js HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-pomodoro-ui-6.js HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-hotfix-4.js?v=20260413-0001 HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-hotfix-4.js?v=20260413-0001 HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:10 +0000] "GET /codex-upgrade-7.js?v=20260425-0001 HTTP/1.1" 200 - "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:10 +0000] \"GET /codex-upgrade-7.js?v=20260425-0001 HTTP/1.1\" 200 - \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}
+[info] i  hosting: ::1 - - [26/Apr/2026:05:18:11 +0000] "GET /favicon.ico HTTP/1.1" 404 150 "http://localhost:5000/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0" {"metadata":{"emulator":{"name":"hosting"},"message":"::1 - - [26/Apr/2026:05:18:11 +0000] \"GET /favicon.ico HTTP/1.1\" 404 150 \"http://localhost:5000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 OPR/130.0.0.0\""}}

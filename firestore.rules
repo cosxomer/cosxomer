@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    match /users/{uid} {
+      allow create: if isOwner(uid);
+      allow get, list: if signedIn();
+      allow update, delete: if isOwner(uid) || isAdmin();
+    }
+
+    match /publicProfiles/{uid} {
+      allow get, list: if signedIn();
+      allow create, update: if isOwner(uid)
+        && request.resource.data.uid == uid;
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    match /leaderboard/{uid} {
+      allow get, list: if signedIn();
+      allow create, update, delete: if signedIn();
+    }
+
+    match /supportMessages/{messageId} {
+      allow create: if signedIn()
+        && request.resource.data.senderId == request.auth.uid;
+
+      allow get: if isAdmin()
+        || (signedIn() && resource.data.senderId == request.auth.uid);
+
+      allow list: if isAdmin();
+
+      allow update: if isAdmin()
+        || (signedIn() && resource.data.senderId == request.auth.uid);
+
+      allow delete: if isAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
