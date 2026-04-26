@@ -553,6 +553,67 @@
             background: rgba(255, 255, 255, 0.44);
             color: rgba(124, 70, 96, 0.72);
         }
+        
+        body.leaderboard-live-low .app-version-stamp {
+            opacity: 0;
+        }
+
+        .app-update-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10040;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(2, 6, 23, 0.58);
+        }
+
+        .app-update-modal.is-open {
+            display: flex;
+        }
+
+        .app-update-card {
+            width: min(92vw, 420px);
+            padding: 22px 20px 18px;
+            border-radius: 22px;
+            border: 1px solid rgba(255,255,255,0.14);
+            background: rgba(15, 23, 42, 0.96);
+            color: #e5eefb;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.42);
+        }
+
+        .app-update-card h3 {
+            margin: 0 0 10px;
+            font-size: 1.05rem;
+        }
+
+        .app-update-card p {
+            margin: 0 0 14px;
+            line-height: 1.55;
+            color: rgba(226, 232, 240, 0.86);
+        }
+
+        .app-update-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .app-update-actions .secondary-btn {
+            background: rgba(148, 163, 184, 0.16);
+            color: #e2e8f0;
+        }
+
+        body[data-theme="kitty"] .app-update-card {
+            background: rgba(255, 245, 249, 0.98);
+            color: #7c4660;
+            border-color: rgba(236, 72, 153, 0.16);
+        }
+
+        body[data-theme="kitty"] .app-update-card p {
+            color: rgba(124, 70, 96, 0.84);
+        }
 
         #instagram-link {
             background-color: var(--instagram-bg);
@@ -4457,6 +4518,16 @@
 </head>
 <body>
     <div class="app-version-stamp">designed by cosxomer v1.3</div>
+    <div id="app-update-modal" class="app-update-modal" aria-hidden="true">
+        <div class="app-update-card">
+            <h3 id="app-update-title">Guncel Surum Hazir</h3>
+            <p id="app-update-message">Uygulama hatalari giderildi. Yeni guncel surumu yuklemek icin APK Indir butonuna basabilirsiniz.</p>
+            <div class="app-update-actions">
+                <button type="button" class="secondary-btn" id="app-update-later-btn">Daha sonra</button>
+                <button type="button" id="app-update-download-btn">APK Indir</button>
+            </div>
+        </div>
+    </div>
     <div id="custom-alert">Hata Mesajı</div>
     <div id="login-gate">
         <div class="login-box">
@@ -12752,11 +12823,43 @@
             color: rgba(244, 233, 255, 0.5) !important;
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260413-0001"></script>      
+<script src="app-version.js?v=20260426-1300"></script>
+<script src="codex-hotfix-4.js?v=20260413-0001"></script>
     <script src="codex-pomodoro-ui-6.js"></script>
 <script src="codex-upgrade-7.js?v=20260425-0001"></script>
-    <script id="codex-github-pages-mobile-fix">
+<script id="codex-github-pages-mobile-fix">
         (function () {
+            var updateConfig = window.COSX_APP_UPDATE || null;
+            var modal = document.getElementById('app-update-modal');
+            var titleNode = document.getElementById('app-update-title');
+            var messageNode = document.getElementById('app-update-message');
+            var laterBtn = document.getElementById('app-update-later-btn');
+            var downloadBtn = document.getElementById('app-update-download-btn');
+            if (updateConfig && modal && laterBtn && downloadBtn) {
+                var latestVersion = String(updateConfig.latestVersion || '').trim();
+                var dismissedVersion = localStorage.getItem('cosx_app_update_dismissed') || '';
+                var shouldOpen = !!updateConfig.forcePrompt || (latestVersion && dismissedVersion !== latestVersion);
+                if (shouldOpen) {
+                    if (titleNode) titleNode.textContent = updateConfig.headline || 'Guncel Surum Hazir';
+                    if (messageNode) {
+                        var notes = Array.isArray(updateConfig.notes) ? updateConfig.notes.filter(Boolean) : [];
+                        messageNode.textContent = notes.join(' ');
+                    }
+                    laterBtn.addEventListener('click', function () {
+                        if (latestVersion) localStorage.setItem('cosx_app_update_dismissed', latestVersion);
+                        modal.classList.remove('is-open');
+                        modal.setAttribute('aria-hidden', 'true');
+                    });
+                    downloadBtn.addEventListener('click', function () {
+                        window.location.href = updateConfig.apkUrl || 'cosxomer-latest.apk';
+                    });
+                    window.addEventListener('load', function () {
+                        modal.classList.add('is-open');
+                        modal.setAttribute('aria-hidden', 'false');
+                    }, { once: true });
+                }
+            }
+
             function hasVisibleModal() {
                 return Array.from(document.querySelectorAll('.modal-overlay')).some(function (modal) {
                     return window.getComputedStyle(modal).display !== 'none';
