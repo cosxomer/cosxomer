@@ -532,6 +532,28 @@
             border: 1px solid var(--header-text);
         }
 
+        .app-version-stamp {
+            position: fixed;
+            top: max(10px, env(safe-area-inset-top, 0px));
+            right: 12px;
+            z-index: 9999;
+            padding: 4px 8px;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.18);
+            color: rgba(255, 255, 255, 0.58);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            pointer-events: none;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+        }
+
+        body[data-theme="kitty"] .app-version-stamp {
+            background: rgba(255, 255, 255, 0.44);
+            color: rgba(124, 70, 96, 0.72);
+        }
+
         #instagram-link {
             background-color: var(--instagram-bg);
             color: var(--instagram-text);
@@ -4434,6 +4456,7 @@
     </style>
 </head>
 <body>
+    <div class="app-version-stamp">designed by cosxomer v1.3</div>
     <div id="custom-alert">Hata Mesajı</div>
     <div id="login-gate">
         <div class="login-box">
