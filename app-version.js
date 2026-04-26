@@ -1,6 +1,5 @@
 window.COSX_APP_UPDATE = {
     latestVersion: "1.3",
-    forcePrompt: true,
     apkUrl: "https://github.com/cosxomer/cosxomer/raw/main/cosxomer-latest.apk",
     headline: "Guncel Surum 1.3 Hazir",
     notes: [
