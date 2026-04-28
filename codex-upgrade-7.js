@@ -29,6 +29,7 @@
     const PUBLIC_PROFILE_COLLECTION = "publicProfiles";
     const LEADERBOARD_COLLECTION = "leaderboard";
     const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
+    const LEADERBOARD_POLL_MS = 15 * 60 * 1000;
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
     const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
@@ -7924,8 +7925,15 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     function ensureLeaderboardCloudPolling() {
-        return;
-    }
+    if (leaderboardCloudPollInterval) return;
+    leaderboardCloudPollInterval = setInterval(() => {
+        if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
+        refreshLeaderboardCloudSnapshot("poll").catch(error => {
+            console.error("Lider tablosu polling yenilemesi basarisiz:", error);
+        });
+    }, LEADERBOARD_POLL_MS);
+}
+    
 
     function stopLeaderboardCloudPolling() {
         if (!leaderboardCloudPollInterval) return;
