@@ -7802,23 +7802,55 @@
             }, 1000);
         }
 
-        function checkActiveTimer() {
-            const deadline = localStorage.getItem('pomodoroDeadline');
-            if (deadline) {
-                const now = Date.now();
-                const diff = Math.ceil((deadline - now) / 1000);
-                if (diff > 0) {
-                    timeRemaining = diff;
-                    isRunning = true;
-                    startInterval(parseInt(deadline));
-                    document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
-                } else {
-                    localStorage.removeItem('pomodoroDeadline');
-                    localStorage.removeItem('pomodoroInitialTotal');
-                }
-            }
-            updateTimerDisplay();
+function checkActiveTimer() {
+    const deadline = localStorage.getItem('pomodoroDeadline');
+    const cachedRemaining = parseInt(localStorage.getItem('pomodoroTimeRemaining'), 10);
+    const cachedRunning = localStorage.getItem('pomodoroIsRunning') === 'true';
+    const cachedLastSeenAt = parseInt(localStorage.getItem('pomodoroLastSeenAt'), 10) || Date.now();
+
+    if (deadline) {
+        const now = Date.now();
+        const diff = Math.ceil((deadline - now) / 1000);
+        if (diff > 0) {
+            timeRemaining = diff;
+            isRunning = true;
+            startInterval(parseInt(deadline));
+            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+        } else {
+            localStorage.removeItem('pomodoroDeadline');
+            localStorage.removeItem('pomodoroInitialTotal');
+            localStorage.setItem('pomodoroTimeRemaining', '0');
+            localStorage.setItem('pomodoroIsRunning', 'false');
+            localStorage.setItem('pomodoroLastSeenAt', String(now));
         }
+    } else if (Number.isFinite(cachedRemaining) && cachedRemaining > 0) {
+        const elapsedSinceLastSeen = Math.max(0, Math.floor((Date.now() - cachedLastSeenAt) / 1000));
+        const resumedRemaining = cachedRunning
+            ? Math.max(0, cachedRemaining - elapsedSinceLastSeen)
+            : cachedRemaining;
+
+        timeRemaining = resumedRemaining;
+        isRunning = false;
+        document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-play"></i> Başlat';
+
+        if (cachedRunning && resumedRemaining > 0) {
+            const resumeDeadline = Date.now() + (resumedRemaining * 1000);
+            localStorage.setItem('pomodoroDeadline', String(resumeDeadline));
+            localStorage.setItem('pomodoroTimeRemaining', String(resumedRemaining));
+            localStorage.setItem('pomodoroLastSeenAt', String(Date.now()));
+            isRunning = true;
+            startInterval(resumeDeadline);
+            document.getElementById('start-pause-btn').innerHTML = '<i class="fas fa-pause"></i> Duraklat';
+        } else if (cachedRunning) {
+            localStorage.removeItem('pomodoroDeadline');
+            localStorage.setItem('pomodoroTimeRemaining', '0');
+            localStorage.setItem('pomodoroIsRunning', 'false');
+            localStorage.setItem('pomodoroLastSeenAt', String(Date.now()));
+        }
+    }
+
+    updateTimerDisplay();
+}
 
         function updateTimerDisplay() {
             const h = Math.floor(timeRemaining / 3600);
