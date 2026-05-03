@@ -1728,4 +1728,39 @@
     });
 })();
 
+// --- CODEX HOTFIX: Timer Local Persistence Patch ---
+// Pomodoro/kronometre çalışırken sayfayı yenilemede süre sıfırlanmasını engeller.
+// timerState.session her 5 saniyede bir localStorage'a yazılır.
+// Bu patch codex-upgrade-7.js içindeki orijinal mantığa dokunmaz.
+(() => {
+    const PERSIST_INTERVAL_MS = 5000;
+    const STORAGE_KEY = "codexRealtimeTimerStateV1";
+
+    function tryPersistRunningTimer() {
+        try {
+            if (typeof timerState === "undefined" || !timerState?.session?.isRunning) return;
+            const uid = String(
+                timerState.session.uid
+                || (typeof currentUser !== "undefined" && currentUser?.uid)
+                || ""
+            );
+            if (!uid) return;
+            const snapshot = {
+                ...timerState.session,
+                uid,
+                lastSeenAtMs: Date.now()
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+        } catch (e) {
+            // sessizce geç
+        }
+    }
+
+    // İlk yüklemede kısa bir gecikme sonra başlat (codex-upgrade-7 tam init olsun diye)
+    setTimeout(() => {
+        setInterval(tryPersistRunningTimer, PERSIST_INTERVAL_MS);
+    }, 2000);
+})();
+// --- /CODEX HOTFIX: Timer Local Persistence Patch ---
+
 
