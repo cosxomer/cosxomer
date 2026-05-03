@@ -11845,7 +11845,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 currentUserSaveResolvers = [];
                 stopTimerLoops();
                 timerState.session = null;
-                persistTimerSessionLocally(null);
+                // NOT: persistTimerSessionLocally(null) burada cagrilmiyor.
+                // Firebase Auth sayfa yuklenince once null gonderir, sonra gercek kullanici gelir.
+                // Bu null aninda localStorage silinirse restoreTimerFromPersistence calisacak veri bulamaz.
+                // Gercek sign-out'ta clearLegacyPomodoroStorage zaten temizliyor.
                 releaseTimerOwnership();
                 clearLegacyPomodoroStorage();
                 hideVerificationGate();
