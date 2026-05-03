@@ -11395,7 +11395,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             updateInputs: (...args) => typeof updateTimerFromInputsAndReset === "function" ? updateTimerFromInputsAndReset.apply(window, args) : undefined,
             toggle: (...args) => typeof toggleTimer === "function" ? toggleTimer.apply(window, args) : undefined,
             save: (...args) => typeof saveWorkSession === "function" ? saveWorkSession.apply(window, args) : undefined,
-            reset: (...args) => typeof resetTimer === "function" ? resetTimer.apply(window, args) : undefined
+            reset: (...args) => typeof resetTimer === "function" ? resetTimer.apply(window, args) : undefined,
+            getTimerState: () => timerState,
+            getCurrentUser: () => currentUser,
+            persistNow: () => persistTimerSessionLocally(timerState.session)
         };
     }
 

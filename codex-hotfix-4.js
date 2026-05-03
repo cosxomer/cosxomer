@@ -1728,29 +1728,20 @@
     });
 })();
 
-// --- CODEX HOTFIX: Timer Local Persistence Patch ---
+// --- CODEX HOTFIX: Timer Local Persistence Patch v2 ---
 // Pomodoro/kronometre çalışırken sayfayı yenilemede süre sıfırlanmasını engeller.
-// timerState.session her 5 saniyede bir localStorage'a yazılır.
-// Bu patch codex-upgrade-7.js içindeki orijinal mantığa dokunmaz.
+// Her 5 saniyede bir window.codexTimerBridge.persistNow() üzerinden kayıt yapılır.
+// Bu sayede timerState ve persistTimerSessionLocally doğrudan IIFE içinden çağrılır.
 (() => {
     const PERSIST_INTERVAL_MS = 5000;
-    const STORAGE_KEY = "codexRealtimeTimerStateV1";
 
     function tryPersistRunningTimer() {
         try {
-            if (typeof timerState === "undefined" || !timerState?.session?.isRunning) return;
-            const uid = String(
-                timerState.session.uid
-                || (typeof currentUser !== "undefined" && currentUser?.uid)
-                || ""
-            );
-            if (!uid) return;
-            const snapshot = {
-                ...timerState.session,
-                uid,
-                lastSeenAtMs: Date.now()
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+            const bridge = window.codexTimerBridge;
+            if (!bridge) return;
+            const state = bridge.getTimerState();
+            if (!state?.session?.isRunning) return;
+            bridge.persistNow();
         } catch (e) {
             // sessizce geç
         }
@@ -1761,6 +1752,6 @@
         setInterval(tryPersistRunningTimer, PERSIST_INTERVAL_MS);
     }, 2000);
 })();
-// --- /CODEX HOTFIX: Timer Local Persistence Patch ---
+// --- /CODEX HOTFIX: Timer Local Persistence Patch v2 ---
 
 
