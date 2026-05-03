@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
@@ -12729,9 +12729,9 @@
             color: rgba(244, 233, 255, 0.5) !important;
         }
     </style>
-<script src="codex-hotfix-4.js?v=20260503-0001"></script>      
+<script src="codex-hotfix-4.js?v=20260413-0001"></script>      
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260503-0003"></script>
+<script src="codex-upgrade-7.js?v=20260503-0001"></script>
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
@@ -12867,6 +12867,45 @@
             window.syncBodyModalLock();
         })();
     </script>
+    <!-- Site İmzası -->
+    <div id="cosxomer-signature">
+        <span>v2.0</span>
+        <span class="sig-dot">·</span>
+        <span>designed by cosxomer</span>
+    </div>
+    <style>
+        #cosxomer-signature {
+            position: fixed;
+            top: 12px;
+            right: 16px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: 500;
+            letter-spacing: 0.04em;
+            color: #ffffff;
+            opacity: 0.18;
+            pointer-events: none;
+            user-select: none;
+            z-index: 9999;
+            transition: opacity 0.3s;
+        }
+        #cosxomer-signature:hover {
+            opacity: 0.45;
+        }
+        .sig-dot {
+            opacity: 0.6;
+        }
+        @media (max-width: 480px) {
+            #cosxomer-signature {
+                font-size: 10px;
+                top: 8px;
+                right: 10px;
+            }
+        }
+    </style>
 </body>
 </html>
 
