@@ -5,7 +5,7 @@
     const TIMER_SYNC_MS = 10 * 60 * 1000;
     const TIMER_FORCED_CHECKPOINT_MS = 60 * 60 * 1000;
     const TIMER_OWNER_TTL_MS = 15000;
-    const TIMER_AUTO_STOP_MS = 3 * 60 * 60 * 1000;
+    const TIMER_AUTO_STOP_MS = 4 * 60 * 60 * 1000;
     const TITLE_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000;
     const REMOTE_TIMER_STALE_MS = Math.max(TIMER_SYNC_MS + (2 * 60 * 1000), 12 * 60 * 1000);
     const USER_SAVE_DEBOUNCE_MS = 180;
@@ -2636,7 +2636,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         });
 
         if (options.showAlert !== false) {
-            safeShowAlert("3 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
+            safeShowAlert("4 saat boyunca geri dönülmediği için süre otomatik kaydedildi ve durduruldu.", "info");
         }
 
         return {
@@ -3213,12 +3213,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         const note = document.getElementById("timer-mode-note");
         if (note) {
             note.innerHTML = normalizedMode === "stopwatch"
-                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 3 saat sonunda otomatik durur."
+                ? "<strong>Kronometre</strong> 00:00:00'dan baslar ve ileri sayar. Durdurulmazsa 4 saat sonunda otomatik durur."
                 : normalizedMode === "break-stopwatch"
                     ? "<strong>Mola kronometresi</strong> molayı ileri sayar. İstersen manuel kaydedip kapatabilirsin."
                     : normalizedMode === "break-pomodoro"
                         ? "<strong>Mola geri sayımı</strong> seçtiğin mola süresinden geri sayar; süre bitince sesli uyarı verir ve molayı kaydeder."
-                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 3 saat sonunda otomatik durur.";
+                        : "<strong>Pomodoro</strong> geri sayim yapar; sure 0 olsa da sen durdurana kadar calismayi surdurur. Acik kalan timer 4 saat sonunda otomatik durur.";
         }
 
         if (!options.keepSession) {
@@ -11920,6 +11920,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         window.addEventListener("pagehide", () => {
             if (timerState.session?.isRunning) {
+                preserveTimerStateForRecovery(timerState.session, {
+                    modalOpen: isTimerModalOpen(),
+                    includeRecovery: true
+                });
                 const hiddenCheckpoint = captureRunningTimerCheckpoint(timerState.session, Date.now(), {
                     bumpCheckpoint: true,
                     touchSeen: true,
@@ -11942,7 +11946,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         window.addEventListener("beforeunload", () => {
             if (timerState.session?.isRunning) {
-                persistTimerSessionLocally(timerState.session);
+                preserveTimerStateForRecovery(timerState.session, {
+                    modalOpen: isTimerModalOpen(),
+                    includeRecovery: true
+                });
             }
             clearLegacyPomodoroStorage();
             releaseTimerOwnership();
