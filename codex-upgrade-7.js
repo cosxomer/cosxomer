@@ -6970,6 +6970,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         const seedSession = storedSessionMatchesUser && !storedResetState.didReset
             ? storedSession
             : (remoteSessionCandidate || finalizedSessionCandidate);
+        const shouldReopenTimerModal = !!seedSession?.isRunning && !!seedSession?.modalOpen;
 
         if (seedSession?.mode) {
             timerState.mode = normalizeTimerMode(seedSession.mode);
@@ -7066,6 +7067,13 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             }
         }
         renderTimerUi();
+        if (shouldReopenTimerModal && typeof showPomodoroModal === "function" && !isTimerModalOpen()) {
+            setTimeout(() => {
+                if (timerState.session?.isRunning && !isTimerModalOpen()) {
+                    showPomodoroModal();
+                }
+            }, 0);
+        }
     }
 
     function applyAdminTimerResetFromUserData(userData = {}, options = {}) {
