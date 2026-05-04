@@ -2117,6 +2117,9 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     function persistTimerSessionLocally(session) {
         const sessionUid = String(session?.uid || currentUser?.uid || "");
         if (!session || !sessionUid) {
+            // Timer çalışıyorsa silme — sadece gerçek durdurma/çıkış anında sil
+            const stored = (function() { try { return JSON.parse(localStorage.getItem(TIMER_STORAGE_KEY)); } catch(e) { return null; } })();
+            if (stored?.isRunning) return;
             localStorage.removeItem(TIMER_STORAGE_KEY);
             return;
         }
