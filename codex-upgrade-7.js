@@ -32,7 +32,21 @@
     const LEADERBOARD_POLL_MS = 15 * 60 * 1000;
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
-    const timerInstanceId = `timer_${Math.random().toString(36).slice(2, 10)}`;
+    // timerInstanceId: bu tarayiciya ozgu kalici ID (sayfa yenilemede degismez)
+    // Boylece ayni tarayicide sayfa yenilenince 'baska cihaz' sayilmaz
+    const timerInstanceId = (() => {
+        const INSTANCE_KEY = 'codexTimerInstanceIdV1';
+        try {
+            let id = localStorage.getItem(INSTANCE_KEY);
+            if (!id || !id.startsWith('timer_')) {
+                id = `timer_${Math.random().toString(36).slice(2, 10)}`;
+                localStorage.setItem(INSTANCE_KEY, id);
+            }
+            return id;
+        } catch(e) {
+            return `timer_${Math.random().toString(36).slice(2, 10)}`;
+        }
+    })();
 
     let noteFolders = [];
     let activeNoteFolderId = NOTE_FOLDER_ALL_ID;
@@ -911,6 +925,19 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         const ownerId = String(activeTimer.ownerId || "").trim();
         if (!ownerId || ownerId === timerInstanceId) return null;
+
+        // Sayfa yenilemesi tespiti: aynı kullanicinin önceki session'i.
+        // Firestore'daki timer 60 saniyeden yeni ve uid eslesiyorsa
+        // bu cihaz baska bir cihaz degil, ayni kullanicinin yenilenmis sayfasi.
+        const timerUid = String(activeTimer.uid || "").trim();
+        const currentUid = String(currentUser?.uid || "").trim();
+        if (timerUid && currentUid && timerUid === currentUid) {
+            const age = now - lastSeenAt;
+            if (age < 60000) {
+                // 60 saniyeden yeni → bu bizim kendi eski session'imiz, yabanci degil
+                return null;
+            }
+        }
 
         return activeTimer;
     }
