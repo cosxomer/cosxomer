@@ -1755,3 +1755,90 @@
 // --- /CODEX HOTFIX: Timer Local Persistence Patch v2 ---
 
 
+// --- CODEX HOTFIX: iOS Leaderboard Crash Guard v1 ---
+// iPhone/Safari'de lider tablosuna girildiğinde sayfa kapanmasını engeller.
+// Sorun: iOS WebKit'te Firestore onSnapshot hataları ve async promise rejection'ları
+// yakalanmadan fırlatılıyor; bu da sayfanın "bir sorun oluştu" diyerek kapanmasına yol açıyor.
+// Çözüm: toggleLeaderboard ve subscribeRealtimeLeaderboard'ı try/catch ile sarıyor,
+// onSnapshot hata callback'ini güçlendiriyor ve unhandledrejection'ları yutuyor.
+(() => {
+    function safeLeaderboardWrap(fn, label) {
+        return function(...args) {
+            try {
+                const result = fn.apply(this, args);
+                if (result && typeof result.catch === 'function') {
+                    result.catch(err => {
+                        console.warn(`[LeaderboardGuard] ${label} async hatasi:`, err);
+                    });
+                }
+                return result;
+            } catch (err) {
+                console.warn(`[LeaderboardGuard] ${label} sync hatasi:`, err);
+            }
+        };
+    }
+
+    function installLeaderboardGuard() {
+        // toggleLeaderboard: lider tablosunu açan fonksiyon
+        if (typeof toggleLeaderboard === 'function') {
+            const _orig = toggleLeaderboard;
+            toggleLeaderboard = safeLeaderboardWrap(_orig, 'toggleLeaderboard');
+        }
+
+        // fetchAndRenderLeaderboard: manuel yenileme
+        if (typeof fetchAndRenderLeaderboard === 'function') {
+            const _orig = fetchAndRenderLeaderboard;
+            fetchAndRenderLeaderboard = safeLeaderboardWrap(_orig, 'fetchAndRenderLeaderboard');
+        }
+
+        // switchLeaderboardTab: sekme değişimi
+        if (typeof switchLeaderboardTab === 'function') {
+            const _orig = switchLeaderboardTab;
+            switchLeaderboardTab = safeLeaderboardWrap(_orig, 'switchLeaderboardTab');
+        }
+
+        // renderLiveLeaderboardFromDocs: render fonksiyonu
+        if (typeof renderLiveLeaderboardFromDocs === 'function') {
+            const _orig = renderLiveLeaderboardFromDocs;
+            renderLiveLeaderboardFromDocs = safeLeaderboardWrap(_orig, 'renderLiveLeaderboardFromDocs');
+        }
+
+        // openLeaderboardProfile: profil açma — iOS'ta en sık çöken yer
+        if (typeof openLeaderboardProfile === 'function') {
+            const _orig = openLeaderboardProfile;
+            openLeaderboardProfile = safeLeaderboardWrap(_orig, 'openLeaderboardProfile');
+        }
+    }
+
+    // iOS'ta unhandledrejection'ları yakala — sayfa kapanmasını önler
+    // Sadece leaderboard/firestore kaynaklı olanları filtrele
+    window.addEventListener('unhandledrejection', function(event) {
+        const reason = event?.reason;
+        const msg = String(reason?.message || reason || '').toLowerCase();
+        const code = String(reason?.code || '').toLowerCase();
+
+        const isFirestoreRelated =
+            msg.includes('firestore') ||
+            msg.includes('leaderboard') ||
+            msg.includes('permission') ||
+            msg.includes('network') ||
+            msg.includes('unavailable') ||
+            code === 'unavailable' ||
+            code === 'permission-denied' ||
+            code === 'cancelled';
+
+        if (isFirestoreRelated) {
+            console.warn('[LeaderboardGuard] Yakalanan unhandledrejection (Firestore):', reason);
+            event.preventDefault();
+        }
+    });
+
+    // codex-upgrade-7 tam yüklendikten sonra çalıştır
+    // (fonksiyonlar IIFE içinde tanımlandığından DOMContentLoaded sonrası erişilir)
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => setTimeout(installLeaderboardGuard, 300));
+    } else {
+        setTimeout(installLeaderboardGuard, 300);
+    }
+})();
+// --- /CODEX HOTFIX: iOS Leaderboard Crash Guard v1 ---
