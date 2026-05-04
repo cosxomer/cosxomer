@@ -1731,7 +1731,7 @@
 // --- CODEX HOTFIX: Timer Local Persistence Patch v2 ---
 // Pomodoro/kronometre çalışırken sayfayı yenilemede süre sıfırlanmasını engeller.
 // Her 5 saniyede bir window.codexTimerBridge.persistNow() üzerinden kayıt yapılır.
-// Bu sayede timerState ve persistTimerSessionLocally doğrudan IIFE içinden çağrılır.
+// Modal kapalıyken de timer çalışıyorsa restore sonrası UI güncellenir.
 (() => {
     const PERSIST_INTERVAL_MS = 5000;
 
@@ -1747,98 +1747,79 @@
         }
     }
 
+    // Sayfa yüklenince: modal kapalı ama timer çalışıyorsa UI'ı düzelt
+    function tryRestoreTimerUiIfRunning() {
+        try {
+            const bridge = window.codexTimerBridge;
+            if (!bridge) return;
+            const state = bridge.getTimerState();
+            if (!state?.session?.isRunning) return;
+
+            // Modal kapalıysa ana ekrandaki timer göstergesini güncelle
+            // showPomodoroModal'ı çağırmıyoruz — kullanıcı kapatmış, zorunlu açmak istemiyoruz
+            // Sadece persistNow ile doğru veriyi yazıyoruz ki bir sonraki açılışta doğru gelsin
+            bridge.persistNow();
+
+            // Eğer pomodoro modal açıksa UI'ı yenile
+            const modal = document.getElementById('pomodoro-modal');
+            const isOpen = modal && window.getComputedStyle(modal).display !== 'none';
+            if (isOpen && typeof updateTimerDisplay === 'function') {
+                updateTimerDisplay();
+            }
+        } catch (e) {
+            // sessizce geç
+        }
+    }
+
     // İlk yüklemede kısa bir gecikme sonra başlat (codex-upgrade-7 tam init olsun diye)
     setTimeout(() => {
+        tryRestoreTimerUiIfRunning();
         setInterval(tryPersistRunningTimer, PERSIST_INTERVAL_MS);
     }, 2000);
 })();
 // --- /CODEX HOTFIX: Timer Local Persistence Patch v2 ---
 
 
-// --- CODEX HOTFIX: iOS Leaderboard Crash Guard v1 ---
-// iPhone/Safari'de lider tablosuna girildiğinde sayfa kapanmasını engeller.
-// Sorun: iOS WebKit'te Firestore onSnapshot hataları ve async promise rejection'ları
-// yakalanmadan fırlatılıyor; bu da sayfanın "bir sorun oluştu" diyerek kapanmasına yol açıyor.
-// Çözüm: toggleLeaderboard ve subscribeRealtimeLeaderboard'ı try/catch ile sarıyor,
-// onSnapshot hata callback'ini güçlendiriyor ve unhandledrejection'ları yutuyor.
+
+// --- CODEX HOTFIX: Leaderboard Performans Patch ---
+// Avatar lazy loading + render throttle ile mobil performansı artırır
 (() => {
-    function safeLeaderboardWrap(fn, label) {
-        return function(...args) {
-            try {
-                const result = fn.apply(this, args);
-                if (result && typeof result.catch === 'function') {
-                    result.catch(err => {
-                        console.warn(`[LeaderboardGuard] ${label} async hatasi:`, err);
-                    });
-                }
-                return result;
-            } catch (err) {
-                console.warn(`[LeaderboardGuard] ${label} sync hatasi:`, err);
+    const RENDER_THROTTLE_MS = 800;
+    let lastRender = 0;
+    let pendingRender = null;
+
+    function patchLeaderboardAvatars() {
+        document.querySelectorAll('.leaderboard-avatar').forEach(img => {
+            if (!img.loading) img.loading = 'lazy';
+            if (!img.decoding) img.decoding = 'async';
+        });
+    }
+
+    // renderLiveLeaderboardFromDocs patch - throttle ekle
+    const waitForBridge = setInterval(() => {
+        if (typeof renderLiveLeaderboardFromDocs !== 'function') return;
+        clearInterval(waitForBridge);
+
+        const original = renderLiveLeaderboardFromDocs;
+        renderLiveLeaderboardFromDocs = function(...args) {
+            const now = Date.now();
+            if (pendingRender) {
+                clearTimeout(pendingRender);
+                pendingRender = null;
             }
+            if (now - lastRender < RENDER_THROTTLE_MS) {
+                pendingRender = setTimeout(() => {
+                    pendingRender = null;
+                    lastRender = Date.now();
+                    original.apply(this, args);
+                    patchLeaderboardAvatars();
+                }, RENDER_THROTTLE_MS);
+                return;
+            }
+            lastRender = now;
+            original.apply(this, args);
+            patchLeaderboardAvatars();
         };
-    }
-
-    function installLeaderboardGuard() {
-        // toggleLeaderboard: lider tablosunu açan fonksiyon
-        if (typeof toggleLeaderboard === 'function') {
-            const _orig = toggleLeaderboard;
-            toggleLeaderboard = safeLeaderboardWrap(_orig, 'toggleLeaderboard');
-        }
-
-        // fetchAndRenderLeaderboard: manuel yenileme
-        if (typeof fetchAndRenderLeaderboard === 'function') {
-            const _orig = fetchAndRenderLeaderboard;
-            fetchAndRenderLeaderboard = safeLeaderboardWrap(_orig, 'fetchAndRenderLeaderboard');
-        }
-
-        // switchLeaderboardTab: sekme değişimi
-        if (typeof switchLeaderboardTab === 'function') {
-            const _orig = switchLeaderboardTab;
-            switchLeaderboardTab = safeLeaderboardWrap(_orig, 'switchLeaderboardTab');
-        }
-
-        // renderLiveLeaderboardFromDocs: render fonksiyonu
-        if (typeof renderLiveLeaderboardFromDocs === 'function') {
-            const _orig = renderLiveLeaderboardFromDocs;
-            renderLiveLeaderboardFromDocs = safeLeaderboardWrap(_orig, 'renderLiveLeaderboardFromDocs');
-        }
-
-        // openLeaderboardProfile: profil açma — iOS'ta en sık çöken yer
-        if (typeof openLeaderboardProfile === 'function') {
-            const _orig = openLeaderboardProfile;
-            openLeaderboardProfile = safeLeaderboardWrap(_orig, 'openLeaderboardProfile');
-        }
-    }
-
-    // iOS'ta unhandledrejection'ları yakala — sayfa kapanmasını önler
-    // Sadece leaderboard/firestore kaynaklı olanları filtrele
-    window.addEventListener('unhandledrejection', function(event) {
-        const reason = event?.reason;
-        const msg = String(reason?.message || reason || '').toLowerCase();
-        const code = String(reason?.code || '').toLowerCase();
-
-        const isFirestoreRelated =
-            msg.includes('firestore') ||
-            msg.includes('leaderboard') ||
-            msg.includes('permission') ||
-            msg.includes('network') ||
-            msg.includes('unavailable') ||
-            code === 'unavailable' ||
-            code === 'permission-denied' ||
-            code === 'cancelled';
-
-        if (isFirestoreRelated) {
-            console.warn('[LeaderboardGuard] Yakalanan unhandledrejection (Firestore):', reason);
-            event.preventDefault();
-        }
-    });
-
-    // codex-upgrade-7 tam yüklendikten sonra çalıştır
-    // (fonksiyonlar IIFE içinde tanımlandığından DOMContentLoaded sonrası erişilir)
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => setTimeout(installLeaderboardGuard, 300));
-    } else {
-        setTimeout(installLeaderboardGuard, 300);
-    }
+    }, 500);
 })();
-// --- /CODEX HOTFIX: iOS Leaderboard Crash Guard v1 ---
+// --- /CODEX HOTFIX: Leaderboard Performans Patch ---

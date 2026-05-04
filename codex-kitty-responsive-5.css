@@ -529,3 +529,60 @@ body[data-theme="kitty"] .countdown-circle-bg {
         transition: right 0.18s ease !important;
     }
 }
+
+/* ===================================================
+   LEADERBOARD PERFORMANS - TABLET/MOBIL
+   right animasyonu yerine transform kullan (GPU hızlı)
+   =================================================== */
+
+.leaderboard-panel {
+    right: 0 !important;
+    transform: translateX(100%) !important;
+    transition: transform 0.22s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    will-change: transform !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+}
+
+.leaderboard-panel.open {
+    transform: translateX(0) !important;
+}
+
+.leaderboard-list {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+}
+
+.leaderboard-avatar {
+    content-visibility: auto !important;
+}
+
+/* Kapatma butonu - büyük dokunma alanı */
+.close-leaderboard {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent !important;
+}
+
+@media (max-width: 1024px) {
+    .leaderboard-panel {
+        width: min(420px, 95vw) !important;
+    }
+    .leaderboard-tab {
+        padding: 12px 8px !important;
+        font-size: 1em !important;
+    }
+    .leaderboard-item {
+        padding: 10px 8px !important;
+    }
+    .close-leaderboard {
+        min-width: 48px !important;
+        min-height: 48px !important;
+    }
+}
