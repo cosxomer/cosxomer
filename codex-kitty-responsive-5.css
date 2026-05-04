@@ -489,3 +489,43 @@ body[data-theme="kitty"] .countdown-circle-bg {
         align-items: stretch;
     }
 }
+
+/* ===================================================
+   LEADERBOARD TABLET/MOBIL DOKUNMA DÜZELTMELERİ
+   - Kapatma butonu daha büyük dokunma alanı
+   - Animasyon iPad için daha hızlı
+   =================================================== */
+
+/* Kapatma butonu - dokunma alanı büyütüldü */
+.close-leaderboard {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    padding: 10px 14px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    -webkit-tap-highlight-color: transparent !important;
+    touch-action: manipulation !important;
+}
+
+/* iPad ve tablet - animasyonu hızlandır */
+@media (max-width: 1024px) {
+    .leaderboard-panel {
+        transition: right 0.22s ease !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .close-leaderboard {
+        min-width: 48px !important;
+        min-height: 48px !important;
+        font-size: 1.4em !important;
+    }
+}
+
+/* Mobil */
+@media (max-width: 600px) {
+    .leaderboard-panel {
+        transition: right 0.18s ease !important;
+    }
+}
