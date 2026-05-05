@@ -8246,12 +8246,26 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             }
         };
 
-        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(handleUsersSnapshot, error => {
-            console.error("Canli users dinleyicisi basarisiz:", error);
-            if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
-                listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
-            }
-        });
+        // Performans: 203 kullanıcı yerine sadece bu haftaki aktif kullanıcıları dinle
+        const currentWeekKey = (() => {
+            const d = new Date();
+            const mon = new Date(d);
+            mon.setHours(0,0,0,0);
+            mon.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+            return mon.toISOString().slice(0,10);
+        })();
+
+        leaderboardRealtimeUnsubscribe = db.collection("users")
+            .where("weeklyStudyWeekKey", "==", currentWeekKey)
+            .onSnapshot(handleUsersSnapshot, error => {
+                console.error("Canli users dinleyicisi basarisiz:", error);
+                // Filtreli sorgu başarısız olursa tüm koleksiyona düş
+                leaderboardRealtimeUnsubscribe = null;
+                leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(handleUsersSnapshot, () => {});
+                if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+                }
+            });
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
