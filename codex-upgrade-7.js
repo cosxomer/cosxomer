@@ -8181,7 +8181,13 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             const docs = mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs || []);
             applyLeaderboardCloudDocs(docs);
 
+            // CPU opt: leaderboard aciksa HEMEN render et, profil promise'i bekleme
+            if (document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                renderLiveLeaderboardFromDocs();
+            }
+
             const currentUserDoc = (snapshot.docs || []).find(doc => doc.id === currentUser?.uid) || null;
+            // await kaldırıldı - profil promise render'ı bloklamasın
             const publicProfileData = currentUserPublicProfileBootstrapPromise
                 ? await currentUserPublicProfileBootstrapPromise.catch(() => null)
                 : currentUserPublicProfileDoc;
@@ -10984,17 +10990,40 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             if (isOpen) {
                 panel.classList.remove("open");
                 document.body.classList.remove("leaderboard-live-low");
-                // CPU opt: kapatınca Firestore listener'i durdur
                 if (typeof unsubscribeRealtimeLeaderboard === "function") {
                     setTimeout(() => unsubscribeRealtimeLeaderboard(), 2000);
                 }
                 return;
             }
 
+            // 1. Paneli ANINDA aç
             panel.classList.add("open");
             document.body.classList.add("leaderboard-live-low");
-            subscribeRealtimeLeaderboard();
-            renderLiveLeaderboardFromDocs();
+
+            // 2. Mevcut local veriyle ANINDA render et (skeleton yerine gerçek veri)
+            const listContainer = document.getElementById("leaderboard-list");
+            const localDocs = typeof buildLeaderboardViewModelFromDocs === "function"
+                ? buildLeaderboardViewModelFromDocs()
+                : [];
+
+            if (localDocs.length > 0) {
+                // Lokal veri varsa hemen göster
+                renderLiveLeaderboardFromDocs();
+            } else if (listContainer) {
+                // Veri yoksa skeleton göster
+                listContainer.innerHTML = Array.from({length: 5}, (_, i) => `
+                    <div style="display:flex;align-items:center;gap:12px;padding:12px 8px;opacity:${0.6 - i*0.08}">
+                        <div style="width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,0.1);flex-shrink:0"></div>
+                        <div style="flex:1">
+                            <div style="height:12px;background:rgba(255,255,255,0.1);border-radius:6px;width:${80 - i*10}%;margin-bottom:6px"></div>
+                            <div style="height:10px;background:rgba(255,255,255,0.07);border-radius:5px;width:40%"></div>
+                        </div>
+                    </div>
+                `).join("");
+            }
+
+            // 3. Firestore'dan gerçek veriyi arka planda getir
+            setTimeout(() => subscribeRealtimeLeaderboard(), 0);
         };
 
         switchLeaderboardTab = function(tab) {
