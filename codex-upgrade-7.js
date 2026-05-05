@@ -7987,7 +7987,17 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 const data = doc.data || {};
                 const now = Date.now();
                 const referenceDate = new Date(now);
+
+                // Erken çıkış: username yoksa veya hiç aktif değilse işleme
+                const resolvedUsernameQuick = String(data.username || data.name || data.email?.split?.("@")?.[0] || "").trim();
+                if (!resolvedUsernameQuick) return null;
+
                 const seconds = getLiveLeaderboardSeconds(data);
+                const hasActiveTimer = data.activeTimer?.isRunning;
+
+                // Sekonder 0 ve aktif timer yoksa ve günlük tab değilse erken çık
+                if (seconds <= 0 && !hasActiveTimer && currentLeaderboardTab !== "daily") return null;
+
                 const questionBreakdown = getLeaderboardQuestionBreakdown(data);
                 const currentPeriodQuestions = questionBreakdown.activeQuestions;
                 const totalQuestions = Math.max(
@@ -7997,19 +8007,18 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                         : 0
                 );
                 const questions = currentPeriodQuestions;
-                const currentWeekTotals = getCurrentWeekWorkedSecondsFromSchedule(
-                    sanitizeScheduleData(data.schedule || {}),
-                    referenceDate
-                );
+                // sanitizeScheduleData cache - 3 kez cagrilmasın
+                const sanitizedSchedule = sanitizeScheduleData(data.schedule || {});
+                const currentWeekTotals = getCurrentWeekWorkedSecondsFromSchedule(sanitizedSchedule, referenceDate);
                 const titleInfo = buildResolvedTitleInfo({
                     uid: doc.id,
-                    schedule: sanitizeScheduleData(data.schedule || {}),
+                    schedule: sanitizedSchedule,
                     activeTimer: data.activeTimer || null,
                     selectedTitleId: getStoredSelectedTitleId(data),
                     titleAwards: getStoredTitleAwards(data)
                 });
                 const resolvedIsAdmin = !!data.isAdmin || (typeof isAdminIdentity === "function" && isAdminIdentity(data.username || "", data.email || ""));
-                const resolvedUsername = String(data.username || data.name || data.email?.split?.("@")?.[0] || "Kullanici").trim();
+                const resolvedUsername = resolvedUsernameQuick || "Kullanici";
                 const liveSessionSnapshot = getLeaderboardLiveSessionSnapshot(data, now);
                 const hasVisibleActiveTimer = isTimerVisibleForLeaderboard(data.activeTimer || null, now);
                 const isFreshDailySnapshot = isDailyStudySnapshotFresh(data, referenceDate);
@@ -8044,7 +8053,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                         : (data.selectedSubjects || []),
                     selectedTitleId: titleInfo.selectedTitleId,
                     titleAwards: titleInfo.titleAwards,
-                    schedule: sanitizeScheduleData(data.schedule || {}),
+                    schedule: sanitizedSchedule,
                     currentWeekSeconds: currentWeekTotals,
                     activeTimer: data.activeTimer || null,
                     titleInfo,
@@ -9407,14 +9416,15 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         const leaderboardData = buildLeaderboardViewModelFromDocs();
         leaderboardUserProfiles = {};
-        listContainer.innerHTML = "";
 
         if (!leaderboardData.length) {
             listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
             return;
         }
 
-        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+        // Performans: DocumentFragment ile tek seferde DOM'a yaz
+        const fragment = document.createDocumentFragment();
+        const handlers = [];
 
         leaderboardData.forEach((user, index) => {
             const item = document.createElement("div");
@@ -9424,16 +9434,17 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             else if (index === 1) item.classList.add("rank-2");
             else if (index === 2) item.classList.add("rank-3");
 
-            item.onclick = () => openLeaderboardProfile(user.uid);
             leaderboardUserProfiles[user.uid] = user;
+            handlers.push({ item, uid: user.uid });
 
             const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
             const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
             const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
+            const avatarSrc = escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "");
 
             item.innerHTML = `
                 <div class="leaderboard-rank">#${index + 1}</div>
-                <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
+                <img class="leaderboard-avatar" src="${avatarSrc}" alt="${escapeHtml(user.username)}" loading="lazy" decoding="async">
                 <div class="leaderboard-name-wrapper">
                     <div class="leaderboard-name">${escapeHtml(user.username)}</div>
                     <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}</div>
@@ -9444,7 +9455,17 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 </div>
             `;
 
-            listContainer.appendChild(item);
+            fragment.appendChild(item);
+        });
+
+        // Tek seferde DOM'a yaz - reflow bir kez olur
+        listContainer.innerHTML = "";
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+        listContainer.appendChild(fragment);
+
+        // onclick handler'ları DOM'a yazıldıktan sonra ekle
+        handlers.forEach(({ item, uid }) => {
+            item.onclick = () => openLeaderboardProfile(uid);
         });
     }
 
