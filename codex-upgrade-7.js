@@ -8255,8 +8255,13 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             }
         };
 
-        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(handleUsersSnapshot, error => {
-            console.error("Canli users dinleyicisi basarisiz:", error);
+        // Performans: sadece aktif kullanıcıları çek (weeklyStudyTime > 0 veya isWorking)
+        // 203 yerine ~15 döküman - telefon/tablet için kritik
+        const _lbQuery = db.collection("users").where("weeklyStudyTime", ">", 0).limit(50);
+        leaderboardRealtimeUnsubscribe = _lbQuery.onSnapshot(handleUsersSnapshot, error => {
+            console.error("Filtreli leaderboard basarisiz, tume donuluyor:", error);
+            // Fallback: filtre çalışmazsa tüm koleksiyon ama limit ile
+            leaderboardRealtimeUnsubscribe = db.collection("users").limit(60).onSnapshot(handleUsersSnapshot, () => {});
             if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
                 listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
             }
