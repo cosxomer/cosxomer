@@ -7176,6 +7176,27 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
     function getLiveLeaderboardSeconds(userData) {
         const currentDate = new Date();
+
+        // Hızlı ön kontrol - ağır hesaplama yapmadan önce skor var mı bak
+        const _d = userData || {};
+        const _hasTimer = _d.activeTimer?.isRunning;
+        const _hasLegacy = (_d.isWorking || _d.isRunning);
+        const _weeklyRaw = Math.max(
+            parseInteger(_d.weeklyStudyTime, 0),
+            parseInteger(_d.currentWeekSeconds, 0)
+        );
+        const _dailyRaw = Math.max(
+            parseInteger(_d.dailyStudyTime, 0),
+            parseInteger(_d.todayStudyTime, 0),
+            parseInteger(_d.todayWorkedSeconds, 0)
+        );
+        // Hiç skor yoksa ve aktif değilse ağır hesaplamayı atla
+        if (!_hasTimer && !_hasLegacy && _weeklyRaw <= 0 && _dailyRaw <= 0) {
+            // schedule'da veri olabilir, ama bunlar genellikle 0 - kontrol et
+            const _hasScheduleData = _d.schedule && Object.keys(_d.schedule).length > 0;
+            if (!_hasScheduleData) return 0;
+        }
+
         const normalizedUserData = getDailySnapshotResetState(userData || {}, currentDate).normalizedData;
         const { weekKey, dayIdx } = getCurrentDayMeta(currentDate);
         let totalSeconds = 0;
@@ -7982,11 +8003,15 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     function buildLeaderboardViewModelFromDocs() {
+        // Döngü dışında bir kez hesapla - 209 kez new Date() yerine 1 kez
+        const _buildNow = Date.now();
+        const _buildReferenceDate = new Date(_buildNow);
+
         return mergeForcedLocalLeaderboardEntry(getLeaderboardSourceDocs()
             .map(doc => {
                 const data = doc.data || {};
-                const now = Date.now();
-                const referenceDate = new Date(now);
+                const now = _buildNow;
+                const referenceDate = _buildReferenceDate;
 
                 // Erken çıkış: username yoksa veya hiç aktif değilse işleme
                 const resolvedUsernameQuick = String(data.username || data.name || data.email?.split?.("@")?.[0] || "").trim();
