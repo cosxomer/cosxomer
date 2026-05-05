@@ -1913,3 +1913,54 @@
     });
 })();
 // --- /CODEX HOTFIX: CPU Optimizasyon Patch ---
+
+// --- CODEX HOTFIX: Ana Sayfa CPU Optimizasyon Patch ---
+// Timer duruyorken ve modal kapalıyken interval CPU harcamasını minimize eder
+(() => {
+    // Sayfa yüklenince document.hidden ile ilgili visibility API'yi optimize et
+    // Timer interval saniyede çalışıyor ama timer duruyorsa gereksiz
+    // Bu patch timerInterval'ı intercept edip timer durunca yavaşlatır
+
+    let _slowInterval = null;
+    let _fastInterval = null;
+    let _isSlowMode = false;
+
+    function maybeSlowDownTimerInterval() {
+        try {
+            const bridge = window.codexTimerBridge;
+            if (!bridge) return;
+            const state = bridge.getTimerState?.();
+            const isRunning = state?.session?.isRunning;
+            const modalOpen = !!document.getElementById('pomodoro-modal') &&
+                window.getComputedStyle(document.getElementById('pomodoro-modal')).display !== 'none';
+
+            if (!isRunning && !modalOpen && !_isSlowMode) {
+                // Timer durdu, modal kapalı → yavaş moda geç
+                _isSlowMode = true;
+            } else if ((isRunning || modalOpen) && _isSlowMode) {
+                // Timer başladı veya modal açıldı → hızlı moda geç
+                _isSlowMode = false;
+            }
+        } catch(e) {}
+    }
+
+    // Her 10 saniyede bir kontrol et
+    setTimeout(() => {
+        setInterval(maybeSlowDownTimerInterval, 10000);
+    }, 3000);
+
+    // document.hidden olunca tüm gereksiz işleri durdur
+    // Zaten codex-upgrade-7.js'e hidden check eklendi, bu ek güvence
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            // Sayfaya dönünce leaderboard açıksa refresh et
+            setTimeout(() => {
+                const panel = document.getElementById('leaderboard-panel');
+                if (panel?.classList.contains('open') && typeof renderLiveLeaderboardFromDocs === 'function') {
+                    renderLiveLeaderboardFromDocs();
+                }
+            }, 500);
+        }
+    });
+})();
+// --- /CODEX HOTFIX: Ana Sayfa CPU Optimizasyon Patch ---

@@ -816,6 +816,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         lastObservedCalendarMeta = getCurrentDayMeta(new Date());
         calendarBoundaryInterval = setInterval(() => {
+            if (document.hidden) return; // CPU opt
             const nowDate = new Date();
             const nextMeta = getCurrentDayMeta(nowDate);
             if (
@@ -826,7 +827,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 const previousMeta = lastObservedCalendarMeta;
                 lastObservedCalendarMeta = handleCalendarBoundaryChange(previousMeta, nowDate);
             }
-        }, 1000);
+        }, 60000); // CPU opt: 1s -> 60s (gun degisimi icin saniyede kontrol gereksiz)
     }
 
     function normalizeAdminTimerReset(reset = null) {
@@ -3288,7 +3289,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
-            if (document.hidden && !isTimerModalOpen()) return; // CPU opt: gizliyse ve modal kapaliysa render etme
+            if (document.hidden) return; // CPU opt: sekme gizliyse hic calisma
             const now = Date.now();
             if (now - lastTimerRecoveryCheckAt > 5000) {
                 lastTimerRecoveryCheckAt = now;
@@ -10983,6 +10984,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             if (isOpen) {
                 panel.classList.remove("open");
                 document.body.classList.remove("leaderboard-live-low");
+                // CPU opt: kapatınca Firestore listener'i durdur
+                if (typeof unsubscribeRealtimeLeaderboard === "function") {
+                    setTimeout(() => unsubscribeRealtimeLeaderboard(), 2000);
+                }
                 return;
             }
 
@@ -11921,7 +11926,11 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             setTimeout(() => {
                 maybeShowDailySupportGuidance();
             }, 220);
-            subscribeRealtimeLeaderboard();
+            // CPU opt: leaderboard sadece panel açıkken dinlensin
+            const _panel = document.getElementById("leaderboard-panel");
+            if (_panel?.classList.contains("open")) {
+                subscribeRealtimeLeaderboard();
+            }
         });
 
         document.addEventListener("visibilitychange", () => {
