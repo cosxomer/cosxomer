@@ -10990,9 +10990,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             if (isOpen) {
                 panel.classList.remove("open");
                 document.body.classList.remove("leaderboard-live-low");
-                if (typeof unsubscribeRealtimeLeaderboard === "function") {
-                    setTimeout(() => unsubscribeRealtimeLeaderboard(), 2000);
-                }
+                // unsubscribe yapmıyoruz - veri cache'te kalsın, sonraki açılış anında olsun
                 return;
             }
 
@@ -11955,11 +11953,13 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             setTimeout(() => {
                 maybeShowDailySupportGuidance();
             }, 220);
-            // CPU opt: leaderboard sadece panel açıkken dinlensin
-            const _panel = document.getElementById("leaderboard-panel");
-            if (_panel?.classList.contains("open")) {
-                subscribeRealtimeLeaderboard();
-            }
+            // Veriyi arka planda önceden çek - kullanıcı açınca hazır olsun
+            // 5 saniye gecikmeyle başlat (sayfa yükü tamamlansın)
+            setTimeout(() => {
+                if (typeof subscribeRealtimeLeaderboard === "function") {
+                    subscribeRealtimeLeaderboard();
+                }
+            }, 5000);
         });
 
         document.addEventListener("visibilitychange", () => {
