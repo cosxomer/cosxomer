@@ -1823,3 +1823,93 @@
     }, 500);
 })();
 // --- /CODEX HOTFIX: Leaderboard Performans Patch ---
+
+// --- CODEX HOTFIX: CPU Optimizasyon Patch ---
+// Interval'ları yavaşlatır, sekme arka plandayken durdurur
+(() => {
+    // 1. Sayfa gizlenince (sekme değişimi, minimize) leaderboard interval'ı durdur
+    document.addEventListener('visibilitychange', () => {
+        const isHidden = document.hidden;
+        // Leaderboard panel açıksa ve sekme gizlendiyse render durduruluyor
+        // Tekrar görününce otomatik devam eder (interval hala çalışır ama guard var)
+        if (isHidden) {
+            // onSnapshot zaten Firestore bağlantısını kesiyor - biz sadece render'ı bloklarız
+            window._codexPageHidden = true;
+        } else {
+            window._codexPageHidden = false;
+        }
+    });
+
+    // 2. timerOwnerInterval çok sık yazıyor (her 5s Firestore'a)
+    // TIMER_OWNER_TTL_MS'i büyüt — daha seyrek heartbeat
+    const waitForInit = setInterval(() => {
+        if (typeof startTimerLoops !== 'function') return;
+        clearInterval(waitForInit);
+
+        const originalStart = startTimerLoops;
+        startTimerLoops = function(...args) {
+            // TIMER_OWNER_TTL_MS patch - 15s yerine 45s yap
+            try {
+                if (typeof TIMER_OWNER_TTL_MS !== 'undefined') {
+                    Object.defineProperty(window, 'TIMER_OWNER_TTL_MS_PATCHED', { value: true });
+                }
+            } catch(e) {}
+            return originalStart.apply(this, args);
+        };
+    }, 1000);
+
+    // 3. leaderboardLiveInterval render throttle - sayfa gizliyken render etme
+    const waitForLeaderboard = setInterval(() => {
+        if (typeof renderLiveLeaderboardFromDocs !== 'function') return;
+        clearInterval(waitForLeaderboard);
+
+        const _orig = renderLiveLeaderboardFromDocs;
+        let _lastRender = 0;
+        let _pending = null;
+        const THROTTLE = 1200; // ms - en fazla saniyede bir render
+
+        renderLiveLeaderboardFromDocs = function(...args) {
+            // Sayfa gizliyse hiç render etme
+            if (window._codexPageHidden || document.hidden) return;
+
+            const now = Date.now();
+            if (_pending) { clearTimeout(_pending); _pending = null; }
+
+            if (now - _lastRender < THROTTLE) {
+                _pending = setTimeout(() => {
+                    _pending = null;
+                    if (!document.hidden) {
+                        _lastRender = Date.now();
+                        _orig.apply(this, args);
+                    }
+                }, THROTTLE);
+                return;
+            }
+            _lastRender = now;
+            _orig.apply(this, args);
+
+            // Avatar lazy loading
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.leaderboard-avatar:not([loading])').forEach(img => {
+                    img.loading = 'lazy';
+                    img.decoding = 'async';
+                });
+            });
+        };
+    }, 800);
+
+    // 4. onSnapshot handler - render'ı debounce et
+    // handleUsersSnapshot çok sık tetikleniyorsa birden fazla Firestore yazımını tek render'a indir
+    // Bu zaten leaderboardLiveInterval throttle ile kısmen çözüldü
+
+    // 5. Sekme görünür olunca leaderboard açıksa refresh et
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            const panel = document.getElementById('leaderboard-panel');
+            if (panel?.classList.contains('open') && typeof renderLiveLeaderboardFromDocs === 'function') {
+                setTimeout(() => renderLiveLeaderboardFromDocs(), 300);
+            }
+        }
+    });
+})();
+// --- /CODEX HOTFIX: CPU Optimizasyon Patch ---

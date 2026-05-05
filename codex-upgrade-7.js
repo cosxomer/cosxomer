@@ -3288,6 +3288,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         timerInterval = setInterval(() => {
             if (!timerState.session?.isRunning) return;
+            if (document.hidden && !isTimerModalOpen()) return; // CPU opt: gizliyse ve modal kapaliysa render etme
             const now = Date.now();
             if (now - lastTimerRecoveryCheckAt > 5000) {
                 lastTimerRecoveryCheckAt = now;
@@ -3312,7 +3313,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         timerOwnerInterval = setInterval(() => {
             refreshTimerOwnership();
-        }, Math.max(3000, Math.floor(TIMER_OWNER_TTL_MS / 3)));
+        }, Math.max(30000, TIMER_OWNER_TTL_MS)); // CPU optimizasyon: 5s -> 30s
 
         timerSyncInterval = setInterval(() => {
             if (!timerState.session?.isRunning || timerState.transitioning) return;
@@ -8247,14 +8248,15 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
+                if (document.hidden) return; // CPU opt: sekme gizliyse render etme
                 if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
                 const now = Date.now();
                 const hasLiveWork = inferredWorkingPresenceByUserId.size > 0 || legacyWorkingPresenceByUserId.size > 0;
-                const refreshEveryMs = hasLiveWork ? 4000 : 10000;
+                const refreshEveryMs = hasLiveWork ? 8000 : 20000; // CPU opt: 4s->8s, 10s->20s
                 if (now - lastLeaderboardLiveRenderAt < refreshEveryMs) return;
                 lastLeaderboardLiveRenderAt = now;
                 renderLiveLeaderboardFromDocs();
-            }, 1000);
+            }, 3000); // CPU opt: 1s -> 3s
         }
     }
 
