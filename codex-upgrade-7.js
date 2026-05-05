@@ -7177,26 +7177,6 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     function getLiveLeaderboardSeconds(userData) {
         const currentDate = new Date();
 
-        // Hızlı ön kontrol - ağır hesaplama yapmadan önce skor var mı bak
-        const _d = userData || {};
-        const _hasTimer = _d.activeTimer?.isRunning;
-        const _hasLegacy = (_d.isWorking || _d.isRunning);
-        const _weeklyRaw = Math.max(
-            parseInteger(_d.weeklyStudyTime, 0),
-            parseInteger(_d.currentWeekSeconds, 0)
-        );
-        const _dailyRaw = Math.max(
-            parseInteger(_d.dailyStudyTime, 0),
-            parseInteger(_d.todayStudyTime, 0),
-            parseInteger(_d.todayWorkedSeconds, 0)
-        );
-        // Hiç skor yoksa ve aktif değilse ağır hesaplamayı atla
-        if (!_hasTimer && !_hasLegacy && _weeklyRaw <= 0 && _dailyRaw <= 0) {
-            // schedule'da veri olabilir, ama bunlar genellikle 0 - kontrol et
-            const _hasScheduleData = _d.schedule && Object.keys(_d.schedule).length > 0;
-            if (!_hasScheduleData) return 0;
-        }
-
         const normalizedUserData = getDailySnapshotResetState(userData || {}, currentDate).normalizedData;
         const { weekKey, dayIdx } = getCurrentDayMeta(currentDate);
         let totalSeconds = 0;
@@ -8013,15 +7993,38 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 const now = _buildNow;
                 const referenceDate = _buildReferenceDate;
 
-                // Erken çıkış: username yoksa veya hiç aktif değilse işleme
+                // ADIM 1: Sadece ucuz alanlarla filtrele - ağır hesaplama YAPMA
                 const resolvedUsernameQuick = String(data.username || data.name || data.email?.split?.("@")?.[0] || "").trim();
                 if (!resolvedUsernameQuick) return null;
 
-                const seconds = getLiveLeaderboardSeconds(data);
-                const hasActiveTimer = data.activeTimer?.isRunning;
+                // Hafif alanlarla hızlı eleme (getLiveLeaderboardSeconds çağrılmadan)
+                const _hasActiveTimer = data.activeTimer?.isRunning;
+                const _isLegacyWorking = data.isWorking || data.isRunning;
+                const _weeklyRaw = Math.max(
+                    parseInteger(data.weeklyStudyTime, 0),
+                    parseInteger(data.currentWeekSeconds, 0)
+                );
+                const _dailyRaw = Math.max(
+                    parseInteger(data.dailyStudyTime, 0),
+                    parseInteger(data.todayStudyTime, 0),
+                    parseInteger(data.todayWorkedSeconds, 0)
+                );
+                const _hasSchedule = data.schedule && Object.keys(data.schedule).length > 0;
 
-                // Sekonder 0 ve aktif timer yoksa ve günlük tab değilse erken çık
-                if (seconds <= 0 && !hasActiveTimer && currentLeaderboardTab !== "daily") return null;
+                // Haftalık tab: hızlı eleme
+                if (currentLeaderboardTab !== "daily") {
+                    if (!_hasActiveTimer && !_isLegacyWorking && _weeklyRaw <= 0 && !_hasSchedule) return null;
+                }
+                // Günlük tab: hızlı eleme
+                if (currentLeaderboardTab === "daily") {
+                    if (!_hasActiveTimer && !_isLegacyWorking && _dailyRaw <= 0 && !_hasSchedule) return null;
+                }
+
+                // ADIM 2: Sadece hayatta kalan kullanıcılar için ağır hesaplama yap
+                const seconds = getLiveLeaderboardSeconds(data);
+                const hasActiveTimer = _hasActiveTimer;
+
+                if (seconds <= 0 && !hasActiveTimer && !_isLegacyWorking) return null;
 
                 const questionBreakdown = getLeaderboardQuestionBreakdown(data);
                 const currentPeriodQuestions = questionBreakdown.activeQuestions;
