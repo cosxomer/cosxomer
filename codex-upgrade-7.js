@@ -8283,12 +8283,27 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             }
         };
 
-        leaderboardRealtimeUnsubscribe = db.collection("users").onSnapshot(handleUsersSnapshot, error => {
-            console.error("Canli users dinleyicisi basarisiz:", error);
-            if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
-                listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
-            }
-        });
+        // Mobil uyumluluk: onSnapshot yerine get() - realtime listener yok, RAM tasarrufu
+        const _fetchLeaderboard = () => {
+            db.collection("users").get().then(snapshot => {
+                handleUsersSnapshot(snapshot);
+            }).catch(error => {
+                console.error("Leaderboard yuklenemedi:", error);
+                if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                    listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+                }
+            });
+        };
+        _fetchLeaderboard();
+        // Sahte unsubscribe fonksiyonu - interface uyumluluğu için
+        leaderboardRealtimeUnsubscribe = () => {};
+        // Aktif çalışanlar varsa 30sn'de bir yenile (onSnapshot yerine polling)
+        if (leaderboardLiveInterval) clearInterval(leaderboardLiveInterval);
+        leaderboardLiveInterval = setInterval(() => {
+            if (document.hidden) return;
+            if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
+            _fetchLeaderboard();
+        }, 30000);
 
         if (!leaderboardLiveInterval) {
             leaderboardLiveInterval = setInterval(() => {
