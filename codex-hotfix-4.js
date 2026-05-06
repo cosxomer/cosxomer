@@ -1979,14 +1979,9 @@
 
     function injectEmailIntoProfileModal(email) {
         if (!email) return;
-        // Modal içinde uygun bir yere email ekle
-        const modal = document.getElementById("profile-modal") ||
-                      document.querySelector(".profile-modal") ||
-                      document.querySelector("[id*='profile']");
-        if (!modal) return;
 
-        // Zaten eklenmişse tekrar ekleme
-        if (modal.querySelector(".admin-email-badge")) return;
+        // Zaten eklenmişse kaldır (yeni profil açıldığında temizle)
+        document.querySelectorAll(".admin-email-badge").forEach(el => el.remove());
 
         const badge = document.createElement("div");
         badge.className = "admin-email-badge";
@@ -1994,7 +1989,7 @@
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            margin-top: 6px;
+            margin-top: 8px;
             padding: 4px 10px;
             background: rgba(255,200,0,0.12);
             border: 1px solid rgba(255,200,0,0.3);
@@ -2002,17 +1997,19 @@
             font-size: 0.78em;
             color: #ffd700;
             word-break: break-all;
+            cursor: text;
         `;
         badge.innerHTML = `<span>✉</span><span>${email}</span>`;
 
-        // Username veya avatar altına ekle
-        const nameEl = modal.querySelector(".profile-username, .profile-name, #profile-username, #profile-name");
-        if (nameEl?.parentElement) {
-            nameEl.parentElement.insertAdjacentElement("afterend", badge);
-        } else {
-            modal.querySelector(".profile-header, .profile-content, .profile-info")
-                ?.appendChild(badge);
+        // profile-modal-header içindeki profile-member-since'ın altına ekle
+        const header = document.querySelector(".profile-modal-header");
+        if (header) {
+            header.appendChild(badge);
+            return;
         }
+        // Fallback: profile-modal-content'e ekle
+        const content = document.querySelector(".profile-modal-content");
+        if (content) content.prepend(badge);
     }
 
     // openLeaderboardProfile'ı patch et
