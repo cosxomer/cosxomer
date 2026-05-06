@@ -8204,6 +8204,11 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     function subscribeRealtimeLeaderboard() {
+        // Önceki interval'ı temizle - bellek sızıntısı önlemi
+        if (leaderboardLiveInterval) {
+            clearInterval(leaderboardLiveInterval);
+            leaderboardLiveInterval = null;
+        }
         if (leaderboardRealtimeUnsubscribe || !currentUser?.uid) return;
 
         const listContainer = document.getElementById("leaderboard-list");
@@ -11054,7 +11059,17 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             if (isOpen) {
                 panel.classList.remove("open");
                 document.body.classList.remove("leaderboard-live-low");
-                // unsubscribe yapmıyoruz - veri cache'te kalsın, sonraki açılış anında olsun
+                // Bellek tamamen temizle - mobil cokme onlemi
+                if (leaderboardLiveInterval) {
+                    clearInterval(leaderboardLiveInterval);
+                    leaderboardLiveInterval = null;
+                }
+                leaderboardRealtimeUnsubscribe = null;
+                leaderboardUserProfiles = {};
+                leaderboardRealtimeDocs = [];
+                // Liste DOM'unu temizle
+                const _lbList = document.getElementById("leaderboard-list");
+                if (_lbList) _lbList.innerHTML = "";
                 return;
             }
 
