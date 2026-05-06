@@ -1964,3 +1964,78 @@
     });
 })();
 // --- /CODEX HOTFIX: Ana Sayfa CPU Optimizasyon Patch ---
+
+// --- CODEX HOTFIX: Admin Email Görüntüleme ---
+// Sadece omrfrk.37.kaya@gmail.com hesabı leaderboard profillerinde email görebilir
+(() => {
+    const ADMIN_EMAIL = "omrfrk.37.kaya@gmail.com";
+
+    function isCurrentUserSiteAdmin() {
+        try {
+            const email = firebase?.auth?.()?.currentUser?.email || "";
+            return email === ADMIN_EMAIL;
+        } catch(e) { return false; }
+    }
+
+    function injectEmailIntoProfileModal(email) {
+        if (!email) return;
+        // Modal içinde uygun bir yere email ekle
+        const modal = document.getElementById("profile-modal") ||
+                      document.querySelector(".profile-modal") ||
+                      document.querySelector("[id*='profile']");
+        if (!modal) return;
+
+        // Zaten eklenmişse tekrar ekleme
+        if (modal.querySelector(".admin-email-badge")) return;
+
+        const badge = document.createElement("div");
+        badge.className = "admin-email-badge";
+        badge.style.cssText = `
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 6px;
+            padding: 4px 10px;
+            background: rgba(255,200,0,0.12);
+            border: 1px solid rgba(255,200,0,0.3);
+            border-radius: 8px;
+            font-size: 0.78em;
+            color: #ffd700;
+            word-break: break-all;
+        `;
+        badge.innerHTML = `<span>✉</span><span>${email}</span>`;
+
+        // Username veya avatar altına ekle
+        const nameEl = modal.querySelector(".profile-username, .profile-name, #profile-username, #profile-name");
+        if (nameEl?.parentElement) {
+            nameEl.parentElement.insertAdjacentElement("afterend", badge);
+        } else {
+            modal.querySelector(".profile-header, .profile-content, .profile-info")
+                ?.appendChild(badge);
+        }
+    }
+
+    // openLeaderboardProfile'ı patch et
+    const waitForFn = setInterval(() => {
+        if (typeof openLeaderboardProfile !== "function") return;
+        clearInterval(waitForFn);
+
+        const originalOpen = openLeaderboardProfile;
+        openLeaderboardProfile = async function(uid) {
+            await originalOpen.call(this, uid);
+
+            if (!isCurrentUserSiteAdmin()) return;
+            if (!uid) return;
+
+            try {
+                const doc = await db.collection("users").doc(uid).get();
+                const email = doc.data()?.email || doc.data()?.userEmail || "";
+                if (email) {
+                    // Modal açıldıktan sonra kısa gecikmeyle ekle
+                    setTimeout(() => injectEmailIntoProfileModal(email), 150);
+                }
+            } catch(e) {}
+        };
+    }, 1000);
+})();
+// --- /CODEX HOTFIX: Admin Email Görüntüleme ---
