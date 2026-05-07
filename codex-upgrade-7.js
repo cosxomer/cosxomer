@@ -8310,18 +8310,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             _fetchLeaderboard();
         }, 30000);
 
-        if (!leaderboardLiveInterval) {
-            leaderboardLiveInterval = setInterval(() => {
-                if (document.hidden) return; // CPU opt: sekme gizliyse render etme
-                if (!document.getElementById("leaderboard-panel")?.classList.contains("open")) return;
-                const now = Date.now();
-                const hasLiveWork = inferredWorkingPresenceByUserId.size > 0 || legacyWorkingPresenceByUserId.size > 0;
-                const refreshEveryMs = hasLiveWork ? 8000 : 20000; // CPU opt: 4s->8s, 10s->20s
-                if (now - lastLeaderboardLiveRenderAt < refreshEveryMs) return;
-                lastLeaderboardLiveRenderAt = now;
-                renderLiveLeaderboardFromDocs();
-            }, 3000); // CPU opt: 1s -> 3s
-        }
+        // Not: ikinci interval kaldırıldı - 8306 satırındaki 30s polling yeterli
     }
 
     function unsubscribeRealtimeLeaderboard() {
@@ -9073,7 +9062,12 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         const { dayData, taskOptions } = getTodayTaskSelectionState(new Date());
         const safeTaskLabel = getSafePomodoroTaskLabel(getCurrentTimerTaskLabel(new Date()), new Date());
-        persistTimerTaskSelection(safeTaskLabel);
+        // DÜZELTME: persist her render'da çağrılmıyacak - sadece değer değişince
+        // Eski: persistTimerTaskSelection(safeTaskLabel) burada çağrılıyordu → sonsuz döngü
+        const storedLabel = safeStorageGet(TIMER_TRACK_KEY, "");
+        if (safeTaskLabel && safeTaskLabel !== storedLabel) {
+            persistTimerTaskSelection(safeTaskLabel);
+        }
 
         if (fieldNode) fieldNode.classList.toggle("is-open", !!timerTaskState.isPickerOpen);
         if (panelNode) panelNode.hidden = !timerTaskState.isPickerOpen;
