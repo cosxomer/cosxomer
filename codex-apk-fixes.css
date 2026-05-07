@@ -1,0 +1,19 @@
+{
+  "name": "COSX OMER Ders Cizelgesi",
+  "short_name": "COSX OMER",
+  "description": "Ders takip, timer, lider tablo ve analiz sistemi",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#181222",
+  "theme_color": "#8e5cff",
+  "lang": "tr",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "mobile-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
