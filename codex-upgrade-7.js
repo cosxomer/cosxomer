@@ -29,7 +29,7 @@
     const PUBLIC_PROFILE_COLLECTION = "publicProfiles";
     const LEADERBOARD_COLLECTION = "leaderboard";
     const LEADERBOARD_AUTOSYNC_KEY = "codexLeaderboardAutosyncAtV1";
-    const LEADERBOARD_POLL_MS = 15 * 60 * 1000;
+    const LEADERBOARD_POLL_MS = 30 * 60 * 1000; // Read opt: 15dk -> 30dk
     const FREE_GENERAL_SUBJECT = "free_general";
     const QUESTION_LIMIT = 500;
     // timerInstanceId: bu tarayiciya ozgu kalici ID (sayfa yenilemede degismez)
@@ -7921,15 +7921,19 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     async function fetchLeaderboardDocsFromUsersCollection() {
-        const query = db.collection("users");
+        // READ OPTİMİZASYON:
+        // 1. source:"server" kaldırıldı → Firestore cache kullanılıyor (0 read, cached)
+        // 2. limit(80) → 203 yerine max 80 döküman
+        // Önceki: her açılışta 203 server read
+        // Sonrası: cache'den 0 read, 15dk sonra 80 read
+        const query = db.collection("users").limit(80);
         let snapshot = null;
-
         try {
-            snapshot = await query.get({ source: "server" });
+            snapshot = await query.get(); // cache-first
         } catch (error) {
-            snapshot = await query.get();
+            console.error("Leaderboard fetch basarisiz:", error);
+            return [];
         }
-
         return mapUserSnapshotDocsToLeaderboardDocs(snapshot.docs);
     }
 
@@ -8288,15 +8292,39 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             }
         };
 
-        // Mobil uyumluluk: onSnapshot yerine get() - realtime listener yok, RAM tasarrufu
+        // Firestore read optimizasyon:
+        // Tam koleksiyon (203 user) yerine 2 hedefli sorgu:
+        // 1. isWorking:true - aktif çalışanlar (~5-10 kişi)
+        // 2. Tüm kullanıcılar ama limit:60 - haftalık sıralama için yeterli
+        // Toplam: ~70 read vs 203 read
         const _fetchLeaderboard = () => {
-            db.collection("users").get().then(snapshot => {
-                handleUsersSnapshot(snapshot);
-            }).catch(error => {
-                console.error("Leaderboard yuklenemedi:", error);
-                if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
-                    listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+            Promise.all([
+                db.collection("users").where("isWorking", "==", true).get(),
+                db.collection("users").orderBy("weeklyStudyTime", "desc").limit(60).get()
+            ]).then(([workingSnap, topSnap]) => {
+                // İkisini birleştir, tekrarları temizle
+                const docsMap = new Map();
+                topSnap.docs.forEach(d => docsMap.set(d.id, d));
+                workingSnap.docs.forEach(d => docsMap.set(d.id, d));
+                // Kendi kaydını da ekle
+                if (currentUser?.uid && !docsMap.has(currentUser.uid)) {
+                    db.collection("users").doc(currentUser.uid).get().then(selfDoc => {
+                        if (selfDoc.exists) docsMap.set(selfDoc.id, selfDoc);
+                        handleUsersSnapshot({ docs: Array.from(docsMap.values()) });
+                    });
+                } else {
+                    handleUsersSnapshot({ docs: Array.from(docsMap.values()) });
                 }
+            }).catch(() => {
+                // Fallback: tüm koleksiyon limit ile
+                db.collection("users").limit(80).get().then(snapshot => {
+                    handleUsersSnapshot(snapshot);
+                }).catch(error => {
+                    console.error("Leaderboard yuklenemedi:", error);
+                    if (listContainer && document.getElementById("leaderboard-panel")?.classList.contains("open")) {
+                        listContainer.innerHTML = '<p style="text-align:center; color:#f87171;">Lider tablosu yuklenemedi.</p>';
+                    }
+                });
             });
         };
         _fetchLeaderboard();

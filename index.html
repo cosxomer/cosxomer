@@ -4441,29 +4441,35 @@
     <!-- APK MOBİL DÜZELTMELERİ -->
     
 
-    <!-- APK + SİTE MOBİL DÜZELTMELERİ v2 -->
+    
+
+    <!-- MOBİL + SİTE DÜZELTMELERİ -->
     <style id="apk-mobile-fixes">
         /* 1. Mavi seçim tabakası kaldır */
         * { -webkit-tap-highlight-color: transparent !important; -webkit-touch-callout: none !important; }
         input, textarea, [contenteditable] { -webkit-user-select: text !important; user-select: text !important; }
 
-        /* 2. Kitty teması - çizelge okunaklılık */
-        body[data-theme="kitty"] .day-header { color: #6b2d4e !important; font-weight: 700 !important; }
-        body[data-theme="kitty"] .task-text, body[data-theme="kitty"] .task-item { color: #4a2a3a !important; }
-        body[data-theme="kitty"] .task-item.completed .task-text { color: #9b6e82 !important; }
+        /* 2. Kitty teması - görev yazıları okunaklı */
+        body[data-theme="kitty"] .day-header { color: #5a1e38 !important; font-weight: 700 !important; }
+        body[data-theme="kitty"] .task-item { color: #3d1a2a !important; }
+        body[data-theme="kitty"] .task-text { color: #3d1a2a !important; }
+        body[data-theme="kitty"] .task-item.completed .task-text { color: #9b6e82 !important; text-decoration: line-through; }
+        body[data-theme="kitty"] .cell-header { background: #e8b4cb !important; color: #4a1830 !important; font-weight: 700 !important; }
+        body[data-theme="kitty"] .worked-time,
+        body[data-theme="kitty"] [class*="worked"],
+        body[data-theme="kitty"] [class*="timer"] { color: #7a1f4a !important; font-weight: 600 !important; }
+        body[data-theme="kitty"] .question-count,
+        body[data-theme="kitty"] [class*="question-count"] { color: #6b2040 !important; font-weight: 600 !important; }
         body[data-theme="kitty"] .day-cell { background-color: #fdf0f5 !important; }
-        body[data-theme="kitty"] .workedSeconds, body[data-theme="kitty"] .worked-seconds, body[data-theme="kitty"] .task-timer { color: #8b3060 !important; font-weight: 600 !important; }
+        body[data-theme="kitty"] .day-cell input,
+        body[data-theme="kitty"] .day-cell textarea { color: #3d1a2a !important; background: #fce8f2 !important; border-color: #e0b0c8 !important; }
         body[data-theme="kitty"] .question-btn { color: #fff !important; }
-        body[data-theme="kitty"] .cell-header { background: #ecc5d8 !important; color: #5a2040 !important; font-weight: 700 !important; }
-        body[data-theme="kitty"] .day-cell input, body[data-theme="kitty"] .day-cell textarea { color: #4a2a3a !important; background: #fce8f2 !important; }
 
         /* 3. Schedule - tüm temalarda yatay kaydırma */
         #schedule-container { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; }
         .schedule-grid { overflow-x: auto !important; touch-action: pan-x pan-y !important; }
-        body[data-theme="kitty"] #schedule-container,
-        body[data-theme="kitty"] .schedule-grid { overflow-x: auto !important; -webkit-overflow-scrolling: touch !important; touch-action: pan-x pan-y !important; }
 
-        /* 4. Leaderboard - altta boşluk yok, tam yükseklik */
+        /* 4. Leaderboard - altta boşluk yok */
         #leaderboard-panel, .leaderboard-panel {
             height: 100dvh !important; max-height: 100dvh !important; top: 0 !important;
             padding-bottom: env(safe-area-inset-bottom, 0px) !important;
@@ -4482,7 +4488,8 @@
 
         /* 5. v2.0 imzası - sabit, çakışmaz */
         #cosxomer-signature {
-            position: fixed !important; top: max(12px, env(safe-area-inset-top, 12px)) !important;
+            position: fixed !important;
+            top: max(12px, env(safe-area-inset-top, 12px)) !important;
             right: max(16px, env(safe-area-inset-right, 16px)) !important;
             z-index: 9999 !important; pointer-events: none !important;
             user-select: none !important; -webkit-user-select: none !important;
@@ -7700,6 +7707,29 @@
             showAlert("Görevler ertesi güne kopyalandı. Orijinal görevler bu günde kaldı.");
         }
 
+        // Kopyala: görev eski günde kalır, kopyası sonraki güne gider
+        function copyTasksToNextDay(dayIdx) {
+            const weekKey = getWeekKey(currentWeekStart);
+            const dayData = scheduleData[weekKey]?.[dayIdx];
+            if (!dayData) return;
+            const tasksToCopy = dayData.tasks.filter(t => !t.completed);
+            if (tasksToCopy.length === 0) return showAlert("Kopyalanacak bitmemiş görev yok.");
+            let nextDayIdx = dayIdx + 1;
+            let nextWeekKey = weekKey;
+            if (nextDayIdx > 6) {
+                nextDayIdx = 0;
+                let nextWeekDate = new Date(currentWeekStart);
+                nextWeekDate.setDate(nextWeekDate.getDate() + 7);
+                nextWeekKey = getWeekKey(nextWeekDate);
+            }
+            if (!scheduleData[nextWeekKey]) scheduleData[nextWeekKey] = {};
+            if (!scheduleData[nextWeekKey][nextDayIdx]) scheduleData[nextWeekKey][nextDayIdx] = { tasks: [], workedSeconds: 0, questions: 0 };
+            scheduleData[nextWeekKey][nextDayIdx].tasks.push(...tasksToCopy.map(t => ({ ...t, completed: false })));
+            saveData();
+            renderSchedule();
+            showAlert("Görevler ertesi güne kopyalandı. Orijinal görevler bu günde kaldı.");
+        }
+
         function addTask(dayIdx) {
             const text = prompt("Yeni Görev:");
             if (text) {
@@ -8462,6 +8492,7 @@
                         <button class="question-btn" onclick="updateQuestions(${dayIdx})" style="background: #4caf50;">Kaydet</button>
                         <button class="question-btn" onclick="editQuestions(${dayIdx})" style="background: #f59e0b;">Düzenle</button>
                         <button class="question-btn" onclick="${isMoveMode ? `continueMoveSelection(${dayIdx})` : `startMoveSelection(${dayIdx})`}" style="background: #2196f3;">${isMoveMode ? 'Taşımaya Devam Et' : 'Taşı'}</button>
+                        ${!isMoveMode ? `<button class="question-btn" onclick="copyTasksToNextDay(${dayIdx})" style="background: #9c27b0;">Kopyala</button>` : ''}
                         ${isMoveMode ? `<button class="question-btn" onclick="cancelMoveSelection()" style="background: #64748b;">İptal</button>` : ''}
                     `;
                 }
@@ -12825,7 +12856,7 @@
     </style>
 <script src="codex-hotfix-4.js?v=20260504-0006"></script>      
     <script src="codex-pomodoro-ui-6.js"></script>
-<script src="codex-upgrade-7.js?v=20260504-0018"></script>
+<script src="codex-upgrade-7.js?v=20260504-0020"></script>
     <script src="app-version.js?v=20260507-1700"></script>
     <script>
         (function () {
