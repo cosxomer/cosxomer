@@ -11828,6 +11828,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
     }
 
     function enhanceMoveTaskUI() {
+        return;
         const currentWeekKey = getWeekKey(currentWeekStart);
         if (activeMoveSelection && activeMoveSelection.weekKey !== currentWeekKey) {
             activeMoveSelection = null;
@@ -12234,4 +12235,3 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         initUpgradeLayer();
     }
 })();
-
