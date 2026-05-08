@@ -11902,6 +11902,44 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         document.head.appendChild(style);
     }
 
+    function ensureProfileEmailField() {
+        let emailNode = document.getElementById("profile-email-display");
+        if (!emailNode) {
+            const memberSince = document.getElementById("profile-member-since");
+            if (!memberSince) return null;
+            emailNode = document.createElement("p");
+            emailNode.id = "profile-email-display";
+            emailNode.className = "profile-member-since profile-email-display";
+            emailNode.style.marginTop = "-12px";
+            emailNode.style.marginBottom = "18px";
+            memberSince.insertAdjacentElement("afterend", emailNode);
+        }
+        return emailNode;
+    }
+
+    function patchProfileEmailDisplay() {
+        if (typeof showProfileModal !== "function" || showProfileModal.__codexEmailDisplayPatched) return;
+        const originalShowProfileModal = showProfileModal;
+        showProfileModal = function(profileData = {}, editable) {
+            originalShowProfileModal.apply(this, arguments);
+            const emailNode = ensureProfileEmailField();
+            if (!emailNode) return;
+            const email = String(
+                profileData.email
+                || (editable ? currentUser?.email : "")
+                || ""
+            ).trim();
+            if (email) {
+                emailNode.textContent = `E-posta: ${email}`;
+                emailNode.style.display = "";
+            } else {
+                emailNode.textContent = "";
+                emailNode.style.display = "none";
+            }
+        };
+        showProfileModal.__codexEmailDisplayPatched = true;
+    }
+
     function enhanceMoveTaskUI() {
         return;
         const currentWeekKey = getWeekKey(currentWeekStart);
@@ -12266,6 +12304,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         ensureNavyThemeButton();
         ensureNotesFolderUi();
         ensureMoveTaskStyles();
+        ensureProfileEmailField();
         applyTurkishInputSupport();
         installVisibleUiTextNormalizer();
         refreshVerificationCooldownUI();
@@ -12284,6 +12323,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         publishTimerBridge();
         bindTimerModalControls();
         patchProfileCopy();
+        patchProfileEmailDisplay();
         patchLeaderboardRealtime();
         patchProtectedOpeners();
         patchRenderSchedule();
