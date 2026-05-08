@@ -974,6 +974,79 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         return manualWriteDepth > 0 || immediateUserWriteIntent || !!(window.event && window.event.isTrusted);
     }
 
+    function isEmailFallbackUsername(username = "", email = "") {
+        const localPart = String(email || "").split("@")[0].trim().toLowerCase();
+        return !!localPart && String(username || "").trim().toLowerCase() === localPart;
+    }
+
+    function hasMeaningfulStudySnapshot(data = {}) {
+        if (!data || typeof data !== "object") return false;
+        const schedule = sanitizeScheduleData(data.schedule || {});
+        const scheduleSeconds = typeof calculateTotalWorkedSecondsFromSchedule === "function"
+            ? calculateTotalWorkedSecondsFromSchedule(schedule)
+            : 0;
+        const scheduleQuestions = typeof calculateTotalQuestionsFromSchedule === "function"
+            ? calculateTotalQuestionsFromSchedule(schedule)
+            : 0;
+        return Math.max(
+            parseInteger(data.totalWorkedSeconds, 0),
+            parseInteger(data.totalStudyTime, 0),
+            parseInteger(data.todayWorkedSeconds, 0),
+            parseInteger(data.dailyStudyTime, 0),
+            scheduleSeconds,
+            scheduleQuestions,
+            data.activeTimer?.isRunning ? 1 : 0
+        ) > 0;
+    }
+
+    function protectPayloadAgainstOfflineOverwrite(payload = {}) {
+        const uid = currentUser?.uid || "";
+        const cachedProfile = uid && typeof getHydrationSafeCachedProfile === "function"
+            ? getHydrationSafeCachedProfile(uid)
+            : null;
+        const existing = mergeCurrentUserProfileSources(
+            currentUserLiveDoc || {},
+            cachedProfile || {}
+        );
+        const email = currentUser?.email || payload.email || existing.email || "";
+        const nextPayload = { ...(payload || {}) };
+
+        if (isEmailFallbackUsername(nextPayload.username, email) && !isEmailFallbackUsername(existing.username, email) && existing.username) {
+            nextPayload.username = existing.username;
+            nextPayload.normalizedUsername = normalizeUsernameLookup(existing.username);
+            nextPayload.name = existing.name || existing.username;
+        }
+
+        const existingHasStudy = hasMeaningfulStudySnapshot(existing);
+        const payloadHasStudy = hasMeaningfulStudySnapshot(nextPayload);
+        if (!currentUserProfileHydrated && existingHasStudy && !payloadHasStudy) {
+            console.warn("Profil henuz yuklenmeden bos calisma verisi yazimi engellendi.");
+            return null;
+        }
+
+        if (existingHasStudy) {
+            const safeSchedule = getMostInformativeProfileSchedule(
+                nextPayload.schedule,
+                existing.schedule
+            );
+            const safeWorkedSeconds = Math.max(
+                parseInteger(nextPayload.totalWorkedSeconds, 0),
+                parseInteger(nextPayload.totalStudyTime, 0),
+                parseInteger(existing.totalWorkedSeconds, 0),
+                parseInteger(existing.totalStudyTime, 0),
+                typeof calculateTotalWorkedSecondsFromSchedule === "function"
+                    ? calculateTotalWorkedSecondsFromSchedule(safeSchedule)
+                    : 0
+            );
+            nextPayload.schedule = safeSchedule;
+            nextPayload.totalWorkedSeconds = safeWorkedSeconds;
+            nextPayload.totalStudyTime = safeWorkedSeconds;
+            nextPayload.totalTime = safeWorkedSeconds * 1000;
+        }
+
+        return nextPayload;
+    }
+
     function withManualFirestoreWrite(action) {
         manualWriteDepth += 1;
         let result;
@@ -1041,7 +1114,9 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         }
 
         const writePromise = queueCurrentUserWrite(options.label || "saveData", async () => {
-            const payload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
+            const rawPayload = typeof buildUserPayload === "function" ? buildUserPayload() : {};
+            const payload = protectPayloadAgainstOfflineOverwrite(rawPayload);
+            if (!payload) return;
             await db.collection("users").doc(currentUser.uid).set(payload, { merge: true });
             if (shouldNotify) {
                 safeShowAlert("Veriler buluta kaydedildi.", "success");
@@ -9791,7 +9866,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 {
                     email: safeData.email || currentUser?.email || ""
                 }
-            ) || (!currentUserHasRemoteProfile ? (safeData.email?.split?.("@")?.[0] || "") : "");
+            ) || currentUsername || "";
         }
         if (typeof currentProfileAbout !== "undefined") currentProfileAbout = String(safeData.about || "");
         if (typeof currentProfileImage !== "undefined") currentProfileImage = String(safeData.profileImage || "");
@@ -11314,7 +11389,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                     currentUsername
                 ],
                 { email: resolvedEmail }
-            ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
+            ) || currentUsername || "Kullanici";
             const resolvedStudyTrack = pickPreferredProfileText(
                 [studyTrack, mergedProfile.studyTrack, basePayload.studyTrack],
                 { allowWeak: true }
@@ -11457,7 +11532,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                         currentUsername
                     ],
                     { email: resolvedEmail }
-                ) || (!currentUserHasRemoteProfile ? (resolvedEmail?.split?.("@")?.[0] || "") : "") || "Kullanici";
+                ) || currentUsername || "Kullanici";
                 const resolvedStudyTrack = pickPreferredProfileText(
                     [studyTrack, mergedProfile.studyTrack, seed.studyTrack],
                     { allowWeak: true }
