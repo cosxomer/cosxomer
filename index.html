@@ -4487,19 +4487,69 @@
             z-index: 9999 !important; pointer-events: none !important;
             user-select: none !important; -webkit-user-select: none !important;
         }
+
+        /* Modern Site Versiyonu Watermark */
+        .site-version-watermark {
+            position: fixed;
+            top: 20px;
+            right: 24px;
+            z-index: 999;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+            
+            /* Modern Typography */
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            
+            /* Marka Görünümü */
+            color: rgba(255, 255, 255, 0.35);
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+            
+            /* Smooth Transitions */
+            transition: opacity 0.3s ease, transform 0.3s ease;
+        }
+
+        /* Tema Uyumluluğu */
+        body[data-theme="kitty"] .site-version-watermark {
+            color: rgba(125, 70, 96, 0.4);
+            text-shadow: 0 1px 2px rgba(255, 255, 255, 0.2);
+        }
+
+        body[data-theme="spiderman"] .site-version-watermark {
+            color: rgba(255, 255, 255, 0.38);
+        }
+
+        body[data-theme="pastel-mint"] .site-version-watermark,
+        body[data-theme="navy-gold"] .site-version-watermark,
+        body[data-theme="sunset"] .site-version-watermark {
+            color: rgba(255, 255, 255, 0.32);
+        }
+
+        /* Mobil Responsive */
+        @media (max-width: 768px) {
+            .site-version-watermark {
+                top: 12px;
+                right: 16px;
+                font-size: 11px;
+                opacity: 0.9;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .site-version-watermark {
+                top: 10px;
+                right: 12px;
+                font-size: 10px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="app-version-stamp">cosxomer v2.3</div>
-    <div id="app-update-modal" class="app-update-modal" aria-hidden="true">
-        <div class="app-update-card">
-            <p id="app-update-message">Uygulama hatalari giderildi. Yeni guncel surumu yuklemek icin APK Indir butonuna basabilirsiniz.</p>
-            <div class="app-update-actions">
-                <button type="button" class="secondary-btn" id="app-update-later-btn">Daha sonra</button>
-                <button type="button" id="app-update-download-btn">APK Indir</button>
-            </div>
-        </div>
-    </div>
+    <!-- Modern Site Versiyonu Watermark -->
+    <div class="site-version-watermark">cosxomer v2.3</div>
     <div id="custom-alert">Hata Mesajı</div>
     <div id="login-gate">
         <div class="login-box">
@@ -12825,85 +12875,7 @@
 <script src="codex-hotfix-4.js"></script>      
     <script src="codex-pomodoro-ui-6.js"></script>
 <script src="codex-upgrade-7.js"></script>
-    <script src="app-version.js?v=20260507-1700"></script>
-    <script>
-        (function () {
-            function compareVersionStrings(left, right) {
-                var normalize = function (value) {
-                    return String(value || '').trim().replace(/^v/i, '').split(/[^0-9]+/).filter(Boolean).map(function (part) {
-                        return parseInt(part, 10) || 0;
-                    });
-                };
-                var leftParts = normalize(left);
-                var rightParts = normalize(right);
-                var length = Math.max(leftParts.length, rightParts.length);
-                for (var index = 0; index < length; index += 1) {
-                    var leftValue = leftParts[index] || 0;
-                    var rightValue = rightParts[index] || 0;
-                    if (leftValue > rightValue) return 1;
-                    if (leftValue < rightValue) return -1;
-                }
-                return 0;
-            }
-
-            function openUpdateModal(updateConfig) {
-                var latestVersion = String(updateConfig.latestVersion || '').trim();
-                var modal = document.getElementById('app-update-modal');
-                var titleNode = document.getElementById('app-update-title');
-                var messageNode = document.getElementById('app-update-message');
-                var laterBtn = document.getElementById('app-update-later-btn');
-                var downloadBtn = document.getElementById('app-update-download-btn');
-                if (!updateConfig || !modal || !laterBtn || !downloadBtn) return;
-                if (titleNode) titleNode.textContent = updateConfig.headline || ('Guncel Surum ' + latestVersion + ' Hazir');
-                if (messageNode) {
-                    var notes = Array.isArray(updateConfig.notes) ? updateConfig.notes.filter(Boolean) : [];
-                    messageNode.textContent = notes.length ? notes.join(' ') : 'Yeni guncel surumu yuklemek icin APK Indir butonuna basabilirsiniz.';
-                }
-                laterBtn.onclick = function () {
-                    if (latestVersion) localStorage.setItem('cosx_app_update_dismissed', latestVersion);
-                    modal.classList.remove('is-open');
-                    modal.setAttribute('aria-hidden', 'true');
-                };
-                downloadBtn.onclick = function () {
-                    window.location.href = updateConfig.apkUrl || 'cosxomer-latest.apk';
-                };
-                modal.classList.add('is-open');
-                modal.setAttribute('aria-hidden', 'false');
-            }
-
-            async function resolveUpdateConfig() {
-                var localConfig = window.COSX_APP_UPDATE || null;
-                if (!localConfig) return null;
-                var remoteUrl = String(localConfig.remoteManifestUrl || '').trim();
-                if (!remoteUrl) return localConfig;
-                try {
-                    var response = await fetch(remoteUrl + '?t=' + Date.now(), { cache: 'no-store' });
-                    if (!response.ok) return localConfig;
-                    var remoteConfig = await response.json();
-                    return Object.assign({}, localConfig, remoteConfig || {});
-                } catch (error) {
-                    return localConfig;
-                }
-            }
-
-            var updateConfig = window.COSX_APP_UPDATE || null;
-            var modal = document.getElementById('app-update-modal');
-            if (updateConfig && modal) {
-                window.addEventListener('load', function () {
-                    resolveUpdateConfig().then(function (resolvedConfig) {
-                        if (!resolvedConfig) return;
-                        var currentVersion = String(resolvedConfig.currentVersion || updateConfig.currentVersion || '').trim();
-                        var latestVersion = String(resolvedConfig.latestVersion || '').trim();
-                        var dismissedVersion = localStorage.getItem('cosx_app_update_dismissed') || '';
-                        var hasNewerVersion = latestVersion && compareVersionStrings(latestVersion, currentVersion) > 0;
-                        if (!hasNewerVersion) return;
-                        if (dismissedVersion === latestVersion) return;
-                        openUpdateModal(resolvedConfig);
-                    });
-                }, { once: true });
-            }
-        })();
-    </script>
+    <!-- app-version.js kaldırıldı - artık APK update popup yok -->
     <script id="codex-github-pages-mobile-fix">
         (function () {
             function hasVisibleModal() {
