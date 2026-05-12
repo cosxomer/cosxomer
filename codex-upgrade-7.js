@@ -1213,6 +1213,11 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             selectedSubjects = [...resolvedSelectedSubjects];
         }
         mergeFreshDailySnapshotIntoLocalSchedule(currentUserLiveDoc);
+        applyAdminTimeAdjustmentToLocalSchedule(currentUserLiveDoc);
+        currentUserLiveDoc = {
+            ...(currentUserLiveDoc || {}),
+            schedule: sanitizeScheduleData(scheduleData || {})
+        };
         if (dailyResetState.needsSync) {
             queueAutoDailyResetSync();
         }
@@ -4521,8 +4526,24 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             dailyStudyTime: normalizedDailySeconds,
             todayStudyTime: normalizedDailySeconds,
             todayWorkedSeconds: normalizedDailySeconds,
-            weeklyStudyTime: currentWeekSeconds,
-            currentWeekSeconds,
+            // BUG FIX: schedule boş/eksikse currentWeekSeconds=0 olabilir.
+            // Aynı hafta ise Firestore'daki weeklyStudyTime ile max alarak koruma sağla.
+            weeklyStudyTime: (() => {
+                const storedWeekKey = String(safeData?.weeklyStudyWeekKey || safeData?.currentWeekKey || "").trim();
+                const isSameWeek = !storedWeekKey || storedWeekKey === currentMeta.weekKey;
+                const storedFallback = isSameWeek
+                    ? Math.max(parseInteger(safeData?.weeklyStudyTime, 0), parseInteger(safeData?.currentWeekSeconds, 0))
+                    : 0;
+                return Math.max(currentWeekSeconds, storedFallback);
+            })(),
+            currentWeekSeconds: (() => {
+                const storedWeekKey = String(safeData?.weeklyStudyWeekKey || safeData?.currentWeekKey || "").trim();
+                const isSameWeek = !storedWeekKey || storedWeekKey === currentMeta.weekKey;
+                const storedFallback = isSameWeek
+                    ? Math.max(parseInteger(safeData?.weeklyStudyTime, 0), parseInteger(safeData?.currentWeekSeconds, 0))
+                    : 0;
+                return Math.max(currentWeekSeconds, storedFallback);
+            })(),
             weeklyQuestions: currentWeekQuestions,
             weeklyQuestionCount: currentWeekQuestions,
             weekly: currentWeekQuestions,
@@ -5857,6 +5878,69 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         return true;
     }
 
+    function applyAdminTimeAdjustmentToLocalSchedule(userData = {}, referenceDate = new Date()) {
+        const adjustment = normalizeAdminTimeAdjustment(userData?.adminTimeAdjustment);
+        if (!adjustment) return false;
+
+        const currentMeta = getCurrentDayMeta(referenceDate);
+        const currentWeekKey = currentMeta.weekKey;
+        const currentDayIdx = currentMeta.dayIdx;
+        const isTodayAdjustment = adjustment.dateKey === currentMeta.dateKey;
+        const isCurrentWeekAdjustment = !adjustment.weekKey || adjustment.weekKey === currentWeekKey;
+
+        if (!isTodayAdjustment && adjustment.scope !== "week") return false;
+        if (!isCurrentWeekAdjustment) return false;
+
+        scheduleData = sanitizeScheduleData(scheduleData || {});
+        if (!scheduleData[currentWeekKey]) scheduleData[currentWeekKey] = {};
+
+        const remoteSchedule = sanitizeScheduleData(userData?.schedule || {});
+        const localToday = ensureDayObject(scheduleData?.[currentWeekKey]?.[currentDayIdx] || {});
+        const remoteToday = ensureDayObject(remoteSchedule?.[currentWeekKey]?.[currentDayIdx] || {});
+        let changed = false;
+
+        if (adjustment.scope === "today" || adjustment.scope === "total" || adjustment.scope === "yesterday") {
+            const forcedDaySeconds = Math.max(
+                0,
+                parseInteger(localToday.workedSeconds, 0),
+                parseInteger(remoteToday.workedSeconds, 0),
+                parseInteger(adjustment.appliedDaySeconds, 0),
+                parseInteger(adjustment.targetSeconds, 0)
+            );
+            if (forcedDaySeconds > parseInteger(localToday.workedSeconds, 0)) {
+                scheduleData[currentWeekKey][currentDayIdx] = ensureDayObject({
+                    ...remoteToday,
+                    ...localToday,
+                    workedSeconds: forcedDaySeconds
+                });
+                changed = true;
+            }
+        }
+
+        if (adjustment.scope === "week" && isCurrentWeekAdjustment) {
+            const currentWeekSeconds = getCurrentWeekWorkedSecondsFromSchedule(scheduleData || {}, referenceDate);
+            const forcedWeekSeconds = Math.max(
+                currentWeekSeconds,
+                parseInteger(adjustment.appliedWeekSeconds, 0),
+                parseInteger(adjustment.targetSeconds, 0)
+            );
+            if (forcedWeekSeconds > currentWeekSeconds) {
+                const todaySnapshot = ensureDayObject(scheduleData?.[currentWeekKey]?.[currentDayIdx] || {});
+                scheduleData[currentWeekKey][currentDayIdx] = ensureDayObject({
+                    ...todaySnapshot,
+                    workedSeconds: Math.max(0, parseInteger(todaySnapshot.workedSeconds, 0)) + (forcedWeekSeconds - currentWeekSeconds)
+                });
+                changed = true;
+            }
+        }
+
+        if (!changed) return false;
+        if (typeof refreshCurrentTotals === "function") {
+            refreshCurrentTotals();
+        }
+        return true;
+    }
+
     function buildRealtimeStudyPayload(options = {}) {
         const safeProfile = resolveWritableCurrentUserProfile();
         scheduleData = sanitizeScheduleData(
@@ -6936,6 +7020,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         session.startedAtMs = 0;
         session.lastSeenAtMs = commitState.referenceMs;
         session.sessionDateKey = getCurrentDayMeta(new Date(commitState.referenceMs)).dateKey;
+        // BUG FIX: Kullanıcı tarafından bilinçli durduruldu işareti.
+        // beforeunload handler bu flag'i görünce session'ı localStorage'a geri yazmaz,
+        // böylece gereksiz day-boundary reset tetiklenmez.
+        session._explicitlyPaused = true;
         timerState.session = session;
         timerDrafts[session.mode] = { ...session };
         isRunning = false;
@@ -8242,14 +8330,15 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
         const leaderboardData = buildLeaderboardViewModelFromDocs();
         leaderboardUserProfiles = {};
-        listContainer.innerHTML = "";
 
         if (!leaderboardData.length) {
             listContainer.innerHTML = '<p style="text-align:center; opacity:0.7;">Henüz veri kaydedilmedi.</p>';
             return;
         }
 
-        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+        // CPU opt: DocumentFragment ile tüm item'ları tek seferde DOM'a yaz (tek reflow)
+        const fragment = document.createDocumentFragment();
+        const handlers = [];
 
         leaderboardData.forEach((user, index) => {
             const item = document.createElement("div");
@@ -8259,15 +8348,16 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             else if (index === 1) item.classList.add("rank-2");
             else if (index === 2) item.classList.add("rank-3");
 
-            item.onclick = () => openLeaderboardProfile(user.uid);
             leaderboardUserProfiles[user.uid] = user;
+            handlers.push({ item, uid: user.uid });
 
             const adminBadgeHtml = user.isAdmin && typeof getAdminBadgeHtml === "function" ? getAdminBadgeHtml("small") : "";
             const titleBadgeHtml = user.titleInfo && typeof getTitleBadgeHtml === "function" ? getTitleBadgeHtml(user.titleInfo, "small") : "";
             const localBadgeHtml = user.isLocalPreview ? '<span class="leaderboard-questions" style="display:inline-flex; margin-top:4px; font-size:0.68em;">Bu Cihaz</span>' : "";
+            const avatarSrc = escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "");
             item.innerHTML = `
                 <div class="leaderboard-rank">#${index + 1}</div>
-                <img class="leaderboard-avatar" src="${escapeHtml(typeof getProfileImageSrc === "function" ? getProfileImageSrc(user.profileImage, user.username) : "")}" alt="${escapeHtml(user.username)}">
+                <img class="leaderboard-avatar" src="${avatarSrc}" alt="${escapeHtml(user.username)}" loading="lazy" decoding="async">
                 <div class="leaderboard-name-wrapper">
                     <div class="leaderboard-name">${escapeHtml(user.username)}</div>
                     <div class="leaderboard-extra-badges">${adminBadgeHtml}${titleBadgeHtml}${localBadgeHtml}</div>
@@ -8278,8 +8368,25 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
                 </div>
             `;
 
-            listContainer.appendChild(item);
+            fragment.appendChild(item);
         });
+
+        // Tek seferde DOM'a yaz — reflow yalnızca bir kez
+        listContainer.innerHTML = "";
+        prependPinnedLocalLeaderboardSummary(listContainer, leaderboardData);
+        listContainer.appendChild(fragment);
+
+        // onclick'leri DOM'a yazıldıktan sonra bağla
+        handlers.forEach(({ item, uid }) => {
+            item.onclick = () => openLeaderboardProfile(uid);
+        });
+
+        // Bronz köşe spark: CSS değişkenlerini item boyutuna göre ayarla
+        const rank3 = listContainer.querySelector(".leaderboard-item.rank-3");
+        if (rank3) {
+            rank3.style.setProperty("--spark-x", Math.max(0, rank3.offsetWidth - 32) + "px");
+            rank3.style.setProperty("--spark-y", Math.max(0, rank3.offsetHeight - 32) + "px");
+        }
     }
 
     function subscribeRealtimeLeaderboard() {
@@ -9885,6 +9992,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         userNotes = normalizeUserNotes(safeData.notes || []);
         scheduleData = sanitizeScheduleData(safeData.schedule || {});
         mergeFreshDailySnapshotIntoLocalSchedule(safeData);
+        applyAdminTimeAdjustmentToLocalSchedule(safeData);
         const restoredTimerRecovery = mergeTimerRecoveryScheduleIntoLocalState();
         totalWorkedSecondsAllTime = Math.max(parseInteger(safeData.totalWorkedSeconds, 0), parseInteger(safeData.totalStudyTime, 0), typeof calculateTotalWorkedSecondsFromSchedule === "function" ? calculateTotalWorkedSecondsFromSchedule(scheduleData) : 0);
         totalQuestionsAllTime = Math.max(parseInteger(safeData.totalQuestionsAllTime, 0), typeof calculateTotalQuestionsFromSchedule === "function" ? calculateTotalQuestionsFromSchedule(scheduleData) : 0);
@@ -10992,11 +11100,35 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
 
             window.addEventListener("beforeunload", () => {
                 if (timerState.session) {
-                    preserveTimerStateForRecovery(timerState.session, {
-                        modalOpen: isTimerModalOpen(),
-                        includeRecovery: getPendingTimerDelta(timerState.session) > 0
-                    });
+                    // BUG FIX: Timer durdurulmuş olsa bile schedule verisi varsa recovery snapshot kaydet.
+                    // Firestore yazısı browser kapanırken tamamlanamayabilir; bu snapshot koruma sağlar.
+                    const hasPendingDelta = getPendingTimerDelta(timerState.session) > 0;
+                    const hasScheduleActivity = scheduleData && typeof scheduleData === "object"
+                        && Object.values(scheduleData).some(week =>
+                            week && typeof week === "object"
+                            && Object.values(week).some(day => parseInteger(day?.workedSeconds, 0) > 0)
+                        );
+                    // BUG FIX: _explicitlyPaused=true ise kullanıcı bilinçli durdurmuş demektir.
+                    // persistTimerSessionLocally ile session'ı geri yazma — zaten null olarak ayarlandı.
+                    // Bu sayede gereksiz day-boundary reset tetiklenmez.
+                    if (!timerState.session._explicitlyPaused) {
+                        preserveTimerStateForRecovery(timerState.session, {
+                            modalOpen: isTimerModalOpen(),
+                            includeRecovery: hasPendingDelta || hasScheduleActivity
+                        });
+                    } else if (hasPendingDelta || hasScheduleActivity) {
+                        // Session yazılmasın ama schedule snapshot'ı kaydet
+                        persistTimerRecoverySnapshot();
+                    }
                 } else {
+                    // Timer hiç başlatılmamış ama schedule verisi varsa yine de kaydet
+                    if (currentUser?.uid && scheduleData && typeof scheduleData === "object") {
+                        const hasActivity = Object.values(scheduleData).some(week =>
+                            week && typeof week === "object"
+                            && Object.values(week).some(day => parseInteger(day?.workedSeconds, 0) > 0)
+                        );
+                        if (hasActivity) persistTimerRecoverySnapshot();
+                    }
                     localStorage.removeItem(TIMER_STORAGE_KEY);
                 }
                 clearLegacyPomodoroStorage();
@@ -11175,13 +11307,13 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             document.body.classList.add("leaderboard-live-low");
 
             // 2. Mevcut local veriyle ANINDA render et (skeleton yerine gerçek veri)
+            // CPU opt: buildLeaderboardViewModelFromDocs sadece bir kez çağrılıyor
+            // (renderLiveLeaderboardFromDocs zaten içinde çağırıyor — çift çağrı önlendi)
             const listContainer = document.getElementById("leaderboard-list");
-            const localDocs = typeof buildLeaderboardViewModelFromDocs === "function"
-                ? buildLeaderboardViewModelFromDocs()
-                : [];
+            const hasLocalDocs = leaderboardRealtimeDocs.length > 0;
 
-            if (localDocs.length > 0) {
-                // Lokal veri varsa hemen göster
+            if (hasLocalDocs) {
+                // Lokal veri varsa hemen göster (render içinde build çağrılır)
                 renderLiveLeaderboardFromDocs();
             } else if (listContainer) {
                 // Veri yoksa skeleton göster
