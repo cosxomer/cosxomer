@@ -5050,6 +5050,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             || (editable ? (currentUser?.email || "") : "")
             || ""
         ).trim();
+        const visibleEmail = sanitizeProfileEmailForViewer(resolvedEmail, editable);
         const resolvedStudyTrack = String(
             safeBase.studyTrack
             || safeUser.studyTrack
@@ -5136,7 +5137,7 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         return {
             uid: resolvedUid,
             username: resolvedUsername || "Kullanici",
-            email: resolvedEmail,
+            email: visibleEmail,
             isAdmin: resolvedIsAdmin,
             about: String(
                 safeBase.about
@@ -6099,7 +6100,10 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
             ...baseData,
             username: safeProfile.username || baseData.username || "Kullanıcı",
             name: safeProfile.username || baseData.name || baseData.username || "Kullanici",
-            email: safeProfile.email || currentUser?.email || baseData.email || "",
+            email: sanitizeProfileEmailForViewer(
+                safeProfile.email || currentUser?.email || baseData.email || "",
+                true
+            ),
             isAdmin: typeof isCurrentAdmin === "function" ? isCurrentAdmin() : !!baseData.isAdmin,
             about: safeProfile.about || baseData.about || "",
             profileImage: safeProfile.profileImage || baseData.profileImage || "",
@@ -12049,18 +12053,31 @@ const BROKEN_UI_TEXT_REPLACEMENTS = [
         return emailNode;
     }
 
+    function canCurrentViewerSeeProfileEmail() {
+        const adminEmail = "omrfrk.37.kaya@gmail.com";
+        const viewerEmail = String(currentUser?.email || "").trim().toLowerCase();
+        const viewerIsAdmin = typeof isCurrentAdmin === "function" ? isCurrentAdmin() : false;
+        return !!viewerIsAdmin && viewerEmail === adminEmail;
+    }
+
+    function sanitizeProfileEmailForViewer(emailValue, editable = false) {
+        if (!canCurrentViewerSeeProfileEmail()) return "";
+        const fallbackEmail = editable ? String(currentUser?.email || "").trim() : "";
+        return String(emailValue || fallbackEmail || "").trim();
+    }
+
     function patchProfileEmailDisplay() {
         if (typeof showProfileModal !== "function" || showProfileModal.__codexEmailDisplayPatched) return;
         const originalShowProfileModal = showProfileModal;
         showProfileModal = function(profileData = {}, editable) {
-            originalShowProfileModal.apply(this, arguments);
+            const sanitizedProfileData = {
+                ...(profileData || {}),
+                email: sanitizeProfileEmailForViewer(profileData?.email, editable)
+            };
+            originalShowProfileModal.call(this, sanitizedProfileData, editable);
             const emailNode = ensureProfileEmailField();
             if (!emailNode) return;
-            const email = String(
-                profileData.email
-                || (editable ? currentUser?.email : "")
-                || ""
-            ).trim();
+            const email = sanitizeProfileEmailForViewer(sanitizedProfileData.email, editable);
             if (email) {
                 emailNode.textContent = `E-posta: ${email}`;
                 emailNode.style.display = "";
