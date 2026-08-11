@@ -4703,7 +4703,7 @@
         </div>
 
         <div id="yks-countdown-container">
-            <h2> YKS 2026'ya Kalan Süre </h2>
+            <h2> YKS 2027'ye Kalan Süre </h2>
             <div class="countdown-group">
                 <div class="countdown-item">
                     <svg class="countdown-svg" viewBox="0 0 40 40">
@@ -4756,7 +4756,7 @@
                     </div>
                 </div>
             </div>
-            <p id="yks-target-date">21 Haziran 2026 @ 10:00</p>
+            <p id="yks-target-date">19 Haziran 2027 @ 10:00</p>
         </div>
 
         <div class="week-nav" style="padding: 15px 40px; display: flex; justify-content: space-between; align-items: center; background-color: var(--container-bg); border-bottom: 1px solid var(--border-color);">
@@ -7282,12 +7282,12 @@
                 };
             }
 
-            const targetDate = new Date('June 21, 2026 10:00:00').getTime();
+            const targetDate = new Date(2027, 5, 19, 10, 0, 0).getTime();
             const now = Date.now();
             const diff = targetDate - now;
 
             if (diff <= 0) {
-                countdownRefs.container.innerHTML = "<h2>Sınav Başladı! Başarılar.</h2>";
+                countdownRefs.container.innerHTML = "<h2>YKS 2027 başladı. Başarılar!</h2>";
                 return;
             }
 
